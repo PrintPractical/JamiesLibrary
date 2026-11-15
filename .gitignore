@@ -1,0 +1,6 @@
+node_modules/
+data/
+
+# Web build output: only .gitkeep stays, so `go build` works on a fresh checkout.
+/internal/webui/dist/*
+!/internal/webui/dist/.gitkeep
