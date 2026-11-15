@@ -20,6 +20,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"jamieslibrary/internal/clock"
+
 	_ "modernc.org/sqlite" // the database/sql driver "sqlite"
 )
 
@@ -30,7 +32,7 @@ const TmpMaxAge = time.Hour
 type Options struct {
 	// Migrations replaces the embedded migrations (tests).
 	Migrations fs.FS
-	// Now replaces the clock (tests).
+	// Now replaces the clock, which is clock.Now by default (tests).
 	Now func() time.Time
 }
 
@@ -63,7 +65,7 @@ func Open(ctx context.Context, dir string, opts Options) (*Store, error) {
 	}
 	s := &Store{dir: dir, lock: lock, now: opts.Now}
 	if s.now == nil {
-		s.now = time.Now
+		s.now = clock.Now
 	}
 	if err := s.open(ctx, opts); err != nil {
 		s.Close()

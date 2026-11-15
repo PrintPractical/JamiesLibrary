@@ -12,6 +12,8 @@ import (
 	"sort"
 	"strconv"
 	"time"
+
+	"jamieslibrary/internal/testhooks"
 )
 
 //go:embed migrations
@@ -153,6 +155,10 @@ func (s *Store) migrate(ctx context.Context, all []migration) error {
 	}
 	for _, m := range pending {
 		if _, err := tx.ExecContext(ctx, m.sql); err != nil {
+			return &MigrationError{Version: m.version, Name: m.name, Backup: backup, Err: err}
+		}
+		// A test build can make this migration fail after its statements ran.
+		if err := testhooks.FailMigration(m.version); err != nil {
 			return &MigrationError{Version: m.version, Name: m.name, Backup: backup, Err: err}
 		}
 		if _, err := tx.ExecContext(ctx, `INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)`,
