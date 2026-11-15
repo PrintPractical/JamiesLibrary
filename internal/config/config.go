@@ -29,7 +29,10 @@ type Config struct {
 	TLSCert, TLSKey string
 	// HTTPOnly serves the app over plain HTTP, for a reverse proxy.
 	HTTPOnly bool
-	LogLevel slog.Level
+	// BindAddress is the local IP address both listeners bind to (JL_BIND_ADDRESS);
+	// empty means every interface.
+	BindAddress string
+	LogLevel    slog.Level
 }
 
 const (
@@ -62,6 +65,7 @@ func Parse(args []string, getenv func(string) string) (Config, error) {
 	dataDir := fs.String("data", env("JL_DATA_DIR", defaultDataDir), "data directory (JL_DATA_DIR)")
 	port := fs.String("port", env("JL_HTTP_PORT", defaultHTTPPort), "HTTP port (JL_HTTP_PORT)")
 	httpsPort := fs.String("https-port", env("JL_HTTPS_PORT", defaultHTTPSPort), "HTTPS port (JL_HTTPS_PORT)")
+	bind := fs.String("bind", env("JL_BIND_ADDRESS", ""), "IP address to listen on, empty for every interface (JL_BIND_ADDRESS)")
 	level := fs.String("log-level", env("JL_LOG_LEVEL", defaultLogLevel), "log level: debug, info, warn, error (JL_LOG_LEVEL)")
 	if err := fs.Parse(args); err != nil {
 		return Config{}, fmt.Errorf("invalid command line: %w", err)
@@ -93,6 +97,13 @@ func Parse(args []string, getenv func(string) string) (Config, error) {
 		return Config{}, fmt.Errorf("%s must be a port number from 1 to 65535, got %q", source("https-port", "JL_HTTPS_PORT"), *httpsPort)
 	}
 	c.HTTPSPort = sp
+	if b := strings.TrimSpace(*bind); b != "" {
+		ip := net.ParseIP(b)
+		if ip == nil {
+			return Config{}, fmt.Errorf("%s must be an IP address such as 127.0.0.1, got %q", source("bind", "JL_BIND_ADDRESS"), *bind)
+		}
+		c.BindAddress = ip.String()
+	}
 	if c.Addresses, err = parseAddresses(env("JL_ADDRESSES", "")); err != nil {
 		return Config{}, err
 	}
