@@ -5,7 +5,6 @@ package server
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -68,14 +67,12 @@ func Run(ctx context.Context, o Options) error {
 		return err
 	}
 	defer control.Close()
-	// A library that already exists must find its CA again (tlsca.Open).
-	dbExisted := exists(filepath.Join(cfg.DataDir, "library.db"))
 	st, err := store.Open(ctx, cfg.DataDir, store.Options{Migrations: o.Migrations})
 	if err != nil {
 		return err
 	}
 	defer st.Close()
-	tlsCfg, ca, err := tlsSetup(cfg, st.Dir(), dbExisted, log)
+	tlsCfg, ca, err := tlsSetup(cfg, st.Dir(), log)
 	if err != nil {
 		return err
 	}
@@ -147,51 +144,44 @@ func Run(ctx context.Context, o Options) error {
 
 // tlsSetup chooses how the app is served: with no TLS configuration (plain
 // HTTP for a proxy), with the owner's certificate, or with the local CA.
-func tlsSetup(cfg config.Config, dataDir string, dbExisted bool, log *slog.Logger) (*tls.Config, *tlsca.CA, error) {
-	// Without a local CA the data directory records that none was ever made, so
-	// a later switch to the local CA isn't taken for a lost tls/ directory.
-	marker := filepath.Join(dataDir, noCAMarker)
+func tlsSetup(cfg config.Config, dataDir string, log *slog.Logger) (*tls.Config, *tlsca.CA, error) {
 	newConfig := func(get func(*tls.ClientHelloInfo) (*tls.Certificate, error)) *tls.Config {
 		return &tls.Config{MinVersion: tls.VersionTLS12, GetCertificate: get, NextProtos: []string{"h2", "http/1.1"}}
 	}
 	switch {
 	case cfg.HTTPOnly:
-		return nil, nil, noteNoCA(dataDir, marker)
+		return nil, nil, nil
 	case cfg.TLSCert != "":
 		fc, err := tlsca.LoadFiles(cfg.TLSCert, cfg.TLSKey, log)
 		if err != nil {
 			return nil, nil, err
 		}
-		return newConfig(fc.GetCertificate), nil, noteNoCA(dataDir, marker)
+		return newConfig(fc.GetCertificate), nil, nil
 	}
+	// A CA that was made once must be found again: its marker outlives tls/, so
+	// a lost tls/ is an error. A data directory where no start ever got as far
+	// as making a CA (a failed first start, a proxy install) just gets one.
+	marker := filepath.Join(dataDir, caMadeMarker)
 	ca, err := tlsca.Open(dataDir, tlsca.Options{
 		Hostnames:    cfg.Hostnames,
 		Addresses:    cfg.Addresses,
-		ExistingData: dbExisted && !exists(marker),
+		ExistingData: exists(marker),
 		Logger:       log,
 	})
 	if err != nil {
 		return nil, nil, err
 	}
-	if err := os.Remove(marker); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return nil, nil, fmt.Errorf("cannot remove %q: %w", marker, err)
+	if !exists(marker) {
+		if err := os.WriteFile(marker, nil, 0o600); err != nil {
+			return nil, nil, fmt.Errorf("cannot write %q: %w", marker, err)
+		}
 	}
 	return newConfig(ca.GetCertificate), ca, nil
 }
 
-// noCAMarker is the file in the data directory that says the installation has
-// run without a local CA.
-const noCAMarker = "no-local-ca"
-
-func noteNoCA(dataDir, marker string) error {
-	if exists(filepath.Join(dataDir, tlsca.DirName)) {
-		return nil
-	}
-	if err := os.WriteFile(marker, nil, 0o600); err != nil {
-		return fmt.Errorf("cannot write %q: %w", marker, err)
-	}
-	return nil
-}
+// caMadeMarker is the file in the data directory that says a local CA exists
+// for this installation, so tls/ going missing is noticed.
+const caMadeMarker = "local-ca-made"
 
 func exists(path string) bool {
 	_, err := os.Stat(path)

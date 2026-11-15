@@ -226,8 +226,29 @@ func TestSwitchingFromProxyModeToLocalCAIsNotALostCA(t *testing.T) {
 		t.Fatalf("a library that never had a CA could not get one: %v", err)
 	}
 	s2.Stop()
-	if _, err := os.Stat(filepath.Join(dir, "no-local-ca")); err == nil {
-		t.Error("the no-CA marker was left after a CA was made")
+}
+
+// A first start that fails after the database exists (a typo in the certificate
+// settings) must not leave an install that thinks its CA was lost.
+func TestFailedFirstStartThenLocalCA(t *testing.T) {
+	dir := t.TempDir()
+	_, err := testutil.TryStartServer(t, testutil.Options{DataDir: dir, Env: map[string]string{
+		"JL_HTTP_ONLY": "", "JL_TLS_CERT": "/nope", "JL_TLS_KEY": "/nope"}})
+	if err == nil {
+		t.Fatal("bad certificate files started")
+	}
+	if _, statErr := os.Stat(filepath.Join(dir, "library.db")); statErr != nil {
+		t.Fatal("the failed start was meant to leave a database behind")
+	}
+	s, err := testutil.TryStartServer(t, testutil.Options{DataDir: dir, Env: tlsEnv("")})
+	if err != nil {
+		t.Fatalf("the local CA was refused after a failed first start: %v", err)
+	}
+	s.Stop()
+	// Once a CA was made, losing tls/ is an error again.
+	os.RemoveAll(filepath.Join(dir, "tls"))
+	if _, err := testutil.TryStartServer(t, testutil.Options{DataDir: dir, Env: tlsEnv("")}); err == nil {
+		t.Fatal("a lost tls/ was not noticed")
 	}
 }
 
