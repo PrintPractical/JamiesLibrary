@@ -14,6 +14,7 @@ import (
 
 	"jamieslibrary/internal/config"
 	"jamieslibrary/internal/httpapi"
+	"jamieslibrary/internal/settings"
 	"jamieslibrary/internal/store"
 	"jamieslibrary/internal/testhooks"
 	"jamieslibrary/internal/webui"
@@ -69,7 +70,17 @@ func Run(ctx context.Context, o Options) error {
 		}
 	}
 	log.Info("listening", "addr", ln.Addr().String(), "version", o.Version)
-	h := httpapi.NewHandler(httpapi.Options{Version: o.Version, Logger: log, Static: webui.Handler()})
+	set, err := settings.New(ctx, st)
+	if err != nil {
+		return err
+	}
+	h, err := httpapi.NewHandler(httpapi.Options{
+		Version: o.Version, Logger: log, Static: webui.Handler(),
+		PublicCatalogOn: func() bool { return set.Get().PublicCatalog },
+	})
+	if err != nil {
+		return err
+	}
 	if o.Ready != nil {
 		o.Ready(Ready{HTTPAddr: ln.Addr().String(), ControlAddr: control.Addr()})
 	}

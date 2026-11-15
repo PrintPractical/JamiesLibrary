@@ -27,7 +27,11 @@ func testHandler(t *testing.T, buf *bytes.Buffer) http.Handler {
 		w.Header().Set("Content-Type", "text/html")
 		fmt.Fprint(w, "<html>app</html>")
 	})
-	return NewHandler(Options{Version: "1.2.3", Logger: slog.New(slog.NewTextHandler(out, nil)), Static: static})
+	h, err := NewHandler(Options{Version: "1.2.3", Logger: slog.New(slog.NewTextHandler(out, nil)), Static: static})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return h
 }
 
 func do(h http.Handler, method, path, body string) *httptest.ResponseRecorder {
