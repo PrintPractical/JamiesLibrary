@@ -91,6 +91,14 @@ export function ScanField({
     setTorch(null);
   }, []);
 
+  // The camera button goes when it's used, closed over, or refused, and focus would fall to the
+  // page: put it back in the field, so a handheld scanner keeps working. Not on first render.
+  const changed = useRef(false);
+  useEffect(() => {
+    if (changed.current) input.current?.focus({ preventScroll: true });
+    changed.current = true;
+  }, [camera, problem]);
+
   // A device with no camera at all shouldn't be offered one.
   useEffect(() => {
     if (cameraProblem() !== null) return;

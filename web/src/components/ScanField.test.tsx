@@ -199,3 +199,26 @@ test("a decoder that fails every frame closes the camera instead of failing sile
   expect(cam.track.stop).toHaveBeenCalled();
   expect(screen.getByRole("status")).toHaveTextContent(/couldn't start/i);
 });
+
+test("the field has focus after the camera opens, closes, or is refused, so a handheld scanner's codes still go in", async () => {
+  const { onScan } = await openWith([[]]);
+  const field = screen.getByLabelText("Code");
+  expect(field).toHaveFocus();
+  await userEvent.keyboard("111{Enter}");
+  expect(onScan).toHaveBeenLastCalledWith("111");
+  fireEvent.click(screen.getByRole("button", { name: "Close camera" }));
+  expect(field).toHaveFocus();
+  await userEvent.keyboard("222{Enter}");
+  expect(onScan).toHaveBeenLastCalledWith("222");
+});
+
+test("the field has focus after a refused camera", async () => {
+  fakeCamera({ reject: "NotAllowedError" });
+  const onScan = vi.fn();
+  render(<ScanField label="Code" onScan={onScan} />);
+  await userEvent.click(await screen.findByRole("button", { name: "Scan with the camera" }));
+  await screen.findByRole("status");
+  expect(screen.getByLabelText("Code")).toHaveFocus();
+  await userEvent.keyboard("333{Enter}");
+  expect(onScan).toHaveBeenCalledWith("333");
+});
