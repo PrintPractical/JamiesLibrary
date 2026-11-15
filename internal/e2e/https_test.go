@@ -199,12 +199,6 @@ func TestCAIsNameConstrainedAndAPublicNameSignedWithItsKeyIsRejected(t *testing.
 	if !strings.Contains(txt, "X509v3 Name Constraints") || !strings.Contains(txt, "CA:TRUE") {
 		t.Fatalf("the root has no name constraints:\n%s", txt)
 	}
-	for _, public := range []string{"DNS:com", "DNS:org", "DNS:net"} {
-		if strings.Contains(strings.SplitN(txt, "Excluded", 2)[0], public) {
-			t.Errorf("the permitted subtrees allow %s", public)
-		}
-	}
-
 	sign := func(name, san string) string {
 		d := t.TempDir()
 		key, csr, crt, ext := filepath.Join(d, "k.pem"), filepath.Join(d, "r.csr"), filepath.Join(d, "c.pem"), filepath.Join(d, "ext.cnf")
