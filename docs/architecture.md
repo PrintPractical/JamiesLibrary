@@ -67,6 +67,8 @@ The database is SQLite (`modernc.org/sqlite`, pure Go, so no C compiler is neede
 - A file that is misnamed, or repeats a number, stops the program from starting.
 - Applied versions are recorded in the `schema_migrations` table (`version`, `name`, `applied_at`).
 
+**Writes that must agree go in one transaction.** When one action changes several areas (a checkout and its activity record, say), the service methods involved take a `store.Tx` (an alias for `*sql.Tx`) and the caller opens the transaction with `store.WithTx`, so either every change is kept or none is. A service never opens a second transaction inside the caller's. Reporting is the one package allowed to read other areas' tables directly, with read-only SQL; every other package goes through the owning service.
+
 Tests open a real database in a temporary directory; `store.Options{Migrations: fsys}` replaces the embedded migrations for a test.
 
 ## Barcodes

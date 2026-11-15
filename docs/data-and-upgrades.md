@@ -13,7 +13,7 @@ data/
   tmp/                        short-lived files; any over an hour old are removed at start and hourly
 ```
 
-The directory is readable by its owner only (mode 0700) and so is every file in it (0600). The server restores those modes at each start.
+The directory is readable by its owner only (mode 0700) and so is every file in it (0600). Everything the server creates there is made owner-only, and at each start it re-tightens the directory, the database (with its log files), the lock file and `tmp/`. `backups/` and the files in it are made private when an upgrade writes them and are not re-checked later.
 
 ## Backing up
 

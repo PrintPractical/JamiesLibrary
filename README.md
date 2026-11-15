@@ -8,7 +8,7 @@ Licensed under the [Apache License 2.0](LICENSE).
 
 ## Build and run from source
 
-You need Go 1.27 or newer and a current Node.js with npm (the web app is built with Vite, so any actively supported Node release works).
+You need Go 1.27 or newer and Node.js 22.12 or newer (Vite 8 also accepts 20.19 and later) with npm.
 
 ```sh
 cd web && npm ci && npm run build && cd ..   # builds the web app into internal/webui/dist
