@@ -48,8 +48,9 @@ func cleanPath(r *http.Request) string {
 	return strings.ReplaceAll(p, "\n", " ")
 }
 
-// Server timeouts (r1-architecture §13).
+// Server bounds: header size and timeouts (r1-architecture §13, security design §12).
 const (
+	MaxHeaderBytes    = 64 << 10
 	ReadHeaderTimeout = 10 * time.Second
 	ReadTimeout       = 60 * time.Second
 	WriteTimeout      = 60 * time.Second

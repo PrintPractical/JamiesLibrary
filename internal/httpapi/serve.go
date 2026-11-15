@@ -14,6 +14,7 @@ func Serve(ctx context.Context, ln net.Listener, h http.Handler, log *slog.Logge
 	srv := &http.Server{
 		Handler:           h,
 		ReadHeaderTimeout: ReadHeaderTimeout,
+		MaxHeaderBytes:    MaxHeaderBytes,
 		ReadTimeout:       ReadTimeout,
 		WriteTimeout:      WriteTimeout,
 		IdleTimeout:       IdleTimeout,

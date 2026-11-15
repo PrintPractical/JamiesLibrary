@@ -9,8 +9,8 @@ import (
 	"jamieslibrary/internal/apperr"
 )
 
-// MaxJSONBody is the largest JSON request body the API reads.
-const MaxJSONBody = 1 << 20
+// MaxJSONBody is the largest JSON request body the API reads (security design §12).
+const MaxJSONBody = 64 << 10
 
 // WriteJSON sends v as the response body with the given status.
 func WriteJSON(w http.ResponseWriter, status int, v any) {

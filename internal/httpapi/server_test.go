@@ -218,3 +218,52 @@ func TestServeShutsDownGracefully(t *testing.T) {
 		t.Fatal("Serve did not return after cancel")
 	}
 }
+
+func TestBodyLimitIsExactly64KiB(t *testing.T) {
+	if MaxJSONBody != 64<<10 {
+		t.Fatalf("MaxJSONBody = %d", MaxJSONBody)
+	}
+	wrap := `{"name":""}`
+	under := `{"name":"` + strings.Repeat("a", MaxJSONBody-len(wrap)) + `"}` // exactly the limit
+	if len(under) != MaxJSONBody {
+		t.Fatalf("test body is %d bytes", len(under))
+	}
+	if _, err := decode(under); err != nil {
+		t.Fatalf("body at the limit refused: %v", err)
+	}
+	if _, err := decode(under + " "); err == nil {
+		// trailing space is one byte over the limit
+		t.Fatal("body one byte over the limit accepted")
+	} else if e, ok := apperr.As(err); !ok || e.Code != apperr.TooLarge {
+		t.Fatalf("got %v, want too_large", err)
+	}
+	if _, err := decode(`{"name":"` + strings.Repeat("a", 200<<10) + `"}`); err == nil {
+		t.Fatal("200 KiB body accepted")
+	}
+}
+
+func TestOversizedHeadersRefusedByRealListener(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go Serve(ctx, ln, testHandler(t, nil), slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)))
+	get := func(size int) int {
+		req, _ := http.NewRequest("GET", "http://"+ln.Addr().String()+"/api/health", nil)
+		req.Header.Set("X-Pad", strings.Repeat("a", size))
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp.StatusCode
+	}
+	if got := get(32 << 10); got != 200 {
+		t.Fatalf("32 KiB of headers: status %d", got)
+	}
+	if got := get(100 << 10); got != 431 {
+		t.Fatalf("70 KiB of headers: status %d, want 431", got)
+	}
+}
