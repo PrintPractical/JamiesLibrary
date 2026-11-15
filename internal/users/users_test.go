@@ -2,6 +2,7 @@ package users
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"jamieslibrary/internal/apperr"
@@ -162,5 +163,51 @@ func TestBadInput(t *testing.T) {
 	}
 	if _, err := s.SetPermission(ctx, 999, perm.CatalogBrowse, true); err == nil {
 		t.Error("switched for a missing user")
+	}
+}
+
+// Security design §8: names that impersonate or smuggle control characters are refused.
+func TestNamesThatLookLikeAnotherPersonAreRefused(t *testing.T) {
+	s := newService(t)
+	create(t, s, "jamie", perm.Patron)
+	cases := map[string]struct {
+		n     NewUser
+		field string
+	}{
+		"bidi override in display name": {NewUser{Username: "a1", DisplayName: "\u202eeimaJ"}, "display_name"},
+		"bidi isolate in display name":  {NewUser{Username: "a2", DisplayName: "Ja\u2066mie"}, "display_name"},
+		"zero-width in display name":    {NewUser{Username: "a3", DisplayName: "Ja\u200bmie"}, "display_name"},
+		"control in display name":       {NewUser{Username: "a4", DisplayName: "x\x1b[31m"}, "display_name"},
+		"display name over 64":          {NewUser{Username: "a5", DisplayName: strings.Repeat("a", 65)}, "display_name"},
+		"zero-width in username":        {NewUser{Username: "jamie\u200b", DisplayName: "Jamie"}, "username"},
+		"bidi in username":              {NewUser{Username: "\u202ejamie", DisplayName: "Jamie"}, "username"},
+		"NUL in username":               {NewUser{Username: "ad\x00min", DisplayName: "x"}, "username"},
+		"space in username":             {NewUser{Username: "ja mie", DisplayName: "x"}, "username"},
+		"no-break space in username":    {NewUser{Username: "ja\u00a0mie", DisplayName: "x"}, "username"},
+		"username over 64":              {NewUser{Username: strings.Repeat("a", 65), DisplayName: "x"}, "username"},
+		"blank username":                {NewUser{Username: " \t ", DisplayName: "x"}, "username"},
+	}
+	for name, c := range cases {
+		c.n.Role = perm.Patron
+		_, err := s.Create(ctx, c.n)
+		if e, ok := apperr.As(err); !ok || e.Code != apperr.Invalid || e.Field != c.field {
+			t.Errorf("%s: err = %v, want invalid on %s", name, err, c.field)
+		}
+	}
+	var n int
+	s.st.DB().QueryRow(`SELECT count(*) FROM users`).Scan(&n)
+	if n != 1 {
+		t.Errorf("%d accounts exist, want only the first", n)
+	}
+}
+
+func TestOrdinaryNamesAreAccepted(t *testing.T) {
+	s := newService(t)
+	u, err := s.Create(ctx, NewUser{Username: " zoë.o'neil ", DisplayName: "  Zoë O’Neil 山田  ", PasswordHash: "x", Role: perm.Patron})
+	if err != nil || u.Username != "zoë.o'neil" || u.DisplayName != "Zoë O’Neil 山田" {
+		t.Fatalf("%+v %v", u, err)
+	}
+	if _, err := s.Create(ctx, NewUser{Username: "b", DisplayName: strings.Repeat("é", 64), PasswordHash: "x", Role: perm.Patron}); err != nil {
+		t.Fatalf("64 code points refused: %v", err)
 	}
 }

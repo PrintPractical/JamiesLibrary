@@ -9,6 +9,8 @@ import (
 	"errors"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"jamieslibrary/internal/apperr"
 	"jamieslibrary/internal/clock"
@@ -19,7 +21,7 @@ import (
 // Limits on the text of an account.
 const (
 	MaxUsernameLength    = 64
-	MaxDisplayNameLength = 80
+	MaxDisplayNameLength = 64
 )
 
 // Service reads and writes accounts.
@@ -72,26 +74,60 @@ type NewUser struct {
 	MustChangePassword bool
 }
 
+// checkUsername trims name and refuses one that is empty, over the limit, or
+// holds whitespace, control or format characters, so no two accounts can look
+// the same to staff (security design §8).
+func checkUsername(name string) (string, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return "", invalid("username", "Enter a username.")
+	}
+	if utf8.RuneCountInString(name) > MaxUsernameLength {
+		return "", invalid("username", "That username is too long.")
+	}
+	for _, r := range name {
+		if unicode.IsSpace(r) || unicode.Is(unicode.Zs, r) || unicode.IsControl(r) || unicode.Is(unicode.Cf, r) {
+			return "", invalid("username", "A username can't contain spaces or hidden characters.")
+		}
+	}
+	return name, nil
+}
+
+// checkDisplayName trims name and refuses one that is empty, over the limit, or
+// holds control characters or format characters (which include the bidi
+// controls that make a name read backwards).
+func checkDisplayName(name string) (string, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return "", invalid("display_name", "Enter a name.")
+	}
+	if utf8.RuneCountInString(name) > MaxDisplayNameLength {
+		return "", invalid("display_name", "That name is too long.")
+	}
+	for _, r := range name {
+		if unicode.IsControl(r) || unicode.Is(unicode.Cf, r) {
+			return "", invalid("display_name", "A name can't contain hidden or control characters.")
+		}
+	}
+	return name, nil
+}
+
 func invalid(field, msg string) error { return apperr.OnField(apperr.Invalid, field, msg) }
 
 // Create adds an account with exactly the permissions of its role's preset.
 func (s *Service) Create(ctx context.Context, n NewUser) (User, error) {
-	n.Username = strings.TrimSpace(n.Username)
-	n.DisplayName = strings.TrimSpace(n.DisplayName)
-	switch {
-	case n.Username == "":
-		return User{}, invalid("username", "Enter a username.")
-	case len([]rune(n.Username)) > MaxUsernameLength:
-		return User{}, invalid("username", "That username is too long.")
-	case n.DisplayName == "":
-		return User{}, invalid("display_name", "Enter a name.")
-	case len([]rune(n.DisplayName)) > MaxDisplayNameLength:
-		return User{}, invalid("display_name", "That name is too long.")
-	case !perm.ValidRole(n.Role):
+	var err error
+	if n.Username, err = checkUsername(n.Username); err != nil {
+		return User{}, err
+	}
+	if n.DisplayName, err = checkDisplayName(n.DisplayName); err != nil {
+		return User{}, err
+	}
+	if !perm.ValidRole(n.Role) {
 		return User{}, invalid("role", "Choose patron, librarian or administrator.")
 	}
 	var id int64
-	err := s.st.WithTx(ctx, func(tx store.Tx) error {
+	err = s.st.WithTx(ctx, func(tx store.Tx) error {
 		res, err := tx.ExecContext(ctx,
 			`INSERT INTO users (username, display_name, password_hash, must_change_password, role, active, created_at)
 			 VALUES (?, ?, ?, ?, ?, 1, ?)`,
