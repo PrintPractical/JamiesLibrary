@@ -55,7 +55,7 @@ func (s *Service) Search(ctx context.Context, query string, locationID int64, pa
 		}
 	}
 	if locationID != 0 {
-		where = append(where, s.copies.HasCopyAtSQL())
+		where = append(where, hasCopyAtSQL)
 		args = append(args, locationID)
 	}
 	cond := strings.Join(where, " AND ")

@@ -32,7 +32,7 @@ var errLocationNotFound = apperr.New(apperr.NotFound, "That location does not ex
 
 // Locations lists every location by name, with its copy count.
 func (s *Service) Locations(ctx context.Context) ([]Location, error) {
-	counts, err := s.copies.CountByLocation(ctx, s.st.DB())
+	counts, err := countByLocation(ctx, s.st.DB())
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +105,7 @@ func (s *Service) DeleteLocation(ctx context.Context, actor, id int64) error {
 		if err := locationExists(ctx, tx, id); err != nil {
 			return err
 		}
-		counts, err := s.copies.CountByLocation(ctx, tx)
+		counts, err := countByLocation(ctx, tx)
 		if err != nil {
 			return err
 		}
