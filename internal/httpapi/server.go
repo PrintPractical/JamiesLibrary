@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"jamieslibrary/internal/activity"
 	"jamieslibrary/internal/apperr"
 	"jamieslibrary/internal/auth"
 	"jamieslibrary/internal/settings"
@@ -27,6 +28,8 @@ type Options struct {
 	Auth     *auth.Service
 	Users    *users.Service
 	Settings *settings.Service
+	// Activity is the administrative activity log; when set its route is registered.
+	Activity *activity.Service
 	// Authenticate, when set, wraps the routes and puts the caller in the
 	// request context (auth.WithCaller). Without it no request has a caller.
 	Authenticate func(http.Handler) http.Handler
@@ -82,6 +85,9 @@ func buildRouter(o Options) (*Router, error) {
 func registerAPI(rt *Router, o Options) {
 	if o.Auth != nil {
 		registerAuthRoutes(rt, o)
+	}
+	if o.Activity != nil {
+		registerActivityRoutes(rt, o)
 	}
 }
 
