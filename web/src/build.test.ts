@@ -14,6 +14,10 @@ const ALLOWED: { host: string; pathPrefix: string }[] = [
   { host: "reactrouter.com", pathPrefix: "/" },
   // Router code resolves relative URLs against a dummy base to parse them.
   { host: "localhost", pathPrefix: "/" },
+  // zxing-wasm's default place to fetch its wasm. It is only text here: barcodeDetector.ts
+  // overrides it to the bundled file (its test proves that), and the build test below checks
+  // the wasm is in the build. Allowed by this exact text, so a different CDN still fails.
+  { host: "fastly.jsdelivr.net", pathPrefix: "/npm/zxing-wasm@" },
 ];
 
 // A scheme'd URL anywhere, or a bare //host that does not continue a longer path.
@@ -41,6 +45,17 @@ export function externalUrls(files: Record<string, string>): string[] {
 
 // Fonts and images are binary; everything else the build writes is text and is scanned.
 const BINARY = /\.(woff2?|ttf|otf|eot|png|jpe?g|gif|webp|avif|ico)$/i;
+
+// vite's own CLI builds index.html's graph; the camera decoder is only imported by ScanField, so
+// this builds a stand-in entry that imports it (as a screen will), with the project's config.
+const BUILD_ENTRY = `
+import { build } from "vite";
+await build({
+  configFile: "vite.config.ts",
+  logLevel: "warn",
+  build: { outDir: process.argv[1], emptyOutDir: true, rollupOptions: { input: process.argv[2] } },
+});
+`;
 
 function readOutput(dir: string): Record<string, string> {
   const files: Record<string, string> = {};
@@ -123,5 +138,27 @@ test("DEPLOY-T5: the built app loads nothing from another host", () => {
     expect(Object.values(files).join("")).not.toContain("data:font");
   } finally {
     rmSync(out, { recursive: true, force: true });
+  }
+}, 120_000);
+
+test("DEPLOY-T5, SCAN-T2: the camera decoder's wasm is in the build as a file of ours, and nothing else is fetched", () => {
+  const work = mkdtempSync(join(tmpdir(), "jl-scan-"));
+  try {
+    const entry = join(work, "entry.mjs");
+    writeFileSync(entry, `import { ScanField } from ${JSON.stringify(join(process.cwd(), "src/components/ScanField"))}; console.log(ScanField);`);
+    const out = join(work, "out");
+    execFileSync(process.execPath, ["--input-type=module", "-e", BUILD_ENTRY, out, entry], {
+      cwd: process.cwd(),
+      env: { ...process.env, NODE_ENV: "production" },
+      stdio: "pipe",
+    });
+    const names = readdirSync(out, { recursive: true, encoding: "utf8" });
+    expect(names.some((f) => /zxing_reader.*\.wasm$/.test(f))).toBe(true);
+    // The wasm is a separate file (the CSP allows no data: URLs), asked for by the bundled loader.
+    const files = readOutput(out);
+    expect(Object.values(files).join("")).not.toContain("data:application/wasm");
+    expect(externalUrls(files)).toEqual([]);
+  } finally {
+    rmSync(work, { recursive: true, force: true });
   }
 }, 120_000);
