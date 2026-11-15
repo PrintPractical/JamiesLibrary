@@ -65,7 +65,7 @@ test("a non-JSON 500 becomes an ApiError with a sentence a user can act on", asy
   expect(err).toBeInstanceOf(ApiError);
   expect(err).toMatchObject({ status: 500, code: "unexpected_response", field: undefined });
   expect((err as ApiError).message).not.toContain("<html>");
-  expect((err as ApiError).message).toContain("500");
+  expect((err as ApiError).message).not.toMatch(/\d{3}/);
 });
 
 test("JSON of the wrong shape on a failure is treated like no JSON", async () => {

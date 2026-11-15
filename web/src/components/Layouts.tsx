@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+import { Navigate } from "react-router";
 import { MoreList, Shell, type NavItem, type ShellProps } from "./Shell";
 
 export type PatronLayoutProps = Pick<ShellProps, "libraryName" | "user"> & { items: NavItem[] };
@@ -31,10 +33,27 @@ export function StaffLayout({ items, adminItems = [], footerItems = [], ...rest 
 
 /** The "More" page: what a phone's tab bar left out. */
 export function StaffMore({ items }: { items: NavItem[] }) {
+  const desktop = useDesktop();
+  // The side bar already lists everything, so a wide window has nothing to show here.
+  if (desktop) return <Navigate to="/desk" replace />;
   return (
     <>
       <h1>More</h1>
       <MoreList items={items} />
     </>
   );
+}
+
+const DESKTOP = "(min-width: 900px)";
+
+function useDesktop(): boolean {
+  const query = typeof window.matchMedia === "function" ? window.matchMedia(DESKTOP) : undefined;
+  const [desktop, setDesktop] = useState(query?.matches ?? false);
+  useEffect(() => {
+    if (!query) return;
+    const update = () => setDesktop(query.matches);
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, [query]);
+  return desktop;
 }

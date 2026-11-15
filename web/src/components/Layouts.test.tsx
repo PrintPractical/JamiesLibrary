@@ -92,3 +92,54 @@ test.each([
   );
   expect(screen.getByRole("heading", { level: 1, name: title })).toBeInTheDocument();
 });
+
+test("an address nobody built shows a page inside the content with a way back", () => {
+  render(
+    <MemoryRouter initialEntries={["/nope"]}>
+      <AppRoutes />
+    </MemoryRouter>,
+  );
+  expect(screen.getByRole("heading", { name: "Page not found" })).toBeInTheDocument();
+  expect(screen.getByText("There's nothing at this address.")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Go to your library" })).toHaveAttribute("href", "/");
+  expect(screen.getByRole("main")).toHaveClass("content");
+});
+
+test("the More tab is current on pages reached through it, and not on the others", () => {
+  const { unmount } = render(
+    <MemoryRouter initialEntries={["/desk/patrons"]}>
+      <AppRoutes />
+    </MemoryRouter>,
+  );
+  const tabs = () => screen.getAllByRole("navigation", { name: "Main" })[1]!;
+  expect(within(tabs()).getByRole("link", { name: "More" })).toHaveAttribute("aria-current", "page");
+  unmount();
+  render(
+    <MemoryRouter initialEntries={["/desk/checkout"]}>
+      <AppRoutes />
+    </MemoryRouter>,
+  );
+  expect(within(tabs()).getByRole("link", { name: "More" })).not.toHaveAttribute("aria-current");
+  expect(within(tabs()).getByRole("link", { name: "Check out" })).toHaveAttribute("aria-current", "page");
+});
+
+test("/more on a wide window goes to the desk instead of showing an empty page", () => {
+  const original = window.matchMedia;
+  window.matchMedia = ((q: string) => ({
+    matches: true,
+    media: q,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  })) as unknown as typeof window.matchMedia;
+  try {
+    render(
+      <MemoryRouter initialEntries={["/more"]}>
+        <AppRoutes />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole("heading", { name: "Desk" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "More" })).toBeNull();
+  } finally {
+    window.matchMedia = original;
+  }
+});

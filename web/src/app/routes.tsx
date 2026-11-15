@@ -2,6 +2,7 @@ import type { ReactElement } from "react";
 import { Route, Routes } from "react-router";
 import { PatronLayout, StaffLayout, StaffMore } from "../components/Layouts";
 import { Placeholder } from "../features/placeholder/Placeholder";
+import { NotFound } from "../features/placeholder/NotFound";
 import { adminItems, patronItems, staffFooterItems, staffItems } from "./navigation";
 
 const page = (title: string): ReactElement => <Placeholder title={title} />;
@@ -39,7 +40,7 @@ export function AppRoutes() {
       <Route path="setup" element={page("Set up the library")} />
       <Route path="signin" element={page("Sign in")} />
       <Route path="register" element={page("Create your account")} />
-      <Route path="*" element={page("Page not found")} />
+      <Route path="*" element={<NotFound />} />
     </Routes>
   );
 }

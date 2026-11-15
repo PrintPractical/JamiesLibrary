@@ -50,7 +50,7 @@ async function toApiError(res: Response): Promise<ApiError> {
   return new ApiError({
     status: res.status,
     code: "unexpected_response",
-    message: `The server sent a reply the app couldn't read (status ${res.status}). Try again in a moment.`,
+    message: "The server sent a reply the app couldn't read. Try again in a moment.",
   });
 }
 

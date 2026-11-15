@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { NavLink, Outlet } from "react-router";
+import { Link, NavLink, Outlet, useLocation } from "react-router";
 import { Icon, Logo, type IconName } from "./Icon";
 
 export type NavItem = {
@@ -58,6 +58,11 @@ export function Shell({
   user,
 }: ShellProps) {
   const tabs = items.slice(0, tabCount);
+  const { pathname } = useLocation();
+  const hidden = [...items.slice(tabCount), ...adminItems, ...footerItems];
+  // The More tab is current on /more and on every page reached through it.
+  const moreCurrent =
+    pathname === "/more" || hidden.some((i) => i.to !== "/" && (pathname === i.to || pathname.startsWith(i.to + "/")));
   return (
     <div className="shell">
       <nav className="side" aria-label="Main">
@@ -102,7 +107,12 @@ export function Shell({
             <Tab key={item.to} item={item} />
           ))}
           {tabs.length < items.length + adminItems.length + footerItems.length && (
-            <Tab item={{ to: "/more", label: "More", icon: "more" }} />
+            <Link className="tab" to="/more" aria-current={moreCurrent ? "page" : undefined}>
+              <span className="pill">
+                <Icon name="more" />
+              </span>
+              More
+            </Link>
           )}
         </nav>
       </div>
