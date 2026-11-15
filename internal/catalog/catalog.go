@@ -1,7 +1,7 @@
 // Package catalog owns books, their authors and the named locations, and the
 // rules about them: what a book needs, how ISBNs are kept, how search works.
-// It never sees HTTP. Copies belong to a later part of this package; where a
-// rule needs to know about them, it asks a Copies.
+// It also owns copies and the codes that identify them. It never sees HTTP.
+// Where a rule needs to know about loans, it asks a Loans.
 package catalog
 
 import (
@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"jamieslibrary/internal/apperr"
+	"jamieslibrary/internal/settings"
 	"jamieslibrary/internal/store"
 )
 
@@ -36,46 +37,44 @@ type DB interface {
 	QueryRowContext(context.Context, string, ...any) *sql.Row
 }
 
-// Copies is what the catalog needs to know about copies. Until copies exist,
-// NoCopies answers it.
-type Copies interface {
+// Loans is what the catalog needs to know about loans, which belong to
+// circulation. Until circulation exists, NoLoans answers it.
+type Loans interface {
 	// LoanedCopies is how many copies of the book are on loan now.
 	LoanedCopies(ctx context.Context, q DB, bookID int64) (int, error)
-	// CountByLocation is how many copies each location holds; a location
-	// with none may be missing.
-	CountByLocation(ctx context.Context, q DB) (map[int64]int, error)
-	// HasCopyAtSQL is a condition on the books table (as "books") that holds
-	// for a book with a copy in the location bound to its one "?".
-	HasCopyAtSQL() string
+	// OnLoan reports whether the copy is on loan now.
+	OnLoan(ctx context.Context, q DB, copyID int64) (bool, error)
 }
 
-// NoCopies is the Copies of a library with no copies table yet.
-type NoCopies struct{}
+// NoLoans is the Loans of a library with no loans table yet: nothing is on loan.
+type NoLoans struct{}
 
-func (NoCopies) LoanedCopies(context.Context, DB, int64) (int, error) { return 0, nil }
-func (NoCopies) CountByLocation(context.Context, DB) (map[int64]int, error) {
-	return nil, nil
-}
-func (NoCopies) HasCopyAtSQL() string { return "(0 AND ? IS NOT NULL)" }
+func (NoLoans) LoanedCopies(context.Context, DB, int64) (int, error) { return 0, nil }
+func (NoLoans) OnLoan(context.Context, DB, int64) (bool, error)      { return false, nil }
 
-// Options change how a Service is made; the zero value is what the server uses.
+// Options change how a Service is made; the zero value is not enough.
 type Options struct {
-	Copies Copies           // default NoCopies
-	Now    func() time.Time // default time.Now
+	Settings *settings.Service // required: the copy-ID mode lives there
+	Loans    Loans             // default NoLoans
+	Now      func() time.Time  // default time.Now
 }
 
 // Service is the catalog's rules over a store.
 type Service struct {
-	st     *store.Store
-	copies Copies
-	now    func() time.Time
+	st       *store.Store
+	settings *settings.Service
+	loans    Loans
+	now      func() time.Time
 }
 
 // New makes a Service.
 func New(st *store.Store, opts Options) *Service {
-	s := &Service{st: st, copies: opts.Copies, now: opts.Now}
-	if s.copies == nil {
-		s.copies = NoCopies{}
+	s := &Service{st: st, settings: opts.Settings, loans: opts.Loans, now: opts.Now}
+	if s.settings == nil {
+		panic("catalog.New: Options.Settings is required")
+	}
+	if s.loans == nil {
+		s.loans = NoLoans{}
 	}
 	if s.now == nil {
 		s.now = time.Now

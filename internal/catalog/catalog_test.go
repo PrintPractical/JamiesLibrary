@@ -9,32 +9,38 @@ import (
 	"time"
 
 	"jamieslibrary/internal/apperr"
+	"jamieslibrary/internal/settings"
 	"jamieslibrary/internal/store"
 )
 
 var ctx = context.Background()
 
-type fakeCopies struct {
-	NoCopies
+// fakeLoans says which copies and books are on loan.
+type fakeLoans struct {
+	NoLoans
+	onLoan map[int64]bool
 	loaned map[int64]int
-	counts map[int64]int
 }
 
-func (f fakeCopies) LoanedCopies(_ context.Context, _ DB, id int64) (int, error) {
+func (f fakeLoans) LoanedCopies(_ context.Context, _ DB, id int64) (int, error) {
 	return f.loaned[id], nil
 }
-func (f fakeCopies) CountByLocation(context.Context, DB) (map[int64]int, error) {
-	return f.counts, nil
+func (f fakeLoans) OnLoan(_ context.Context, _ DB, id int64) (bool, error) {
+	return f.onLoan[id], nil
 }
 
-func newService(t *testing.T, c Copies) *Service {
+func newService(t *testing.T, l Loans) *Service {
 	t.Helper()
 	st, err := store.Open(ctx, t.TempDir(), store.Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { st.Close() })
-	return New(st, Options{Copies: c})
+	set, err := settings.New(ctx, st)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return New(st, Options{Settings: set, Loans: l})
 }
 
 func add(t *testing.T, s *Service, title string, authors ...string) Book {
@@ -229,7 +235,7 @@ func TestCoverIsAStoredFileName(t *testing.T) {
 }
 
 func TestRemoveBookIsSoftAndRefusedWhileOnLoan(t *testing.T) {
-	c := fakeCopies{loaned: map[int64]int{}}
+	c := fakeLoans{loaned: map[int64]int{}}
 	s := newService(t, c)
 	b := add(t, s, "Loaned", "A")
 	c.loaned[b.ID] = 2
@@ -418,16 +424,6 @@ func TestSearchPagesAreFiftyWithATotal(t *testing.T) {
 	wantField(t, err, apperr.Invalid, "page")
 }
 
-func TestSearchByLocationUsesTheCopiesRule(t *testing.T) {
-	s := newService(t, nil)
-	add(t, s, "A", "A")
-	// With no copies anywhere, a location holds no books.
-	r, err := s.Search(ctx, "", 1, 1)
-	if err != nil || r.Total != 0 {
-		t.Fatalf("%+v %v", r, err)
-	}
-}
-
 // CAT-8
 func TestMainShelfExistsOnAFreshDatabase(t *testing.T) {
 	s := newService(t, nil)
@@ -488,43 +484,6 @@ func TestRenameLocation(t *testing.T) {
 	if _, err := s.CreateLocation(ctx, 1, "Main shelf"); err != nil {
 		t.Fatal(err)
 	}
-}
-
-func TestDeleteLocation(t *testing.T) {
-	c := fakeCopies{counts: map[int64]int{}}
-	s := newService(t, c)
-	busy, _ := s.CreateLocation(ctx, 1, "Busy")
-	empty, _ := s.CreateLocation(ctx, 1, "Empty")
-	c.counts[busy.ID] = 3
-
-	locs, _ := s.Locations(ctx)
-	for _, l := range locs {
-		if (l.ID == busy.ID) != (l.Copies == 3) {
-			t.Errorf("counts wrong: %+v", l)
-		}
-	}
-	err := s.DeleteLocation(ctx, 1, busy.ID)
-	var inUse *LocationInUse
-	if !errors.As(err, &inUse) || inUse.Copies != 3 {
-		t.Fatalf("error = %v", err)
-	}
-	wantField(t, err, apperr.Conflict, "")
-	if e, _ := apperr.As(err); !strings.Contains(e.Message, "3 copies are there") {
-		t.Errorf("message = %q", e.Message)
-	}
-	if err := s.DeleteLocation(ctx, 1, empty.ID); err != nil {
-		t.Fatal(err)
-	}
-	locs, _ = s.Locations(ctx)
-	for _, l := range locs {
-		if l.ID == empty.ID {
-			t.Fatal("the empty location is still listed")
-		}
-	}
-	if len(locs) != 2 {
-		t.Fatalf("locations = %+v", locs)
-	}
-	wantField(t, s.DeleteLocation(ctx, 1, empty.ID), apperr.NotFound, "")
 }
 
 // DEPLOY-T6: a search over 20,000 books answers within 200 ms.

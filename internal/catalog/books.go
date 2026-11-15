@@ -103,7 +103,7 @@ func (s *Service) CreateBook(ctx context.Context, actor int64, in BookInput) (Bo
 			return err
 		}
 		res, err := tx.ExecContext(ctx, `INSERT INTO books (title, description, isbn13, search_text, created_at) VALUES (?, ?, ?, ?, ?)`,
-			c.title, c.description, nullable(c.isbn), c.searchText(), s.now().UTC().Format("2006-01-02T15:04:05Z"))
+			c.title, c.description, nullable(c.isbn), c.searchText(), s.stamp())
 		if err != nil {
 			return err
 		}
@@ -162,21 +162,29 @@ func (s *Service) SetCover(ctx context.Context, actor, id int64, name string) er
 	})
 }
 
-// RemoveBook removes a book from the catalog (its row stays, marked). It is
-// refused while any copy of it is on loan.
+// RemoveBook removes a book and its copies from the catalog (the rows stay,
+// marked; the copies' codes are freed). It is refused while any copy of it is
+// on loan.
 func (s *Service) RemoveBook(ctx context.Context, actor, id int64) error {
 	return s.st.WithTx(ctx, func(tx store.Tx) error {
 		if err := mustExist(ctx, tx, id); err != nil {
 			return err
 		}
-		n, err := s.copies.LoanedCopies(ctx, tx, id)
+		n, err := s.loans.LoanedCopies(ctx, tx, id)
 		if err != nil {
 			return err
 		}
 		if n > 0 {
 			return apperr.New(apperr.Conflict, fmt.Sprintf("This book cannot be removed while %s on loan: check %s in first.", plural(n, "copy is", "copies are"), plural(n, "it", "them")))
 		}
-		_, err = tx.ExecContext(ctx, `UPDATE books SET removed_at = ? WHERE id = ?`, s.now().UTC().Format("2006-01-02T15:04:05Z"), id)
+		at := s.stamp()
+		if _, err := tx.ExecContext(ctx, `DELETE FROM identifiers WHERE copy_id IN (SELECT id FROM copies WHERE book_id = ? AND removed_at IS NULL)`, id); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE copies SET removed_at = ? WHERE book_id = ? AND removed_at IS NULL`, at, id); err != nil {
+			return err
+		}
+		_, err = tx.ExecContext(ctx, `UPDATE books SET removed_at = ? WHERE id = ?`, at, id)
 		return err
 	})
 }
