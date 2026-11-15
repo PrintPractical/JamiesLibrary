@@ -66,14 +66,13 @@ type FakeOL struct {
 	// URL is the base URL: it answers the paths of openlibrary.org and of
 	// covers.openlibrary.org on the one host.
 	URL string
-	// SlowDelay is how long ModeSlow holds a request: past the server's 10 s deadline.
-	SlowDelay time.Duration
 
 	srv     *httptest.Server
 	closing chan struct{}
 	once    sync.Once
 	mu      sync.Mutex
 	mode    Mode
+	delay   time.Duration // how long ModeSlow holds a request: past the server's 10 s deadline
 	books   map[string]Book
 	reqs    []string
 }
@@ -89,7 +88,7 @@ type FakeOL struct {
 //	                                                       else a 1x1 pixel image
 func FakeOpenLibrary(t testing.TB) *FakeOL {
 	t.Helper()
-	f := &FakeOL{SlowDelay: 15 * time.Second, closing: make(chan struct{}), books: map[string]Book{}}
+	f := &FakeOL{delay: 15 * time.Second, closing: make(chan struct{}), books: map[string]Book{}}
 	for _, b := range DefaultBooks() {
 		f.books[b.ISBN13] = b
 	}
@@ -120,6 +119,20 @@ func (f *FakeOL) SetMode(m Mode) {
 	f.mu.Unlock()
 }
 
+// SlowDelay is how long ModeSlow holds a request. It starts past the server's 10 s deadline.
+func (f *FakeOL) SlowDelay() time.Duration {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.delay
+}
+
+// SetSlowDelay changes how long ModeSlow holds a request, from the next request on.
+func (f *FakeOL) SetSlowDelay(d time.Duration) {
+	f.mu.Lock()
+	f.delay = d
+	f.mu.Unlock()
+}
+
 // AddBook adds or replaces a fixture.
 func (f *FakeOL) AddBook(b Book) {
 	f.mu.Lock()
@@ -145,12 +158,12 @@ func (f *FakeOL) handle(next func(http.ResponseWriter, *http.Request, Mode)) htt
 	return func(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()
 		f.reqs = append(f.reqs, r.Method+" "+r.URL.RequestURI())
-		mode := f.mode
+		mode, delay := f.mode, f.delay
 		f.mu.Unlock()
 		switch mode {
 		case ModeSlow:
 			select {
-			case <-time.After(f.SlowDelay):
+			case <-time.After(delay):
 			case <-r.Context().Done():
 				return
 			case <-f.closing:
