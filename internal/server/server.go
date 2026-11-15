@@ -115,8 +115,12 @@ func Run(ctx context.Context, o Options) error {
 	if err != nil {
 		return err
 	}
+	trustPort := 0
+	if plainLn != nil {
+		trustPort = plainLn.Addr().(*net.TCPAddr).Port
+	}
 	h, err := httpapi.NewHandler(httpapi.Options{
-		Version: o.Version, Logger: log, Static: webui.Handler(),
+		TrustPort: trustPort, Version: o.Version, Logger: log, Static: webui.Handler(),
 		PublicCatalogOn: func() bool { return set.Get().PublicCatalog },
 	})
 	if err != nil {
