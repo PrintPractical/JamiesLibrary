@@ -119,3 +119,21 @@ func TestTLSBadValuesNameTheSetting(t *testing.T) {
 		}
 	}
 }
+
+func TestBindAddress(t *testing.T) {
+	if c, err := Parse(nil, env(nil)); err != nil || c.BindAddress != "" {
+		t.Fatalf("default: %+v %v", c, err)
+	}
+	if c, err := Parse(nil, env(map[string]string{"JL_BIND_ADDRESS": " ::1 "})); err != nil || c.BindAddress != "::1" {
+		t.Fatalf("env: %+v %v", c, err)
+	}
+	if c, err := Parse([]string{"--bind", "127.0.0.1"}, env(map[string]string{"JL_BIND_ADDRESS": "10.0.0.1"})); err != nil || c.BindAddress != "127.0.0.1" {
+		t.Fatalf("flag beats env: %+v %v", c, err)
+	}
+	if _, err := Parse(nil, env(map[string]string{"JL_BIND_ADDRESS": "localhost"})); err == nil || !strings.Contains(err.Error(), "JL_BIND_ADDRESS") {
+		t.Errorf("env: %v", err)
+	}
+	if _, err := Parse([]string{"--bind", "1.2.3"}, env(nil)); err == nil || !strings.Contains(err.Error(), "--bind") {
+		t.Errorf("flag: %v", err)
+	}
+}

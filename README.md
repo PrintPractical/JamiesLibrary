@@ -29,6 +29,7 @@ Each setting is a flag or a `JL_*` environment variable. A flag wins over the va
 |---|---|---|---|
 | `--data` | `JL_DATA_DIR` | `./data` | Where all state is kept |
 | `--port` | `JL_HTTP_PORT` | `8080` | HTTP port |
+| `--bind` | `JL_BIND_ADDRESS` | empty (every interface) | IP address both listeners bind to. Use `127.0.0.1` when a reverse proxy runs on the same host, so only the proxy can reach the app |
 | `--log-level` | `JL_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error` |
 
 A bad value stops the server with a message naming it. SIGTERM or SIGINT shuts the server down, letting running requests finish for up to 10 seconds.

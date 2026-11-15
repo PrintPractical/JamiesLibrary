@@ -91,17 +91,22 @@ func Run(ctx context.Context, o Options) error {
 			}
 		}
 	}()
+	if cfg.HTTPOnly && cfg.BindAddress == "" {
+		log.Warn("the app, sign-in included, is served over plain HTTP on every network interface; " +
+			"behind a reverse proxy on the same host set JL_BIND_ADDRESS=127.0.0.1 (or --bind), " +
+			"or the address of the network the proxy is on, so only the proxy can reach it")
+	}
 	appPort := cfg.HTTPSPort
 	if cfg.HTTPOnly {
 		appPort = cfg.HTTPPort
 	}
 	if ln == nil {
-		if ln, err = net.Listen("tcp", ":"+strconv.Itoa(appPort)); err != nil {
+		if ln, err = net.Listen("tcp", net.JoinHostPort(cfg.BindAddress, strconv.Itoa(appPort))); err != nil {
 			return fmt.Errorf("cannot listen on port %d: %w", appPort, err)
 		}
 	}
 	if !cfg.HTTPOnly && plainLn == nil {
-		if plainLn, err = net.Listen("tcp", ":"+strconv.Itoa(cfg.HTTPPort)); err != nil {
+		if plainLn, err = net.Listen("tcp", net.JoinHostPort(cfg.BindAddress, strconv.Itoa(cfg.HTTPPort))); err != nil {
 			return fmt.Errorf("cannot listen on port %d: %w", cfg.HTTPPort, err)
 		}
 	}
