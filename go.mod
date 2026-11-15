@@ -6,6 +6,7 @@ require (
 	github.com/boombuler/barcode v1.1.0
 	github.com/go-pdf/fpdf v0.9.0
 	github.com/makiuchi-d/gozxing v0.1.1
+	golang.org/x/crypto v0.59.0
 	golang.org/x/image v0.48.0
 	modernc.org/sqlite v1.62.0
 )

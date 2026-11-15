@@ -8,6 +8,9 @@ import (
 	"time"
 
 	"jamieslibrary/internal/apperr"
+	"jamieslibrary/internal/auth"
+	"jamieslibrary/internal/settings"
+	"jamieslibrary/internal/users"
 )
 
 // Options are what the router needs from the program around it.
@@ -21,6 +24,12 @@ type Options struct {
 	// TrustPort is the plain-HTTP port that serves the one-time trust step (0 when
 	// there is none). The web app reads it to link the camera setup guide.
 	TrustPort int
+	// Auth, Users and Settings are the services behind sign-in and /api/me; when
+	// Auth is set the auth routes are registered and Auth authenticates requests.
+	// Settings is the one instance the whole server shares.
+	Auth     *auth.Service
+	Users    *users.Service
+	Settings *settings.Service
 	// Authenticate, when set, wraps the routes and puts the caller in the
 	// request context (auth.WithCaller). Without it no request has a caller.
 	Authenticate func(http.Handler) http.Handler
@@ -40,10 +49,13 @@ func NewHandler(o Options) (http.Handler, error) {
 		return nil, err
 	}
 	var h http.Handler = rt
+	if o.Authenticate == nil && o.Auth != nil {
+		o.Authenticate = o.Auth.Middleware(WriteError)
+	}
 	if o.Authenticate != nil {
 		h = o.Authenticate(h)
 	}
-	return withRequest(o.Logger, h), nil
+	return withRequest(o.Logger, withProtections(h)), nil
 }
 
 // buildRouter registers every route, the API's own first. It is separate from
@@ -73,7 +85,11 @@ func buildRouter(o Options) (*Router, error) {
 }
 
 // registerAPI is where each feature registers its routes, every one with its access.
-func registerAPI(rt *Router, o Options) {}
+func registerAPI(rt *Router, o Options) {
+	if o.Auth != nil {
+		registerAuthRoutes(rt, o)
+	}
+}
 
 func notFound(w http.ResponseWriter, r *http.Request) {
 	WriteError(w, r, apperr.New(apperr.NotFound, "There is nothing at "+cleanPath(r)+"."))

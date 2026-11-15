@@ -15,12 +15,14 @@ import (
 	"strconv"
 	"time"
 
+	"jamieslibrary/internal/auth"
 	"jamieslibrary/internal/config"
 	"jamieslibrary/internal/httpapi"
 	"jamieslibrary/internal/settings"
 	"jamieslibrary/internal/store"
 	"jamieslibrary/internal/testhooks"
 	"jamieslibrary/internal/tlsca"
+	"jamieslibrary/internal/users"
 	"jamieslibrary/internal/webui"
 )
 
@@ -119,8 +121,12 @@ func Run(ctx context.Context, o Options) error {
 	if plainLn != nil {
 		trustPort = plainLn.Addr().(*net.TCPAddr).Port
 	}
+	usersSvc := users.New(st)
+	authSvc := auth.NewService(st, usersSvc,
+		func() time.Duration { return time.Duration(set.Get().SessionIdleMinutes) * time.Minute }, log)
 	h, err := httpapi.NewHandler(httpapi.Options{
 		TrustPort: trustPort, Version: o.Version, Logger: log, Static: webui.Handler(),
+		Auth: authSvc, Users: usersSvc, Settings: set,
 		PublicCatalogOn: func() bool { return set.Get().PublicCatalog },
 	})
 	if err != nil {
