@@ -6,10 +6,12 @@ import (
 	"image/color"
 	"io"
 	"math"
+	"math/rand"
 	"regexp"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-pdf/fpdf"
 	"github.com/makiuchi-d/gozxing"
@@ -529,4 +531,59 @@ func newTextProbe(l Layout) *fpdf.Fpdf {
 	pdf.AddUTF8FontFromBytes(fontName, "", goregular.TTF)
 	pdf.SetFont(fontName, "", lineFontPt)
 	return pdf
+}
+
+func TestTextTheFontCannotDrawDoesNotBreakLabels(t *testing.T) {
+	for _, text := range []string{
+		"The Very Hungry Caterpillar 🐛", "𝔘", "\U0010FFFF", "￿", "￾", "‮", "bad\xffutf8", "nul\x00", "日本語の本",
+	} {
+		r, err := Labels(Avery5160, []Label{{Code: "C1", CodeKind: Code128, Lines: []string{text}}})
+		if err != nil || r == nil {
+			t.Errorf("%q: %v", text, err)
+		}
+	}
+	doc := newTextProbe(Avery5160)
+	if got := fit(doc, "Cat 🐛 𝔘", 100); got != "Cat ? ?" {
+		t.Errorf("fit = %q, want placeholders", got)
+	}
+	// Characters can't reach the code's own text either: the code is validated first.
+	if _, err := Labels(Avery5160, []Label{{Code: "C🐛", CodeKind: Code128}}); !errors.Is(err, ErrInvalid) {
+		t.Errorf("emoji code: %v", err)
+	}
+}
+
+func TestLabelsNeverPanicOnAnyText(t *testing.T) {
+	rng := rand.New(rand.NewSource(1))
+	for i := 0; i < 300; i++ {
+		var sb strings.Builder
+		for n := rng.Intn(60); n > 0; n-- {
+			var r rune
+			switch rng.Intn(4) {
+			case 0:
+				r = rune(rng.Intn(0x80))
+			case 1:
+				r = rune(rng.Intn(0x3000))
+			case 2:
+				r = rune(rng.Intn(0x110000))
+			default:
+				r = rune(0xD800 + rng.Intn(0x900)) // surrogates, invalid
+			}
+			sb.WriteRune(r)
+		}
+		if _, err := Labels(Single, []Label{{Code: "C1", CodeKind: Code128, Lines: []string{sb.String()}}}); err != nil {
+			t.Fatalf("%q: %v", sb.String(), err)
+		}
+	}
+}
+
+func TestFitIsFastOnLongText(t *testing.T) {
+	doc := newTextProbe(Avery5160)
+	long := strings.Repeat("W", maxLineRune)
+	start := time.Now()
+	for i := 0; i < 1000; i++ {
+		fit(doc, long, Avery5160.innerW())
+	}
+	if d := time.Since(start); d > 2*time.Second {
+		t.Errorf("1000 cuts of a %d-rune line took %v", maxLineRune, d)
+	}
 }

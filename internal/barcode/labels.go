@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-pdf/fpdf"
 	"golang.org/x/image/font/gofont/goregular"
+	"golang.org/x/image/font/sfnt"
 )
 
 const (
@@ -99,7 +101,13 @@ type Label struct {
 // Labels renders labels onto pages of layout. More labels than a page holds
 // continue on the next page. It refuses an invalid code, a code that can't be
 // drawn at a scannable width on this layout's labels, and more lines than fit.
-func Labels(layout Layout, labels []Label) (io.Reader, error) {
+func Labels(layout Layout, labels []Label) (out io.Reader, err error) {
+	// fpdf is unmaintained: a fault in it must not take down the caller.
+	defer func() {
+		if r := recover(); r != nil {
+			out, err = nil, fmt.Errorf("barcode: drawing the labels failed: %v", r)
+		}
+	}()
 	if layout.PerPage() < 1 {
 		return nil, errors.New("barcode: unknown label layout")
 	}
@@ -215,27 +223,63 @@ func (l Layout) drawLine(pdf *fpdf.Fpdf, x, y float64, text string, h float64, c
 	pdf.Text(tx, y+h*0.75, text)
 }
 
-// fit cleans text and shortens it, ending in an ellipsis, until it is no wider
-// than width in the current font.
-func fit(pdf *fpdf.Fpdf, text string, width float64) string {
-	text = strings.Map(func(r rune) rune {
-		if r < 0x20 || r == 0x7f {
+// placeholder stands in for a character the bundled font has no glyph for.
+const placeholder = '?'
+
+var (
+	fontOnce sync.Once
+	goFont   *sfnt.Font
+)
+
+// drawable reports whether the bundled font has a glyph for r.
+func drawable(r rune) bool {
+	fontOnce.Do(func() { goFont, _ = sfnt.Parse(goregular.TTF) })
+	if goFont == nil || r > 0xFFFF {
+		return false
+	}
+	var b sfnt.Buffer
+	idx, err := goFont.GlyphIndex(&b, r)
+	return err == nil && idx != 0
+}
+
+// clean replaces control characters with spaces and characters the font can't
+// draw (and invalid UTF-8) with a placeholder, so nothing reaches the PDF
+// writer that it can't handle.
+func clean(text string) string {
+	return strings.Map(func(r rune) rune {
+		switch {
+		case r < 0x20 || r == 0x7f:
 			return ' '
+		case !drawable(r):
+			return placeholder
 		}
 		return r
 	}, text)
-	r := []rune(strings.TrimSpace(text))
+}
+
+// fit cleans text and shortens it, ending in an ellipsis, until it is no wider
+// than width in the current font.
+func fit(pdf *fpdf.Fpdf, text string, width float64) string {
+	r := []rune(strings.TrimSpace(clean(text)))
 	if len(r) > maxLineRune {
 		r = r[:maxLineRune]
 	}
 	if pdf.GetStringWidth(string(r)) <= width {
 		return string(r)
 	}
-	for len(r) > 0 {
-		r = r[:len(r)-1]
-		if s := strings.TrimRight(string(r), " ") + ellipsis; pdf.GetStringWidth(s) <= width {
-			return s
+	// The longest prefix whose text with an ellipsis fits (width grows with length).
+	cut := func(n int) string { return strings.TrimRight(string(r[:n]), " ") + ellipsis }
+	lo, hi := 0, len(r)-1
+	for lo < hi {
+		mid := (lo + hi + 1) / 2
+		if pdf.GetStringWidth(cut(mid)) <= width {
+			lo = mid
+		} else {
+			hi = mid - 1
 		}
+	}
+	if s := cut(lo); pdf.GetStringWidth(s) <= width {
+		return s
 	}
 	return ""
 }
