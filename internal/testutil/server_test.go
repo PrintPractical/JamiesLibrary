@@ -130,7 +130,7 @@ func TestNonLoopbackControlAddressRefusesToStart(t *testing.T) {
 
 func TestMigrationFailureInjectionFailsStartUpAndRollsBack(t *testing.T) {
 	dir := t.TempDir()
-	v1 := fstest.MapFS{"0001_things.sql": {Data: []byte("CREATE TABLE things (name TEXT); INSERT INTO things VALUES ('kept')")}}
+	v1 := fstest.MapFS{"0001_things.sql": {Data: withSettings(t, "CREATE TABLE things (name TEXT); INSERT INTO things VALUES ('kept')")}}
 	mustStop(t, StartServer(t, Options{DataDir: dir, Migrations: v1}))
 
 	v2 := fstest.MapFS{
@@ -174,7 +174,7 @@ func TestMigrationFailureInjectionFailsStartUpAndRollsBack(t *testing.T) {
 func TestServerStartsWithTheClockAtTheTimeGiven(t *testing.T) {
 	dir := t.TempDir()
 	at := time.Date(2029, 3, 4, 5, 6, 7, 0, time.UTC)
-	m := fstest.MapFS{"0001_a.sql": {Data: []byte("CREATE TABLE a (x)")}}
+	m := fstest.MapFS{"0001_a.sql": {Data: withSettings(t, "CREATE TABLE a (x)")}}
 	mustStop(t, StartServer(t, Options{DataDir: dir, Now: at, Migrations: m}))
 	st, err := store.Open(t.Context(), dir, store.Options{Migrations: m})
 	if err != nil {
@@ -228,4 +228,15 @@ func mustStop(t *testing.T, s *Server) {
 	if err := s.Stop(); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// withSettings adds the real settings table to a test's own first migration:
+// the server reads the settings as it starts.
+func withSettings(t *testing.T, sql string) []byte {
+	t.Helper()
+	settings, err := os.ReadFile("../store/migrations/0002_settings.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return append([]byte(sql+";\n"), settings...)
 }

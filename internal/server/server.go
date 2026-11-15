@@ -17,6 +17,7 @@ import (
 
 	"jamieslibrary/internal/config"
 	"jamieslibrary/internal/httpapi"
+	"jamieslibrary/internal/settings"
 	"jamieslibrary/internal/store"
 	"jamieslibrary/internal/testhooks"
 	"jamieslibrary/internal/tlsca"
@@ -91,21 +92,36 @@ func Run(ctx context.Context, o Options) error {
 			}
 		}
 	}()
+	if cfg.HTTPOnly && cfg.BindAddress == "" {
+		log.Warn("the app, sign-in included, is served over plain HTTP on every network interface; " +
+			"behind a reverse proxy on the same host set JL_BIND_ADDRESS=127.0.0.1 (or --bind), " +
+			"or the address of the network the proxy is on, so only the proxy can reach it")
+	}
 	appPort := cfg.HTTPSPort
 	if cfg.HTTPOnly {
 		appPort = cfg.HTTPPort
 	}
 	if ln == nil {
-		if ln, err = net.Listen("tcp", ":"+strconv.Itoa(appPort)); err != nil {
+		if ln, err = net.Listen("tcp", net.JoinHostPort(cfg.BindAddress, strconv.Itoa(appPort))); err != nil {
 			return fmt.Errorf("cannot listen on port %d: %w", appPort, err)
 		}
 	}
 	if !cfg.HTTPOnly && plainLn == nil {
-		if plainLn, err = net.Listen("tcp", ":"+strconv.Itoa(cfg.HTTPPort)); err != nil {
+		if plainLn, err = net.Listen("tcp", net.JoinHostPort(cfg.BindAddress, strconv.Itoa(cfg.HTTPPort))); err != nil {
 			return fmt.Errorf("cannot listen on port %d: %w", cfg.HTTPPort, err)
 		}
 	}
-	h := httpapi.NewHandler(httpapi.Options{Version: o.Version, Logger: log, Static: webui.Handler()})
+	set, err := settings.New(ctx, st)
+	if err != nil {
+		return err
+	}
+	h, err := httpapi.NewHandler(httpapi.Options{
+		Version: o.Version, Logger: log, Static: webui.Handler(),
+		PublicCatalogOn: func() bool { return set.Get().PublicCatalog },
+	})
+	if err != nil {
+		return err
+	}
 	r := Ready{HTTPAddr: ln.Addr().String(), TLS: tlsCfg != nil, ControlAddr: control.Addr()}
 	if ca != nil {
 		r.Fingerprint = ca.Fingerprint()
