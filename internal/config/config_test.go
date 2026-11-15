@@ -71,3 +71,49 @@ func TestBadValuesNameTheSetting(t *testing.T) {
 		})
 	}
 }
+
+func TestTLSSettings(t *testing.T) {
+	c, err := Parse(nil, env(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.HTTPSPort != 8443 || c.HTTPOnly || c.TLSCert != "" || len(c.Addresses) != 0 || len(c.Hostnames) != 0 {
+		t.Fatalf("defaults: %+v", c)
+	}
+	c, err = Parse([]string{"--https-port", "9443"}, env(map[string]string{
+		"JL_ADDRESSES": "192.168.1.5, fe80::1", "JL_HOSTNAMES": "Library.Example.org nas.home.arpa.",
+		"JL_TLS_CERT": "/c.pem", "JL_TLS_KEY": "/k.pem", "JL_HTTPS_PORT": "1",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.HTTPSPort != 9443 || len(c.Addresses) != 2 || c.TLSCert != "/c.pem" ||
+		strings.Join(c.Hostnames, ",") != "library.example.org,nas.home.arpa" {
+		t.Fatalf("%+v", c)
+	}
+	if c, err = Parse(nil, env(map[string]string{"JL_HTTP_ONLY": "1"})); err != nil || !c.HTTPOnly {
+		t.Fatalf("%+v %v", c, err)
+	}
+}
+
+func TestTLSBadValuesNameTheSetting(t *testing.T) {
+	for name, tc := range map[string]struct {
+		env  map[string]string
+		want string
+	}{
+		"https port":      {map[string]string{"JL_HTTPS_PORT": "x"}, "JL_HTTPS_PORT"},
+		"address":         {map[string]string{"JL_ADDRESSES": "192.168.1.5,nope"}, `JL_ADDRESSES`},
+		"hostname":        {map[string]string{"JL_HOSTNAMES": "a b/c"}, "JL_HOSTNAMES"},
+		"wildcard":        {map[string]string{"JL_HOSTNAMES": "*.example.org"}, "JL_HOSTNAMES"},
+		"address as name": {map[string]string{"JL_HOSTNAMES": "10.0.0.1"}, "JL_HOSTNAMES"},
+		"cert alone":      {map[string]string{"JL_TLS_CERT": "/c.pem"}, "JL_TLS_KEY"},
+		"key alone":       {map[string]string{"JL_TLS_KEY": "/k.pem"}, "JL_TLS_CERT"},
+		"http only":       {map[string]string{"JL_HTTP_ONLY": "maybe"}, "JL_HTTP_ONLY"},
+		"proxy and cert":  {map[string]string{"JL_HTTP_ONLY": "1", "JL_TLS_CERT": "/c", "JL_TLS_KEY": "/k"}, "JL_HTTP_ONLY"},
+		"same ports":      {map[string]string{"JL_HTTP_PORT": "9000", "JL_HTTPS_PORT": "9000"}, "must differ"},
+	} {
+		if _, err := Parse(nil, env(tc.env)); err == nil || !strings.Contains(err.Error(), tc.want) {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+}
