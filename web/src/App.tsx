@@ -1,7 +1,13 @@
+import { BrowserRouter } from "react-router";
+import { AppRoutes } from "./app/routes";
+import { ThemeProvider } from "./app/ThemeProvider";
+
 export function App() {
   return (
-    <main>
-      <h1>Jamie's Library</h1>
-    </main>
+    <ThemeProvider>
+      <BrowserRouter>
+        <AppRoutes />
+      </BrowserRouter>
+    </ThemeProvider>
   );
 }
