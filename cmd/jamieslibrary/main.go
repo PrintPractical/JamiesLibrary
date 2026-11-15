@@ -13,9 +13,11 @@ import (
 	"os/signal"
 	"strconv"
 	"syscall"
+	"time"
 
 	"jamieslibrary/internal/config"
 	"jamieslibrary/internal/httpapi"
+	"jamieslibrary/internal/store"
 	"jamieslibrary/internal/webui"
 )
 
@@ -59,9 +61,12 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stder
 		return err
 	}
 	log := slog.New(slog.NewTextHandler(stderr, &slog.HandlerOptions{Level: cfg.LogLevel}))
-	if err := os.MkdirAll(cfg.DataDir, 0o750); err != nil {
-		return fmt.Errorf("cannot use the data directory %q: %w", cfg.DataDir, err)
+	st, err := store.Open(ctx, cfg.DataDir, store.Options{})
+	if err != nil {
+		return err
 	}
+	defer st.Close()
+	go st.RunTmpCleaner(ctx, time.Hour, func(err error) { log.Warn("cleaning tmp failed", "err", err) })
 	ln, err := net.Listen("tcp", ":"+strconv.Itoa(cfg.HTTPPort))
 	if err != nil {
 		return fmt.Errorf("cannot listen on port %d: %w", cfg.HTTPPort, err)
