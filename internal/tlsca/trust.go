@@ -27,7 +27,9 @@ func PlainHandler(ca *CA, httpsPort int) http.Handler {
 		case p == "/trust/ca.mobileconfig" && ca != nil:
 			h.download("application/x-apple-aspen-config", "jamies-library-ca.mobileconfig", ca.mobileconfig)(w, r)
 		case p == "/trust/":
-			h.page(w, r)
+			h.guide(w, r)
+		case strings.HasPrefix(p, "/trust/assets/"):
+			h.asset(w, r, strings.TrimPrefix(p, "/trust/assets/"))
 		default:
 			h.redirect(w, r)
 		}
@@ -65,19 +67,6 @@ func (h *plain) download(contentType, filename string, body func() []byte) http.
 			_, _ = w.Write(b)
 		}
 	}
-}
-
-// page is the placeholder the trust guide replaces.
-func (h *plain) page(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Header().Set("Cache-Control", "no-cache")
-	if h.ca == nil {
-		fmt.Fprint(w, `<!doctype html><meta charset="utf-8"><title>Jamie's Library</title><p>This library uses its owner's own certificate: nothing needs to be trusted. Open it over https.`)
-		return
-	}
-	fmt.Fprintf(w, `<!doctype html><meta charset="utf-8"><title>Trust Jamie's Library</title>`+
-		`<h1>Trust this library</h1><p><a href="/trust/ca.crt">Android and computers: ca.crt</a><br><a href="/trust/ca.mobileconfig">iPhone and iPad: ca.mobileconfig</a>`+
-		`<p>Certificate fingerprint (SHA-256): <code>%s</code>`, html.EscapeString(h.ca.Fingerprint()))
 }
 
 // redirect sends the request to the same path on HTTPS, on the host name or

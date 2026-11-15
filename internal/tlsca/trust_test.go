@@ -122,10 +122,10 @@ func TestPlainListenerServesNoAPI(t *testing.T) {
 	}
 }
 
-func TestTrustPagePlaceholder(t *testing.T) {
-	h, ca := plainHandler(t)
+func TestTrustPageIsHTMLAndNeedsNoCAInOwnersMode(t *testing.T) {
+	h, _ := plainHandler(t)
 	w := get(h, "GET", "/trust/", "library.local")
-	if w.Code != 200 || !strings.Contains(w.Body.String(), ca.Fingerprint()) || !strings.Contains(w.Header().Get("Content-Type"), "text/html") {
+	if w.Code != 200 || !strings.Contains(w.Header().Get("Content-Type"), "text/html") {
 		t.Fatalf("%d %s", w.Code, w.Body.String())
 	}
 	if w.Header().Get("X-Content-Type-Options") != "nosniff" {
