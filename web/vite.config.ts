@@ -6,7 +6,8 @@ import react from "@vitejs/plugin-react";
 // empties that folder first (keeping .gitkeep), so Vite doesn't.
 export default defineConfig({
   plugins: [react()],
-  build: { outDir: "../internal/webui/dist", emptyOutDir: false },
+  // assetsInlineLimit 0: the CSP allows fonts only from the server itself ('self'), not data: URLs.
+  build: { outDir: "../internal/webui/dist", emptyOutDir: false, assetsInlineLimit: 0 },
   server: { proxy: { "/api": "http://localhost:8080", "/media": "http://localhost:8080" } },
   test: {
     environment: "jsdom",
