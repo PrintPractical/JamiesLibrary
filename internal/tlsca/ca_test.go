@@ -477,3 +477,17 @@ func asInvalid(err error, target *x509.CertificateInvalidError) bool {
 	}
 	return ok
 }
+
+// A constraint of "com" or "app" would let the CA vouch for every site under it.
+func TestSingleLabelHostnamesAreRefusedBeforeACAIsMade(t *testing.T) {
+	for _, name := range []string{"com", "app", "arpa", "Dev."} {
+		dir := t.TempDir()
+		_, err := Open(dir, Options{Hostnames: []string{name}})
+		if err == nil || !strings.Contains(err.Error(), "JL_HOSTNAMES") || !strings.Contains(err.Error(), "name.local") {
+			t.Errorf("%q: %v", name, err)
+		}
+		if _, statErr := os.Stat(filepath.Join(dir, "tls")); statErr == nil {
+			t.Errorf("%q: a CA was made", name)
+		}
+	}
+}

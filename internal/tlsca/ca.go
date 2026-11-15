@@ -210,8 +210,8 @@ func (c *CA) create() error {
 	}
 	for _, h := range c.opts.Hostnames {
 		h = strings.ToLower(strings.TrimSuffix(h, "."))
-		if !config.ValidHostname(h) {
-			return fmt.Errorf("JL_HOSTNAMES: %q is not a host name", h)
+		if err := config.CheckOwnerHostname(h); err != nil {
+			return fmt.Errorf("JL_HOSTNAMES: %q: %w", h, err)
 		}
 		if !seen[h] {
 			seen[h] = true

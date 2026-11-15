@@ -106,6 +106,8 @@ func TestTLSBadValuesNameTheSetting(t *testing.T) {
 		"hostname":        {map[string]string{"JL_HOSTNAMES": "a b/c"}, "JL_HOSTNAMES"},
 		"wildcard":        {map[string]string{"JL_HOSTNAMES": "*.example.org"}, "JL_HOSTNAMES"},
 		"address as name": {map[string]string{"JL_HOSTNAMES": "10.0.0.1"}, "JL_HOSTNAMES"},
+		"single label":    {map[string]string{"JL_HOSTNAMES": "app"}, "JL_HOSTNAMES"},
+		"public tld":      {map[string]string{"JL_HOSTNAMES": "library.example.org com"}, `"com"`},
 		"cert alone":      {map[string]string{"JL_TLS_CERT": "/c.pem"}, "JL_TLS_KEY"},
 		"key alone":       {map[string]string{"JL_TLS_KEY": "/k.pem"}, "JL_TLS_CERT"},
 		"http only":       {map[string]string{"JL_HTTP_ONLY": "maybe"}, "JL_HTTP_ONLY"},

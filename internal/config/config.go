@@ -147,8 +147,8 @@ func parseHostnames(v string) ([]string, error) {
 	var out []string
 	for _, item := range splitList(v) {
 		name := strings.ToLower(strings.TrimSuffix(item, "."))
-		if !ValidHostname(name) || net.ParseIP(name) != nil {
-			return nil, fmt.Errorf("JL_HOSTNAMES must be a list of host names such as library.example.com, %q is not one", item)
+		if err := CheckOwnerHostname(name); err != nil {
+			return nil, fmt.Errorf("JL_HOSTNAMES: %q: %w", item, err)
 		}
 		out = append(out, name)
 	}
@@ -173,4 +173,17 @@ func ValidHostname(name string) bool {
 		}
 	}
 	return true
+}
+
+// CheckOwnerHostname checks a name the owner wants the local CA to vouch for.
+// It needs at least two labels: a constraint of "app" or "com" would let the CA
+// vouch for every site under that public top-level domain.
+func CheckOwnerHostname(name string) error {
+	if !ValidHostname(name) || net.ParseIP(name) != nil {
+		return fmt.Errorf("it is not a host name such as library.example.com")
+	}
+	if !strings.Contains(name, ".") {
+		return fmt.Errorf("a name needs at least two parts, like library.example.com or nas.local: a single word such as %q would make the CA vouch for every site ending in it. Use name.local, or the server's IP address", name)
+	}
+	return nil
 }
