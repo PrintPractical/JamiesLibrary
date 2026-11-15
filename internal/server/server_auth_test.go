@@ -53,3 +53,34 @@ func TestAnonymousVisitorOnTheRunningServer(t *testing.T) {
 		t.Fatalf("cross-origin sign-in: %d", r.StatusCode)
 	}
 }
+
+// SEC-T1 on the running server: JL_TRUSTED_PROXIES makes X-Forwarded-For count, and without it the header is ignored.
+func TestSignInLimitFollowsTheConfiguredProxies(t *testing.T) {
+	attempts := func(s *testutil.Server, xff func(i int) string) (last int) {
+		for i := 0; i < 6; i++ {
+			req, _ := http.NewRequest("POST", s.URL+"/api/auth/signin", strings.NewReader(`{"username":"ann","password":"wrong"}`))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Forwarded-For", xff(i))
+			resp, err := s.Client().Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resp.Body.Close()
+			last = resp.StatusCode
+		}
+		return last
+	}
+	differing := func(i int) string { return "203.0.113." + string(rune('1'+i)) }
+
+	plain := testutil.StartServer(t, testutil.Options{})
+	if got := attempts(plain, differing); got != 429 {
+		t.Fatalf("forged addresses escaped the limit without a proxy: %d", got)
+	}
+	proxied := testutil.StartServer(t, testutil.Options{Env: map[string]string{"JL_TRUSTED_PROXIES": "127.0.0.0/8, ::1/128"}})
+	if got := attempts(proxied, differing); got != 401 {
+		t.Fatalf("visitors the proxy told apart were limited together: %d", got)
+	}
+	if got := attempts(proxied, func(int) string { return "203.0.113.99" }); got != 429 {
+		t.Fatalf("one reported visitor was not limited: %d", got)
+	}
+}

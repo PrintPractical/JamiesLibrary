@@ -18,6 +18,7 @@ import (
 	"jamieslibrary/internal/auth"
 	"jamieslibrary/internal/config"
 	"jamieslibrary/internal/httpapi"
+	"jamieslibrary/internal/ratelimit"
 	"jamieslibrary/internal/settings"
 	"jamieslibrary/internal/store"
 	"jamieslibrary/internal/testhooks"
@@ -120,7 +121,10 @@ func Run(ctx context.Context, o Options) error {
 	usersSvc := users.New(st)
 	authSvc := auth.NewService(st, usersSvc,
 		func() time.Duration { return time.Duration(set.Get().SessionIdleMinutes) * time.Minute }, log)
+	limiter := ratelimit.New()
+	go limiter.Run(ctx)
 	h, err := httpapi.NewHandler(httpapi.Options{
+		Clients: ratelimit.NewClients(cfg.TrustedProxies), Limiter: limiter,
 		Version: o.Version, Logger: log, Static: webui.Handler(),
 		Auth: authSvc, Users: usersSvc, Settings: set,
 		PublicCatalogOn: func() bool { return set.Get().PublicCatalog },

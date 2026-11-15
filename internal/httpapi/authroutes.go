@@ -2,13 +2,16 @@ package httpapi
 
 import (
 	"log/slog"
+	"math"
 	"net"
 	"net/http"
+	"strconv"
 	"unicode/utf8"
 
 	"jamieslibrary/internal/apperr"
 	"jamieslibrary/internal/auth"
 	"jamieslibrary/internal/perm"
+	"jamieslibrary/internal/ratelimit"
 	"jamieslibrary/internal/settings"
 	"jamieslibrary/internal/users"
 )
@@ -19,7 +22,13 @@ const maxLoggedUsername = 64
 // registerAuthRoutes registers sign-in, sign-out, "who am I" and the change of
 // one's own password.
 func registerAuthRoutes(rt *Router, o Options) {
-	a := &authRoutes{auth: o.Auth, users: o.Users, settings: o.Settings, log: o.Logger}
+	a := &authRoutes{auth: o.Auth, users: o.Users, settings: o.Settings, log: o.Logger, clients: o.Clients, limiter: o.Limiter}
+	if a.clients == nil {
+		a.clients = ratelimit.NewClients(nil)
+	}
+	if a.limiter == nil {
+		a.limiter = ratelimit.New()
+	}
 	rt.HandleFunc("POST /api/auth/signin", Public(), a.signIn)
 	rt.HandleFunc("POST /api/auth/signout", SignedIn().AllowWhileMustChange(), a.signOut)
 	rt.HandleFunc("GET /api/me", SignedIn().AllowWhileMustChange(), a.me)
@@ -31,7 +40,26 @@ type authRoutes struct {
 	users    *users.Service
 	settings *settings.Service
 	log      *slog.Logger
+	clients  *ratelimit.Clients
+	limiter  *ratelimit.Limiter
 }
+
+// attempt counts a sign-in attempt, or a guess at the current password, against
+// the client's address before any password work. When the address is blocked it
+// writes the refusal and returns false. An allowed attempt is already counted
+// as a failure: the caller gives that back (Forgive, Succeed) if it wasn't one.
+func (a *authRoutes) attempt(w http.ResponseWriter, r *http.Request) (key string, ok bool) {
+	key = a.clients.Key(r)
+	ok, retry := a.limiter.Allow(ratelimit.SignIn, key)
+	if !ok {
+		w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(retry.Seconds()))))
+		WriteError(w, r, apperr.New(apperr.Throttled, tooManyAttempts))
+	}
+	return key, ok
+}
+
+// tooManyAttempts is what a blocked address is told, by every limited route.
+const tooManyAttempts = "Too many attempts, try again later."
 
 type userBody struct {
 	ID          int64     `json:"id"`
@@ -101,14 +129,22 @@ func (a *authRoutes) signIn(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, r, err)
 		return
 	}
+	key, ok := a.attempt(w, r)
+	if !ok {
+		return
+	}
 	token, id, err := a.auth.SignIn(r.Context(), in.Username, in.Password)
 	if err != nil {
 		if e, ok := apperr.As(err); ok && e.Code == apperr.Unauthorized {
 			a.log.Warn("sign-in failed", "remote", remoteHost(r), "username", truncate(in.Username, maxLoggedUsername))
 		}
+		if e, ok := apperr.As(err); !ok || e.Code != apperr.Unauthorized {
+			a.limiter.Forgive(ratelimit.SignIn, key) // not a wrong password: a fault, or a cancelled request
+		}
 		WriteError(w, r, err)
 		return
 	}
+	a.limiter.Succeed(ratelimit.SignIn, key)
 	// The browser's old session, if it had one, ends: a token it presents is never adopted.
 	if c := auth.Caller(r.Context()); c != nil {
 		_ = a.auth.SignOut(r.Context(), c.SessionID)
@@ -140,11 +176,20 @@ func (a *authRoutes) changePassword(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, r, err)
 		return
 	}
+	key, ok := a.attempt(w, r)
+	if !ok {
+		return
+	}
 	c := auth.Caller(r.Context())
 	if err := a.auth.ChangePassword(r.Context(), c.UserID, c.SessionID, in.Current, in.New); err != nil {
+		// Only a wrong current password is a failed attempt.
+		if e, ok := apperr.As(err); !ok || e.Field != "current_password" {
+			a.limiter.Forgive(ratelimit.SignIn, key)
+		}
 		WriteError(w, r, err)
 		return
 	}
+	a.limiter.Forgive(ratelimit.SignIn, key)
 	w.WriteHeader(http.StatusNoContent)
 }
 

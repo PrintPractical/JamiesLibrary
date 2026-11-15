@@ -9,6 +9,7 @@ import (
 
 	"jamieslibrary/internal/apperr"
 	"jamieslibrary/internal/auth"
+	"jamieslibrary/internal/ratelimit"
 	"jamieslibrary/internal/settings"
 	"jamieslibrary/internal/users"
 )
@@ -30,6 +31,11 @@ type Options struct {
 	// Authenticate, when set, wraps the routes and puts the caller in the
 	// request context (auth.WithCaller). Without it no request has a caller.
 	Authenticate func(http.Handler) http.Handler
+	// Clients finds each request's client address; the default trusts no proxy.
+	Clients *ratelimit.Clients
+	// Limiter holds the failed-attempt counts. The default is a fresh one,
+	// which a server replaces with the one it shares with the other routes.
+	Limiter *ratelimit.Limiter
 	// Routes registers the API's routes, each with its access.
 	Routes func(*Router)
 }
@@ -40,6 +46,12 @@ type Options struct {
 func NewHandler(o Options) (http.Handler, error) {
 	if o.Logger == nil {
 		o.Logger = slog.Default()
+	}
+	if o.Clients == nil {
+		o.Clients = ratelimit.NewClients(nil)
+	}
+	if o.Limiter == nil {
+		o.Limiter = ratelimit.New()
 	}
 	rt, err := buildRouter(o)
 	if err != nil {

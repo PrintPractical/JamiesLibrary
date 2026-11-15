@@ -36,9 +36,11 @@ type site struct {
 	h     http.Handler
 	logs  *bytes.Buffer
 	now   time.Time
+	// remote is the connection address requests come from; "" is httptest's default.
+	remote string
 }
 
-func newSite(t *testing.T) *site {
+func newSite(t *testing.T, tweak ...func(*Options)) *site {
 	t.Helper()
 	ctx := context.Background()
 	s := &site{t: t, dir: t.TempDir(), logs: &bytes.Buffer{}, now: time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC)}
@@ -56,10 +58,14 @@ func newSite(t *testing.T) *site {
 	s.auth = auth.NewService(s.st, s.users,
 		func() time.Duration { return time.Duration(s.set.Get().SessionIdleMinutes) * time.Minute }, log)
 	static := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, "<html>app</html>") })
-	s.h, err = NewHandler(Options{
+	opts := Options{
 		Logger: log, Static: static, Auth: s.auth, Users: s.users, Settings: s.set,
 		PublicCatalogOn: func() bool { return s.set.Get().PublicCatalog },
-	})
+	}
+	for _, f := range tweak {
+		f(&opts)
+	}
+	s.h, err = NewHandler(opts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,6 +97,9 @@ func (s *site) req(method, path, cookie, body string, hdr ...string) *httptest.R
 	}
 	for i := 0; i+1 < len(hdr); i += 2 {
 		r.Header.Set(hdr[i], hdr[i+1])
+	}
+	if s.remote != "" {
+		r.RemoteAddr = s.remote
 	}
 	rec := httptest.NewRecorder()
 	s.h.ServeHTTP(rec, r)
