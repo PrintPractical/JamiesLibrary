@@ -17,7 +17,7 @@ const ALLOWED: { host: string; pathPrefix: string }[] = [
 ];
 
 // A scheme'd URL anywhere, or a bare //host that does not continue a longer path.
-const URL_PATTERN = /(?:(?:https?|wss?):\/\/|(?<![\w:/.\-])\/\/(?=[\w-]+\.[\w-]))[^\s"'`)<>\\]+/gi;
+const URL_PATTERN = /(?:(?:https?|wss?):\/\/|(?<![\w:/.-])\/\/(?=[\w-]+\.[\w-]))[^\s"'`)<>\\]+/gi;
 
 function allowed(url: string): boolean {
   let parsed: URL;
