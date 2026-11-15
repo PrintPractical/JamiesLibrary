@@ -35,6 +35,9 @@ type Options struct {
 	// OpenLibrary, when set, is the provider the server asks (JL_TEST_METADATA_URL).
 	OpenLibrary *FakeOL
 	// Env adds environment variables (JL_*), seen by the server as its environment.
+	// The server starts with JL_HTTP_ONLY=1, so URL is the app over plain HTTP;
+	// set "JL_HTTP_ONLY": "" to start it as an installation does, with the local
+	// CA: URL is then https and TrustURL serves the CA downloads.
 	Env map[string]string
 	// Args are extra command-line flags.
 	Args []string
@@ -50,6 +53,9 @@ var serverMu sync.Mutex
 type Server struct {
 	// URL is the base URL of the web server, such as http://127.0.0.1:41234.
 	URL string
+	// TrustURL is the base URL of the plain-HTTP listener (trust downloads and
+	// the redirect to HTTPS); "" in JL_HTTP_ONLY mode.
+	TrustURL string
 	// ControlURL is the base URL of the test control listener.
 	ControlURL string
 	// DataDir is the data directory.
@@ -91,6 +97,7 @@ func TryStartServer(t testing.TB, opts Options) (*Server, error) {
 		"JL_DATA_DIR":            s.DataDir,
 		"JL_LOG_LEVEL":           "debug",
 		testhooks.EnvControlAddr: "127.0.0.1:0",
+		"JL_HTTP_ONLY":           "1",
 	}
 	now := opts.Now
 	if now.IsZero() {
@@ -108,28 +115,46 @@ func TryStartServer(t testing.TB, opts Options) (*Server, error) {
 		s.unlock()
 		return nil, err
 	}
+	var trustLn net.Listener
+	if env["JL_HTTP_ONLY"] == "" {
+		if trustLn, err = net.Listen("tcp", "127.0.0.1:0"); err != nil {
+			_ = ln.Close()
+			s.unlock()
+			return nil, err
+		}
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	s.cancel = cancel
 	ready := make(chan server.Ready, 1)
 	go func() {
 		defer close(s.done)
 		s.err = server.Run(ctx, server.Options{
-			Args:       opts.Args,
-			Getenv:     func(k string) string { return env[k] },
-			Stdout:     &s.stdout,
-			Stderr:     &s.stderr,
-			Version:    "test",
-			Listener:   ln,
-			Ready:      func(r server.Ready) { ready <- r },
-			Migrations: opts.Migrations,
+			Args:          opts.Args,
+			Getenv:        func(k string) string { return env[k] },
+			Stdout:        &s.stdout,
+			Stderr:        &s.stderr,
+			Version:       "test",
+			Listener:      ln,
+			TrustListener: trustLn,
+			Ready:         func(r server.Ready) { ready <- r },
+			Migrations:    opts.Migrations,
 		})
 	}()
 	select {
 	case r := <-ready:
 		s.URL = "http://" + r.HTTPAddr
+		if r.TLS {
+			s.URL = "https://" + r.HTTPAddr
+		}
+		if r.TrustAddr != "" {
+			s.TrustURL = "http://" + r.TrustAddr
+		}
 		s.ControlURL = "http://" + r.ControlAddr
 	case <-s.done:
 		_ = ln.Close()
+		if trustLn != nil {
+			_ = trustLn.Close()
+		}
 		s.unlock()
 		return s, &StartError{Err: s.err, Stdout: s.Stdout(), Log: s.Log()}
 	case <-time.After(30 * time.Second):
