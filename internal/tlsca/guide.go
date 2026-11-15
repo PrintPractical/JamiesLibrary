@@ -35,7 +35,9 @@ var guideSections = []guideSection{
 		DownloadLabel: "Download the profile",
 		Steps: []string{
 			"Tap “Download the profile” above, then tap Allow when Safari asks to download a configuration profile.",
-			"Open the Settings app. Tap “Profile Downloaded” near the top (or General › VPN & Device Management), then tap the profile and tap Install. Enter your passcode and tap Install again.",
+			"Open the Settings app and tap “Profile Downloaded” near the top (or General › VPN & Device Management), then tap the profile.",
+			"Before you tap Install, check it: tap More Details, tap the certificate, and compare its SHA-256 under Fingerprints with the one on the library's server console or Settings page. If they differ, don't install the profile, and tap Cancel.",
+			"If they match, tap Install, enter your passcode and tap Install again.",
 			"Go to Settings › General › About › Certificate Trust Settings. Under “Enable full trust for root certificates”, switch on the certificate named Jamie's Library local CA. Tap Continue.",
 			"Come back to this page and use the button at the bottom to open the library.",
 		},
@@ -49,6 +51,7 @@ var guideSections = []guideSection{
 			"Tap “Download the certificate” above. If Chrome asks to keep the file, tap Download or Keep.",
 			"Open Settings and search for “CA certificate” (it is usually under Security & privacy › More security settings › Encryption & credentials › Install a certificate). Choose CA certificate. Tap Install anyway when it warns you.",
 			"Pick the file you just downloaded, jamies-library-ca.crt, from Downloads. Your phone may ask for your screen lock.",
+			"Check it: go to Settings › Security (or Security & privacy) › Encryption & credentials › Trusted credentials › User, tap the Jamie's Library certificate, and compare its SHA-256 under Fingerprints with the one on the library's server console or Settings page. If they differ, tap Remove.",
 			"Come back to Chrome and use the button at the bottom to open the library. If it still shows a warning, close Chrome and open it again.",
 		},
 	},
@@ -59,9 +62,9 @@ var guideSections = []guideSection{
 		DownloadLabel: "Download the certificate",
 		Steps: []string{
 			"Tap or click “Download the certificate” above.",
-			"On Windows: double-click the file, choose Install Certificate, then Current User, then “Place all certificates in the following store” and pick Trusted Root Certification Authorities.",
-			"On a Mac: double-click the file to add it to Keychain Access, open it there, expand Trust and set “When using this certificate” to Always Trust.",
-			"On Linux, or in Firefox: open Firefox Settings › Privacy & Security › View Certificates › Authorities › Import, and tick “Trust this CA to identify websites”.",
+			"On a Mac: double-click the file to add it to Keychain Access. Open the certificate there and compare its SHA-256 under Fingerprints with the one on the library's server console or Settings page. If they match, expand Trust and set “When using this certificate” to Always Trust. If they differ, delete the certificate.",
+			"In Firefox on any computer: open Settings › Privacy & Security › View Certificates › Authorities › Import. Before you tick “Trust this CA to identify websites”, choose the certificate and View it, and compare its SHA-256 fingerprint with the one on the console or Settings page.",
+			"On Windows: double-click the file, choose Install Certificate, then Current User, then “Place all certificates in the following store” and pick Trusted Root Certification Authorities. Windows' own window shows only a SHA-1 thumbprint, so check after the next step: open the library in Chrome or Edge, select the padlock (or site information) › certificate, open Details, select the top entry of the hierarchy and compare its SHA-256 fingerprint with the one on the console or Settings page. If they differ, remove the certificate from Trusted Root Certification Authorities.",
 			"Restart your browser, then use the button at the bottom to open the library.",
 		},
 	},
@@ -73,11 +76,12 @@ type guideData struct {
 	Sections    []guideSection
 	Fingerprint template.HTML
 	HTTPSURL    string
+	IPad        bool // the User-Agent could be an iPad that asks for desktop sites
 }
 
 // detectSystem names the kind of device a User-Agent describes: ios,
 // android or desktop. An iPad that asks for desktop sites sends a Mac
-// User-Agent and gets the desktop steps, with the iPhone steps one tap away.
+// User-Agent and gets the desktop steps; guide opens the iPhone steps too for it.
 func detectSystem(ua string) string {
 	switch {
 	case strings.Contains(ua, "iPhone"), strings.Contains(ua, "iPad"), strings.Contains(ua, "iPod"):
@@ -131,10 +135,14 @@ func (h *plain) guide(w http.ResponseWriter, r *http.Request) {
 	d := guideData{Own: h.ca == nil, HTTPSURL: h.httpsURL(r)}
 	if h.ca != nil {
 		d.Fingerprint = fingerprintHTML(h.ca.Fingerprint())
-		first := detectSystem(r.UserAgent())
+		ua := r.UserAgent()
+		first := detectSystem(ua)
+		// A Mac User-Agent may be an iPad asking for desktop sites, so its steps are open too.
+		mac := strings.Contains(ua, "Macintosh")
+		d.IPad = mac
 		for _, s := range guideSections {
+			s.Open = s.Key == first || (mac && s.Key == "ios")
 			if s.Key == first {
-				s.Open = true
 				d.Sections = append([]guideSection{s}, d.Sections...)
 			} else {
 				d.Sections = append(d.Sections, s)

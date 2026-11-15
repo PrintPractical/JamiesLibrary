@@ -196,3 +196,63 @@ func TestGuideHEADHasNoBody(t *testing.T) {
 		t.Fatalf("%d with %d bytes", w.Code, w.Body.Len())
 	}
 }
+
+const uaMac = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15"
+
+func TestGuideOpensTheIPhoneStepsForAMacUserAgent(t *testing.T) {
+	h, _ := plainHandler(t)
+	page := guideAs(h, uaMac)
+	if order := sectionOrder(page); len(order) != 3 || order[0] != "desktop" {
+		t.Fatalf("sections %v", order)
+	}
+	if !strings.Contains(page, `<section class="card" id="ios"`) || !strings.Contains(page, "On an iPad?") || !strings.Contains(page, `href="#ios"`) {
+		t.Error("an iPad that asks for desktop sites isn't pointed to its steps, open")
+	}
+	if strings.Contains(guideAs(h, uaWindows), "On an iPad?") || strings.Contains(guideAs(h, uaAndroid), `<section class="card" id="ios"`) {
+		t.Error("the iPad note or the iPhone steps shown to other devices")
+	}
+}
+
+// T13: the page and the downloads come over plain HTTP, so an attacker can
+// change a download and leave the page's fingerprint alone. The page's own
+// copy must therefore not be the check, and each system's steps must send the
+// user to the fingerprint the device itself shows.
+func TestGuideDoesNotMakeItsOwnFingerprintTheCheck(t *testing.T) {
+	h, _ := plainHandler(t)
+	page := guideAs(h, uaIPhone)
+	for _, want := range []string{"for reference only", "could have been changed", "Capitals, spaces and colons don't matter", "server console"} {
+		if !strings.Contains(page, want) {
+			t.Errorf("missing %q", want)
+		}
+	}
+	if strings.Contains(page, "fingerprint shown on this page") || strings.Contains(page, "Compare the first 8 and the last 8 characters (shown in bold) with") {
+		t.Error("the page presents its own copy as the check")
+	}
+}
+
+func TestEachSystemsStepsNameWhereTheDeviceShowsTheFingerprint(t *testing.T) {
+	for _, tc := range []struct {
+		key  string
+		must []string
+	}{
+		{"ios", []string{"More Details", "Fingerprints", "SHA-256", "Before you tap Install"}},
+		{"android", []string{"Trusted credentials", "User", "Fingerprints", "SHA-256", "tap Remove"}},
+		{"desktop", []string{"Keychain Access", "SHA-256", "Firefox", "View Certificates", "Chrome or Edge", "top entry of the hierarchy", "SHA-1"}},
+	} {
+		var sec guideSection
+		for _, s := range guideSections {
+			if s.Key == tc.key {
+				sec = s
+			}
+		}
+		text := strings.Join(sec.Steps, "\n")
+		for _, want := range tc.must {
+			if !strings.Contains(text, want) {
+				t.Errorf("%s steps lack %q", tc.key, want)
+			}
+		}
+		if !strings.Contains(text, "server console or Settings page") && !strings.Contains(text, "console or Settings page") {
+			t.Errorf("%s steps don't say what to compare with", tc.key)
+		}
+	}
+}

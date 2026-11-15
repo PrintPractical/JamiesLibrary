@@ -22,6 +22,8 @@
     <p>Your phone's camera can scan barcodes only on a secure page. Do this once on each device, and it stays set up. It takes about a minute and needs no other computer. Typing a code, or a handheld scanner, works without it.</p>
   </div>
 
+  {{if .IPad}}<div class="alert"><b>On an iPad?</b> Use the <a href="#ios">iPhone and iPad steps</a>, open below the computer steps.</div>{{end}}
+
   {{range .Sections}}
   {{if .Open}}
   <section class="card" id="{{.Key}}" aria-labelledby="h-{{.Key}}">
@@ -42,9 +44,9 @@
 
   <section class="card" aria-labelledby="h-check">
     <h2 id="h-check">Check it is really this library</h2>
-    <p>Anyone on your network could offer you a different certificate. Before you trust it, make sure it is the one this library made. This is its fingerprint:</p>
+    <p>Anyone on your network could swap the file you download for another one. So each set of steps above tells you to compare the SHA-256 fingerprint your device shows for the certificate with the one on the library's server console, or on the Settings page when an administrator is signed in. Compare the first 8 and the last 8 characters. Capitals, spaces and colons don't matter. If they differ, don't trust it.</p>
+    <p>This page's own copy is for reference only, and is not the check: this page came over a connection that isn't encrypted, so it could have been changed on the way.</p>
     <code class="fp" id="fingerprint">{{.Fingerprint}}</code>
-    <p>Compare the <b>first 8</b> and the <b>last 8</b> characters (shown in bold) with the fingerprint on the library's server console, or on the Settings page when an administrator is signed in. If they differ, don't install it.</p>
   </section>
 
   <section class="alert warn" aria-labelledby="h-what">
