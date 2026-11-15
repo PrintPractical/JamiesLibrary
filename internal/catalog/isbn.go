@@ -17,6 +17,11 @@ func ParseISBN(s string) (string, error) {
 	return isbn, nil
 }
 
+// lastIndex is the index of the last character of s that is not a hyphen or space.
+func lastIndex(s string) int {
+	return len(strings.TrimRight(s, "- ")) - 1
+}
+
 func normaliseISBN(s string) (string, bool) {
 	var b []byte
 	for i := 0; i < len(s); i++ {
@@ -24,8 +29,8 @@ func normaliseISBN(s string) (string, bool) {
 		case c == '-' || c == ' ':
 		case c >= '0' && c <= '9':
 			b = append(b, c)
-		case (c == 'X' || c == 'x') && len(b) == 9:
-			b = append(b, 'X')
+		case (c == 'X' || c == 'x') && len(b) == 9 && i == lastIndex(s):
+			b = append(b, 'X') // only as the last character of an ISBN-10
 		default:
 			return "", false
 		}

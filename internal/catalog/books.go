@@ -49,11 +49,11 @@ type cleanBook struct {
 func (in BookInput) clean() (cleanBook, error) {
 	var c cleanBook
 	var err error
-	if c.title, err = cleanText(in.Title, "title", "title", MaxTitle, true); err != nil {
+	if c.title, err = cleanText(in.Title, "title", "title", MaxTitle, true, false); err != nil {
 		return c, err
 	}
 	for _, a := range in.Authors {
-		a, err := cleanText(a, "authors", "author name", MaxAuthorName, false)
+		a, err := cleanText(a, "authors", "author name", MaxAuthorName, false, false)
 		if err != nil {
 			return c, err
 		}
@@ -67,7 +67,7 @@ func (in BookInput) clean() (cleanBook, error) {
 	if len(c.authors) > MaxAuthors {
 		return c, apperr.OnField(apperr.Invalid, "authors", fmt.Sprintf("A book can have at most %d authors.", MaxAuthors))
 	}
-	if c.description, err = cleanText(in.Description, "description", "description", MaxDescription, false); err != nil {
+	if c.description, err = cleanText(in.Description, "description", "description", MaxDescription, false, true); err != nil {
 		return c, err
 	}
 	if strings.TrimSpace(in.ISBN) != "" {

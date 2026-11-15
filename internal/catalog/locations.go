@@ -56,7 +56,7 @@ func (s *Service) Locations(ctx context.Context) ([]Location, error) {
 // CreateLocation adds a location. A name another location has, ignoring
 // case, is refused.
 func (s *Service) CreateLocation(ctx context.Context, actor int64, name string) (Location, error) {
-	name, err := cleanText(name, "name", "location name", MaxLocation, true)
+	name, err := cleanText(name, "name", "location name", MaxLocation, true, false)
 	if err != nil {
 		return Location{}, err
 	}
@@ -78,7 +78,7 @@ func (s *Service) CreateLocation(ctx context.Context, actor int64, name string) 
 // RenameLocation renames a location, for all its copies. Changing only the
 // case of its own name is allowed.
 func (s *Service) RenameLocation(ctx context.Context, actor, id int64, name string) (Location, error) {
-	name, err := cleanText(name, "name", "location name", MaxLocation, true)
+	name, err := cleanText(name, "name", "location name", MaxLocation, true, false)
 	if err != nil {
 		return Location{}, err
 	}

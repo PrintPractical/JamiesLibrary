@@ -294,15 +294,63 @@ func TestSearchIgnoresCaseBeyondASCII(t *testing.T) {
 	}
 }
 
-func TestSearchDoesNotMatchAcrossTitleAndAuthor(t *testing.T) {
+func TestSearchWordsMayBeSpreadAcrossTitleAndAuthors(t *testing.T) {
 	s := newService(t, nil)
+	hobbit := add(t, s, "The Hobbit", "J. R. R. Tolkien")
+	add(t, s, "The Silmarillion", "Christopher Tolkien")
+	add(t, s, "Hobbit Cooking", "Ann Cook")
+	for _, q := range []string{"hobbit tolkien", "tolkien hobbit", "the hobbit tolkien", "  HOBBIT   tolkien ", "J.R.R. Tolkien", "j r r hobbit"} {
+		r := search(t, s, q)
+		if r.Total != 1 || r.Books[0].ID != hobbit.ID {
+			t.Errorf("search %q -> %v; want only The Hobbit", q, titles(r))
+		}
+	}
+	if r := search(t, s, "tolkien"); r.Total != 2 {
+		t.Errorf("one word -> %v", titles(r))
+	}
+	// Every word must appear.
+	for _, q := range []string{"hobbit rowling", "rowling hobbit", "hobbit tolkien rowling"} {
+		if r := search(t, s, q); r.Total != 0 {
+			t.Errorf("search %q -> %v; want nothing", q, titles(r))
+		}
+	}
+	// A single word does not match across the title and an author's name.
 	add(t, s, "Alpha", "Beta")
-	if r := search(t, s, "alpha beta"); r.Total != 0 {
-		t.Fatal("a term matched across the title and author")
+	if r := search(t, s, "phabeta"); r.Total != 0 {
+		t.Error("a word matched across the title and author")
 	}
-	if r := search(t, s, "alpha\nbeta"); r.Total != 0 {
-		t.Fatal("a newline in a term matched across fields")
+	if r := search(t, s, "..."); r.Total != 0 {
+		t.Error("periods only should be searched as written")
 	}
+	_, err := s.Search(ctx, "a b c d e f g h i j k", 0, 1)
+	wantField(t, err, apperr.Invalid, "q")
+}
+
+func TestControlAndDirectionCharactersAreRefused(t *testing.T) {
+	s := newService(t, nil)
+	for _, bad := range []string{"a\x00b", "a\x1bb", "a\u202eb", "a\u2067b", "a\x7fb", "line\nbreak"} {
+		_, err := s.CreateBook(ctx, 1, BookInput{Title: bad, Authors: []string{"A"}})
+		wantField(t, err, apperr.Invalid, "title")
+		_, err = s.CreateBook(ctx, 1, BookInput{Title: "T", Authors: []string{bad}})
+		wantField(t, err, apperr.Invalid, "authors")
+		_, err = s.CreateLocation(ctx, 1, bad)
+		wantField(t, err, apperr.Invalid, "name")
+		if bad != "line\nbreak" {
+			_, err = s.Search(ctx, bad, 0, 1)
+			wantField(t, err, apperr.Invalid, "q")
+		}
+	}
+	add(t, s, "T", "A")
+	if _, err := s.Search(ctx, "\x00", 0, 1); err == nil {
+		t.Error("NUL in a search was accepted")
+	}
+	// A description keeps its line breaks.
+	b, err := s.CreateBook(ctx, 1, BookInput{Title: "T2", Authors: []string{"A"}, Description: "one\n\ttwo"})
+	if err != nil || b.Description != "one\n\ttwo" {
+		t.Fatalf("%+v %v", b, err)
+	}
+	_, err = s.CreateBook(ctx, 1, BookInput{Title: "T3", Authors: []string{"A"}, Description: "a\x00b"})
+	wantField(t, err, apperr.Invalid, "description")
 }
 
 func TestSearchByISBN(t *testing.T) {

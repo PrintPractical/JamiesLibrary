@@ -24,6 +24,7 @@ const (
 	MaxDescription = 10000
 	MaxLocation    = 100
 	MaxSearchTerm  = 200
+	MaxSearchWords = 10
 	PageSize       = 50
 	maxPage        = 100000
 )
@@ -83,8 +84,11 @@ func New(st *store.Store, opts Options) *Service {
 }
 
 // cleanText trims s and checks it against a limit counted in characters.
-func cleanText(s, field, what string, max int, required bool) (string, error) {
+func cleanText(s, field, what string, max int, required, multiline bool) (string, error) {
 	s = strings.TrimSpace(s)
+	if hasUnsafeChars(s, multiline) {
+		return "", apperr.OnField(apperr.Invalid, field, "The "+what+" has a character that is not allowed (a control or text-direction character).")
+	}
 	if s == "" && required {
 		return "", apperr.OnField(apperr.Invalid, field, "The "+what+" is required.")
 	}
@@ -95,3 +99,18 @@ func cleanText(s, field, what string, max int, required bool) (string, error) {
 }
 
 func itoa(n int) string { return strconv.Itoa(n) }
+
+// hasUnsafeChars reports control characters (newline and tab allowed when
+// multiline) and the bidirectional override and isolate characters.
+func hasUnsafeChars(s string, multiline bool) bool {
+	for _, r := range s {
+		switch {
+		case multiline && (r == '\n' || r == '\t' || r == '\r'):
+		case r < 0x20 || (r >= 0x7f && r < 0xa0):
+			return true
+		case r >= 0x202a && r <= 0x202e, r >= 0x2066 && r <= 0x2069:
+			return true
+		}
+	}
+	return false
+}

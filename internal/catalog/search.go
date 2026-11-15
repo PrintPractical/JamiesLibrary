@@ -2,7 +2,9 @@ package catalog
 
 import (
 	"context"
+	"fmt"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"jamieslibrary/internal/apperr"
@@ -21,7 +23,10 @@ type SearchResult struct {
 // only those with a copy in locationID (0 for any). An empty query lists every
 // book. Removed books never appear. Pages count from 1 and hold PageSize books.
 func (s *Service) Search(ctx context.Context, query string, locationID int64, page int) (SearchResult, error) {
-	query = strings.TrimSpace(query)
+	query = strings.TrimSpace(strings.NewReplacer("\r", " ", "\n", " ", "\t", " ").Replace(query))
+	if hasUnsafeChars(query, false) {
+		return SearchResult{}, apperr.OnField(apperr.Invalid, "q", "The search has a character that is not allowed.")
+	}
 	if utf8.RuneCountInString(query) > MaxSearchTerm {
 		return SearchResult{}, apperr.OnField(apperr.Invalid, "q", "The search is too long: at most 200 characters.")
 	}
@@ -39,8 +44,14 @@ func (s *Service) Search(ctx context.Context, query string, locationID int64, pa
 			where = append(where, "books.isbn13 = ?")
 			args = append(args, isbn)
 		} else {
-			where = append(where, `books.search_text LIKE ? ESCAPE '\'`)
-			args = append(args, "%"+likeEscape(strings.ToLower(oneLine(query)))+"%")
+			words := searchWords(query)
+			if len(words) > MaxSearchWords {
+				return SearchResult{}, apperr.OnField(apperr.Invalid, "q", fmt.Sprintf("The search has too many words: at most %d.", MaxSearchWords))
+			}
+			for _, w := range words {
+				where = append(where, `books.search_text LIKE ? ESCAPE '\'`)
+				args = append(args, "%"+likeEscape(w)+"%")
+			}
 		}
 	}
 	if locationID != 0 {
@@ -66,10 +77,17 @@ func (s *Service) Search(ctx context.Context, query string, locationID int64, pa
 	return res, nil
 }
 
-// oneLine turns line breaks into spaces: the stored text keeps one title or
-// author per line, and a search must not match across them.
-func oneLine(s string) string {
-	return strings.NewReplacer("\r", " ", "\n", " ").Replace(s)
+// searchWords splits a query into the lower-cased words that must each appear
+// in a book's title or an author's name. Periods separate words too, so
+// "J.R.R. Tolkien" finds "J. R. R. Tolkien". A query of nothing but periods is
+// searched as written.
+func searchWords(q string) []string {
+	q = strings.ToLower(q)
+	words := strings.FieldsFunc(q, func(r rune) bool { return r == '.' || unicode.IsSpace(r) })
+	if len(words) == 0 {
+		return []string{q}
+	}
+	return words
 }
 
 // likeEscape makes s match itself literally in LIKE ... ESCAPE '\'.
