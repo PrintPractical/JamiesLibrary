@@ -29,6 +29,7 @@ type Access struct {
 	kind      accessKind
 	perm      perm.Permission
 	whileMust bool
+	multipart bool
 }
 
 // Require lets in a signed-in caller who holds p, and answers 401 to a request
@@ -51,6 +52,10 @@ func PublicCatalog() Access { return Access{kind: publicCatalog} }
 // change their password may still reach (ACCESS-7): only me, change password
 // and sign out carry it.
 func (a Access) AllowWhileMustChange() Access { a.whileMust = true; return a }
+
+// Multipart lets the route take a multipart/form-data body (an image upload).
+// Every other state-changing route takes only application/json (sec §8).
+func (a Access) Multipart() Access { a.multipart = true; return a }
 
 // String describes the access for logs and tests.
 func (a Access) String() string {
@@ -167,6 +172,10 @@ func (r *Router) guard(a Access, h http.Handler) http.Handler {
 			}
 		default:
 			WriteError(w, req, apperr.New(apperr.Forbidden, "You don't have permission to do that."))
+			return
+		}
+		if !safeMethod(req.Method) && !bodyAllowed(req, a.multipart) {
+			WriteError(w, req, apperr.New(apperr.UnsupportedType, "The request body must be JSON."))
 			return
 		}
 		h.ServeHTTP(w, req)

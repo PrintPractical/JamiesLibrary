@@ -248,3 +248,55 @@ func (s *Service) Get(ctx context.Context, id int64) (User, error) {
 	}
 	return u, rows.Err()
 }
+
+// Credentials is what sign-in and a password change need of an account.
+type Credentials struct {
+	ID                 int64
+	PasswordHash       string
+	Active             bool
+	MustChangePassword bool
+}
+
+// CredentialsByUsername finds the account for a username, ignoring case. The
+// second result is false when there is none.
+func (s *Service) CredentialsByUsername(ctx context.Context, username string) (Credentials, bool, error) {
+	return s.credentials(ctx, `SELECT id, password_hash, active, must_change_password FROM users WHERE username = ?`,
+		strings.TrimSpace(username))
+}
+
+// CredentialsByID is CredentialsByUsername for an ID.
+func (s *Service) CredentialsByID(ctx context.Context, id int64) (Credentials, bool, error) {
+	return s.credentials(ctx, `SELECT id, password_hash, active, must_change_password FROM users WHERE id = ?`, id)
+}
+
+func (s *Service) credentials(ctx context.Context, query string, arg any) (Credentials, bool, error) {
+	var c Credentials
+	err := s.st.DB().QueryRowContext(ctx, query, arg).Scan(&c.ID, &c.PasswordHash, &c.Active, &c.MustChangePassword)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Credentials{}, false, nil
+	}
+	return c, err == nil, err
+}
+
+// SetPasswordHashTx stores a new password hash for the user inside the
+// caller's transaction, and sets or clears must-change. The hash is made by
+// internal/auth, which also checks the password's rules.
+func (s *Service) SetPasswordHashTx(ctx context.Context, tx store.Tx, userID int64, hash string, mustChange bool) error {
+	res, err := tx.ExecContext(ctx, `UPDATE users SET password_hash = ?, must_change_password = ? WHERE id = ?`,
+		hash, mustChange, userID)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return errNotFound
+	}
+	return nil
+}
+
+// Rehash replaces a stored hash by an equivalent one with newer parameters,
+// only if the stored hash is still old. It reports nothing when it lost a race.
+func (s *Service) Rehash(ctx context.Context, userID int64, oldHash, newHash string) error {
+	_, err := s.st.DB().ExecContext(ctx, `UPDATE users SET password_hash = ? WHERE id = ? AND password_hash = ?`,
+		newHash, userID, oldHash)
+	return err
+}

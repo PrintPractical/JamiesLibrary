@@ -10,16 +10,17 @@ import (
 type Code string
 
 const (
-	BadRequest   Code = "bad_request"  // malformed input (400)
-	Unauthorized Code = "unauthorized" // not signed in (401)
-	Forbidden    Code = "forbidden"    // signed in but not allowed (403)
-	NotFound     Code = "not_found"    // unknown thing (404)
-	Conflict     Code = "conflict"     // duplicate or state clash (409)
-	TooLarge     Code = "too_large"    // body over its limit (413)
-	Invalid      Code = "invalid"      // well-formed but unacceptable input (422)
-	Throttled    Code = "throttled"    // too many attempts (429)
-	Internal     Code = "internal"     // unexpected failure (500)
-	Unavailable  Code = "unavailable"  // a dependency is down (503)
+	BadRequest      Code = "bad_request"            // malformed input (400)
+	Unauthorized    Code = "unauthorized"           // not signed in (401)
+	Forbidden       Code = "forbidden"              // signed in but not allowed (403)
+	NotFound        Code = "not_found"              // unknown thing (404)
+	Conflict        Code = "conflict"               // duplicate or state clash (409)
+	TooLarge        Code = "too_large"              // body over its limit (413)
+	UnsupportedType Code = "unsupported_media_type" // body is not JSON (415)
+	Invalid         Code = "invalid"                // well-formed but unacceptable input (422)
+	Throttled       Code = "throttled"              // too many attempts (429)
+	Internal        Code = "internal"               // unexpected failure (500)
+	Unavailable     Code = "unavailable"            // a dependency is down (503)
 )
 
 // Error is what services return for anything a caller can act on.
@@ -64,6 +65,8 @@ func Status(c Code) int {
 		return http.StatusConflict
 	case TooLarge:
 		return http.StatusRequestEntityTooLarge
+	case UnsupportedType:
+		return http.StatusUnsupportedMediaType
 	case Invalid:
 		return http.StatusUnprocessableEntity
 	case Throttled:

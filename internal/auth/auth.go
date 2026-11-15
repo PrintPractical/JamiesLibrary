@@ -14,6 +14,9 @@ type CallerInfo struct {
 	UserID             int64
 	Permissions        perm.Set
 	MustChangePassword bool
+	// SessionID names the session the request came with (the hash of its
+	// token, never the token), so "all but this one" can be said.
+	SessionID string
 }
 
 // Has reports whether the caller holds p.
