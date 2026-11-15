@@ -149,11 +149,11 @@ func TestFakeRateLimitSaysWhenToRetry(t *testing.T) {
 
 func TestFakeSlowOutlastsTheServersDeadline(t *testing.T) {
 	f := FakeOpenLibrary(t)
-	if f.SlowDelay <= 10*time.Second {
-		t.Fatalf("SlowDelay %v is not beyond 10 s", f.SlowDelay)
+	if f.SlowDelay() <= 10*time.Second {
+		t.Fatalf("SlowDelay %v is not beyond 10 s", f.SlowDelay())
 	}
 	f.SetMode(ModeSlow)
-	f.SlowDelay = 5 * time.Second // short enough to test; the default is what the real deadline needs
+	f.SetSlowDelay(5 * time.Second) // short enough to test; the default is what the real deadline needs
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
 	defer cancel()
 	req, _ := http.NewRequestWithContext(ctx, "GET", bookURL(f, fox), nil)
@@ -165,7 +165,7 @@ func TestFakeSlowOutlastsTheServersDeadline(t *testing.T) {
 	if time.Since(start) > 2*time.Second {
 		t.Error("the client's own timeout was not honoured")
 	}
-	f.SlowDelay = 100 * time.Millisecond
+	f.SetSlowDelay(100 * time.Millisecond)
 	if code, _, err := fetch(t, bookURL(f, fox)); err != nil || code != 200 {
 		t.Errorf("slow mode answers in the end: %d %v", code, err)
 	}
