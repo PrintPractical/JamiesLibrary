@@ -143,3 +143,16 @@ test("/more on a wide window goes to the desk instead of showing an empty page",
     window.matchMedia = original;
   }
 });
+
+test("an unknown address says so inside the layout and links home", () => {
+  render(
+    <MemoryRouter initialEntries={["/nope"]}>
+      <AppRoutes />
+    </MemoryRouter>,
+  );
+  expect(screen.getByRole("heading", { level: 1, name: "Page not found" })).toBeInTheDocument();
+  expect(screen.getByText("There's nothing at this address.")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Go to your library" })).toHaveAttribute("href", "/");
+  expect(screen.getAllByRole("navigation", { name: "Main" })).toHaveLength(2);
+  expect(screen.getByRole("main")).toContainElement(screen.getByRole("heading", { name: "Page not found" }));
+});
