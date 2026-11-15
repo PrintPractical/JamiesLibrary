@@ -22,6 +22,7 @@ func TestReleaseServerIgnoresTestVariables(t *testing.T) {
 	probe.Close() // free again: a build that obeyed would bind it
 	env := map[string]string{
 		"JL_DATA_DIR":            t.TempDir(),
+		"JL_HTTP_ONLY":           "1",                                          // the app on the one listener this test hands over
 		"JL_TEST_CONTROL_ADDR":   "0.0.0.0:" + controlAddr[len("127.0.0.1:"):], // would be refused if read
 		"JL_TEST_METADATA_URL":   "http://127.0.0.1:1",
 		"JL_TEST_FAIL_MIGRATION": "1",

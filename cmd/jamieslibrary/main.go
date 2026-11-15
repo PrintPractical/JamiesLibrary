@@ -35,7 +35,7 @@ func run(args []string, getenv func(string) string, stdout, stderr io.Writer) in
 		defer stop()
 		if err := server.Run(ctx, server.Options{Args: args, Getenv: getenv, Stdout: stdout, Stderr: stderr, Version: version}); err != nil {
 			if errors.Is(err, flag.ErrHelp) {
-				fmt.Fprintln(stderr, "usage: jamieslibrary [serve] [--data DIR] [--port N] [--log-level LEVEL]")
+				fmt.Fprintln(stderr, "usage: jamieslibrary [serve] [--data DIR] [--port N] [--https-port N] [--log-level LEVEL]")
 				return 0
 			}
 			fmt.Fprintln(stderr, "jamieslibrary:", err)
