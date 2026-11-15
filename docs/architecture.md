@@ -75,6 +75,8 @@ Tests open a real database in a temporary directory; `store.Options{Migrations: 
 
 ## The catalog
 
+None of the catalog, the settings or the barcode package is wired to an API route or a screen yet: they are the server's internal building blocks, used by their tests.
+
 `internal/catalog` owns books, authors, copies, locations and every scannable code. Its tables are created by `0001_catalog.sql` and `0003_copies.sql` (`0002_settings.sql` creates the settings table) in `internal/store/migrations/`.
 
 | table | holds |
@@ -178,7 +180,7 @@ A PDF is used rather than printing from a browser because only a PDF puts the gr
 - text lines that fit under the code: 3 on an Avery 5160 label, 6 on an Avery L7160 and 4 on a single label; more is refused with an error that says how many fit;
 - at most 5000 labels in one PDF; more are refused, and everything is validated before anything is drawn.
 
-The PDF has a fixed creation date, so the same labels produce the same file. Neither barcodes nor settings are reachable from an API route yet.
+The PDF has a fixed creation date, so the same labels produce the same file.
 
 ## The web app
 
