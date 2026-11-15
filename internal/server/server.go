@@ -18,6 +18,7 @@ import (
 	"jamieslibrary/internal/auth"
 	"jamieslibrary/internal/config"
 	"jamieslibrary/internal/httpapi"
+	"jamieslibrary/internal/media"
 	"jamieslibrary/internal/settings"
 	"jamieslibrary/internal/store"
 	"jamieslibrary/internal/testhooks"
@@ -117,12 +118,16 @@ func Run(ctx context.Context, o Options) error {
 	if err != nil {
 		return err
 	}
+	images, err := media.Open(cfg.DataDir)
+	if err != nil {
+		return err
+	}
 	usersSvc := users.New(st)
 	authSvc := auth.NewService(st, usersSvc,
 		func() time.Duration { return time.Duration(set.Get().SessionIdleMinutes) * time.Minute }, log)
 	h, err := httpapi.NewHandler(httpapi.Options{
 		Version: o.Version, Logger: log, Static: webui.Handler(),
-		Auth: authSvc, Users: usersSvc, Settings: set,
+		Auth: authSvc, Users: usersSvc, Settings: set, Media: images,
 		PublicCatalogOn: func() bool { return set.Get().PublicCatalog },
 	})
 	if err != nil {
