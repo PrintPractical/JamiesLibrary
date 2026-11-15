@@ -6,7 +6,10 @@ package e2e
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
 	"crypto/x509"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/pem"
 	"fmt"
 	"io"
@@ -345,13 +348,15 @@ func TestKeysAre0600OnlyInTheDataDirectoryAndNeverLogged(t *testing.T) {
 	_, _ = hc.Get(s.TrustURL + "/anything")
 	_ = s.Advance(400 * 24 * time.Hour)
 	sClient(t, s, ca, "192.168.1.50", serverNow(t, s))
-	logs := s.Stdout() + s.Log()
 	if err := s.Stop(); err != nil {
 		t.Fatal(err)
 	}
+	logs := s.Stdout() + s.Log()
 
-	keyDERs := [][]byte{}
-	found := 0
+	rootCert := loadCert(t, filepath.Join(dir, "tls", "root.crt"))
+	interCert := loadCert(t, filepath.Join(dir, "tls", "intermediate.crt"))
+	var keys []*ecdsa.PrivateKey
+	var keyDERs [][]byte
 	err := filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return err
@@ -360,16 +365,12 @@ func TestKeysAre0600OnlyInTheDataDirectoryAndNeverLogged(t *testing.T) {
 		if !bytes.Contains(data, []byte("PRIVATE KEY")) {
 			return nil
 		}
-		found++
 		rel, _ := filepath.Rel(dir, p)
 		if !strings.HasPrefix(rel, "tls"+string(filepath.Separator)) {
 			t.Errorf("private key material outside tls/: %s", rel)
 		}
-		if mode := d.Type(); mode.IsRegular() {
-			info, _ := d.Info()
-			if info.Mode().Perm() != 0o600 {
-				t.Errorf("%s has mode %o, want 600", rel, info.Mode().Perm())
-			}
+		if info, _ := d.Info(); info.Mode().Perm() != 0o600 {
+			t.Errorf("%s has mode %o, want 600", rel, info.Mode().Perm())
 		}
 		for rest := data; ; {
 			var b *pem.Block
@@ -377,44 +378,99 @@ func TestKeysAre0600OnlyInTheDataDirectoryAndNeverLogged(t *testing.T) {
 			if b == nil {
 				break
 			}
-			if strings.Contains(b.Type, "PRIVATE KEY") {
-				keyDERs = append(keyDERs, b.Bytes)
+			if !strings.Contains(b.Type, "PRIVATE KEY") {
+				continue
 			}
+			k, err := parseKey(b)
+			if err != nil {
+				t.Errorf("%s: unreadable private key: %v", rel, err)
+				continue
+			}
+			keys = append(keys, k)
+			keyDERs = append(keyDERs, b.Bytes)
 		}
 		return nil
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if found == 0 || len(keyDERs) == 0 {
-		t.Fatal("found no private key on disk: the test would pass for the wrong reason")
+
+	// The root key must be nowhere, whatever the file is called: no key found
+	// anywhere in the data directory is the root's.
+	sawIntermediate := false
+	for _, k := range keys {
+		if k.PublicKey.Equal(rootCert.PublicKey) {
+			t.Error("the root's private key is on disk")
+		}
+		if k.PublicKey.Equal(interCert.PublicKey) {
+			sawIntermediate = true
+		}
 	}
-	if _, err := os.Stat(filepath.Join(dir, "tls", "root.key")); err == nil {
-		t.Error("the root key is on disk")
+	if !sawIntermediate {
+		t.Fatal("the intermediate's key was not found on disk: the root-key check would pass for the wrong reason")
 	}
-	// the key files must be the only things in tls/ that are private: directory not world-open
 	if info, err := os.Stat(filepath.Join(dir, "tls")); err == nil && info.Mode().Perm()&0o007 != 0 {
 		t.Errorf("tls/ is world-accessible: %o", info.Mode().Perm())
+	}
+
+	// No log carries any key's secret, in any common spelling.
+	if len(logs) < 100 {
+		t.Fatalf("logs are suspiciously short (%d bytes): the scan proves nothing", len(logs))
 	}
 	if strings.Contains(logs, "PRIVATE KEY") {
 		t.Error("a log contains PEM private key text")
 	}
-	for _, der := range keyDERs {
-		for _, form := range []string{string(pemB64(der)), string(der)} {
-			if len(form) > 16 && strings.Contains(logs, form[:32]) {
-				t.Error("a log contains private key bytes")
+	for i, k := range keys {
+		scalar := k.D.FillBytes(make([]byte, (k.Curve.Params().BitSize+7)/8))
+		for _, raw := range [][]byte{scalar, keyDERs[i]} {
+			for name, form := range map[string]string{
+				"hex":       hex.EncodeToString(raw),
+				"HEX":       strings.ToUpper(hex.EncodeToString(raw)),
+				"base64":    base64.StdEncoding.EncodeToString(raw),
+				"rawbase64": base64.RawStdEncoding.EncodeToString(raw),
+				"url64":     base64.URLEncoding.EncodeToString(raw),
+				"rawurl64":  base64.RawURLEncoding.EncodeToString(raw),
+				"raw":       string(raw),
+			} {
+				if strings.Contains(logs, form) {
+					t.Errorf("a log contains a private key (%s form)", name)
+				}
 			}
 		}
-	}
-	if len(logs) < 100 {
-		t.Errorf("logs are suspiciously short (%d bytes): scan proves nothing", len(logs))
+		if strings.Contains(logs, k.D.String()) {
+			t.Error("a log contains a private scalar in decimal")
+		}
+		if strings.Contains(logs, strings.ToLower(k.D.Text(16))) || strings.Contains(logs, strings.ToUpper(k.D.Text(16))) {
+			t.Error("a log contains a private scalar in hex")
+		}
 	}
 }
 
-func pemB64(der []byte) []byte {
-	b := pem.EncodeToMemory(&pem.Block{Type: "K", Bytes: der})
-	lines := strings.Split(string(b), "\n")
-	return []byte(strings.Join(lines[1:len(lines)-2], ""))
+func loadCert(t *testing.T, path string) *x509.Certificate {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := pem.Decode(data)
+	if b == nil {
+		t.Fatalf("%s is not PEM", path)
+	}
+	c, err := x509.ParseCertificate(b.Bytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return c
+}
+
+func parseKey(b *pem.Block) (*ecdsa.PrivateKey, error) {
+	if k, err := x509.ParsePKCS8PrivateKey(b.Bytes); err == nil {
+		if ek, ok := k.(*ecdsa.PrivateKey); ok {
+			return ek, nil
+		}
+		return nil, fmt.Errorf("not an EC key: %T", k)
+	}
+	return x509.ParseECPrivateKey(b.Bytes)
 }
 
 // The owner's own certificate, as an install behind or without a proxy uses it:
