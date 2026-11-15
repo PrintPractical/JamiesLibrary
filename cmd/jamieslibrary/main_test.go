@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -29,6 +31,18 @@ func TestBadConfigExitsNonZeroNamingTheValue(t *testing.T) {
 		return ""
 	}
 	if code := run([]string{"serve"}, env, &out, &errOut); code != 1 || !strings.Contains(errOut.String(), "JL_HTTP_PORT") {
+		t.Fatalf("code %d err %q", code, errOut.String())
+	}
+}
+
+func TestServeRefusesAnUnusableDataDirectoryNamingIt(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "notadir")
+	if err := os.WriteFile(file, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var out, errOut bytes.Buffer
+	code := run([]string{"serve", "--data", file}, func(string) string { return "" }, &out, &errOut)
+	if code != 1 || !strings.Contains(errOut.String(), file) {
 		t.Fatalf("code %d err %q", code, errOut.String())
 	}
 }
