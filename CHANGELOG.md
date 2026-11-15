@@ -8,6 +8,7 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- The trust guide at `/trust/` on the plain-HTTP port: steps for iPhone and iPad, Android and computers (the device's own first, the others one tap away), the root certificate's fingerprint to compare, what the device will trust, and a button to open the library over HTTPS. With the owner's own certificate it says no step is needed. It uses the bundled fonts and loads nothing from another host.
 - Test seams for the test suites: one clock source (`internal/clock`), test hooks compiled only with `-tags testhooks`, an in-process test server and a fake Open Library (`internal/testutil`).
 - Project skeleton: a Go server with a health endpoint, the embedded web app, and the repository check.
 - One data directory holds everything the library keeps, so a copy of it made while the server is stopped is a complete backup. It is private to its owner, and a second server on the same directory is refused.
