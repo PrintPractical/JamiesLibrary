@@ -69,7 +69,7 @@ func withRequest(log *slog.Logger, next http.Handler) http.Handler {
 					WriteError(sw, r, errPanic)
 				}
 			}
-			rl.Info("request", "method", r.Method, "path", r.URL.Path, "status", sw.status,
+			rl.Info("request", "method", r.Method, "path", r.URL.Path, "status", sw.status, "remote", remoteHost(r),
 				"duration_ms", time.Since(start).Milliseconds())
 		}()
 		next.ServeHTTP(sw, r)

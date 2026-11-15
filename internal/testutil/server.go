@@ -13,6 +13,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/cookiejar"
+	"net/url"
 	"sync"
 	"testing"
 	"time"
@@ -207,17 +208,32 @@ func ParseSetupCode(output string) (string, bool) {
 }
 
 // Client is an HTTP client with its own cookie jar, so each makes its own
-// sign-in. It follows no redirects: a test sees the redirect itself.
+// sign-in. The session cookie is Secure in every mode, so the jar treats the
+// server's plain-HTTP address as the HTTPS one a browser behind a proxy sees. It follows no redirects: a test sees the redirect itself.
 func (s *Server) Client() *http.Client {
 	jar, _ := cookiejar.New(nil)
 	return &http.Client{
-		Jar:     jar,
+		Jar:     secureJar{jar},
 		Timeout: 30 * time.Second,
 		CheckRedirect: func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
 	}
 }
+
+// secureJar presents every URL as https to the cookie jar underneath.
+type secureJar struct{ http.CookieJar }
+
+func asHTTPS(u *url.URL) *url.URL {
+	c := *u
+	c.Scheme = "https"
+	return &c
+}
+
+func (j secureJar) SetCookies(u *url.URL, cookies []*http.Cookie) {
+	j.CookieJar.SetCookies(asHTTPS(u), cookies)
+}
+func (j secureJar) Cookies(u *url.URL) []*http.Cookie { return j.CookieJar.Cookies(asHTTPS(u)) }
 
 // SetNow sets the clock the server sees.
 func (s *Server) SetNow(t time.Time) error {
