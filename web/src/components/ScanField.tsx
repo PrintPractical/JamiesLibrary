@@ -23,7 +23,10 @@ const loadDetector: DetectorFactory = () => import("./barcodeDetector").then((m)
 
 // Where the installation serves its one-time trust step: plain HTTP on its own port, same host.
 function trustGuideUrl(): string {
-  return `http://${window.location.hostname}:8080/trust/`;
+  const url = new URL("/trust/", window.location.href);
+  url.protocol = "http:";
+  url.port = "8080";
+  return url.href;
 }
 
 function cameraProblem(): Problem | null {

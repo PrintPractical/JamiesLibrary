@@ -3,34 +3,48 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 
-// DEPLOY-T5: the built app may not reference any other host. Every http(s) URL
-// in the output must start with one of these; each is text that is never
-// requested.
-const ALLOWED_PREFIXES = [
+// DEPLOY-T5: the built app may not reference any other host. Every http(s), ws(s)
+// or scheme-relative (//host) URL in the output must name one of these hosts
+// exactly (not as a prefix of a longer one); each is text that is never requested.
+const ALLOWED: { host: string; pathPrefix: string }[] = [
   // XML namespace URIs (SVG, XLink, MathML, XML): identifiers, not addresses.
-  "http://www.w3.org/",
+  { host: "www.w3.org", pathPrefix: "/" },
   // React's and React Router's error messages name a docs page; nothing fetches it.
-  "https://react.dev/errors/",
-  "https://reactrouter.com/",
+  { host: "react.dev", pathPrefix: "/errors/" },
+  { host: "reactrouter.com", pathPrefix: "/" },
   // Router code resolves relative URLs against a dummy base to parse them.
-  "http://localhost",
-  // ScanField's link to the trust guide: the host is the page's own (location.hostname).
-  "http://${window.location.hostname}:8080/trust/",
+  { host: "localhost", pathPrefix: "/" },
   // zxing-wasm's default place to fetch its wasm. It is only text here: barcodeDetector.ts
   // overrides it to the bundled file (its test proves that), and the build test below checks
   // the wasm is in the build. Allowed by this exact text, so a different CDN still fails.
-  "https://fastly.jsdelivr.net/npm/zxing-wasm@",
+  { host: "fastly.jsdelivr.net", pathPrefix: "/npm/zxing-wasm@" },
 ];
+
+// A scheme'd URL anywhere, or a bare //host that does not continue a longer path.
+const URL_PATTERN = /(?:(?:https?|wss?):\/\/|(?<![\w:/.-])\/\/(?=[\w-]+\.[\w-]))[^\s"'`)<>\\]+/gi;
+
+function allowed(url: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(url.startsWith("//") ? `http:${url}` : url);
+  } catch {
+    return false;
+  }
+  return ALLOWED.some((a) => parsed.hostname === a.host && parsed.pathname.startsWith(a.pathPrefix));
+}
 
 export function externalUrls(files: Record<string, string>): string[] {
   const found: string[] = [];
   for (const [name, text] of Object.entries(files)) {
-    for (const url of text.match(/https?:\/\/[^\s"'`)<>\\]+/gi) ?? []) {
-      if (!ALLOWED_PREFIXES.some((p) => url.startsWith(p))) found.push(`${name}: ${url}`);
+    for (const url of text.match(URL_PATTERN) ?? []) {
+      if (!allowed(url)) found.push(`${name}: ${url}`);
     }
   }
   return found;
 }
+
+// Fonts and images are binary; everything else the build writes is text and is scanned.
+const BINARY = /\.(woff2?|ttf|otf|eot|png|jpe?g|gif|webp|avif|ico)$/i;
 
 // vite's own CLI builds index.html's graph; the camera decoder is only imported by ScanField, so
 // this builds a stand-in entry that imports it (as a screen will), with the project's config.
@@ -46,7 +60,7 @@ await build({
 function readOutput(dir: string): Record<string, string> {
   const files: Record<string, string> = {};
   for (const entry of readdirSync(dir, { recursive: true, withFileTypes: true })) {
-    if (entry.isFile() && /\.(html|css|js|mjs)$/.test(entry.name)) {
+    if (entry.isFile() && !BINARY.test(entry.name)) {
       const path = join(entry.parentPath, entry.name);
       files[path.slice(dir.length + 1)] = readFileSync(path, "utf8");
     }
@@ -64,8 +78,43 @@ test("the scan itself finds a foreign host and lets the allowed ones by", () => 
   ).toEqual([
     "a.css: https://fonts.googleapis.com/css2?family=Nunito",
     "b.js: https://cdn.example.com/lib.js",
+    "c.html: //cdn.example.com/x.js",
     "c.html: http://example.org/s.css",
   ]);
+});
+
+test("the scan finds scheme-relative, ws(s) and look-alike hosts the old scan let by", () => {
+  expect(
+    externalUrls({
+      "a.css": "@font-face{src:url(//fonts.gstatic.com/x.woff2)}",
+      "b.js": 'fetch("http://localhost.evil.example/t");new WebSocket("wss://evil.example");new WebSocket("ws://localhost.evil.example")',
+      "c.html": '<script src="//cdn.example.com/x.js"></script>',
+      "d.svg": '<image href="https://www.w3.org.evil.example/i.png"/>',
+      "e.js": 'a="http://localhost:5173/x";b="https://react.dev/errors/1";c="https://react.dev/other"',
+      "f.webmanifest": '{"start_url":"http://evil.example/"}',
+    }),
+  ).toEqual([
+    "a.css: //fonts.gstatic.com/x.woff2",
+    "b.js: http://localhost.evil.example/t",
+    "b.js: wss://evil.example",
+    "b.js: ws://localhost.evil.example",
+    "c.html: //cdn.example.com/x.js",
+    "d.svg: https://www.w3.org.evil.example/i.png",
+    "e.js: https://react.dev/other",
+    "f.webmanifest: http://evil.example/",
+  ]);
+});
+
+test("the scan reads every text file, and not binary ones", () => {
+  const out = mkdtempSync(join(tmpdir(), "jl-read-"));
+  try {
+    writeFileSync(join(out, "m.webmanifest"), "{}");
+    writeFileSync(join(out, "i.svg"), "<svg/>");
+    writeFileSync(join(out, "f.woff2"), Buffer.from([0xff, 0xfe]));
+    expect(Object.keys(readOutput(out)).sort()).toEqual(["i.svg", "m.webmanifest"]);
+  } finally {
+    rmSync(out, { recursive: true, force: true });
+  }
 });
 
 test("DEPLOY-T5: the built app loads nothing from another host", () => {
