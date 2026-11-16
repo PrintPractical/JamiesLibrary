@@ -311,7 +311,24 @@ func TestEveryRouteRefusesEveryoneButTheHolderOfItsPermission(t *testing.T) {
 		t.Run(rt.String(), func(t *testing.T) {
 			// Refusals: aimed at things that exist, with a body that works for the holder.
 			c := w.target(t, rt, nil)
+			// Deleting "your own review" has nothing to delete for a caller who never wrote
+			// one, so also aim it at someone who wrote one and then lost the permission.
+			var stale *member
+			var staleCall call
+			if rt.String() == "DELETE /api/books/{id}/review" {
+				b := w.newBook()
+				stale = w.patron(fmt.Sprintf("stale%d", w.next()))
+				w.reviewOn(stale, b, "a review whose author lost the permission")
+				w.root.want(200, "PUT", fmt.Sprintf("/api/admin/users/%d/permissions/%s", stale.ID, perm.ReviewsWrite), map[string]bool{"on": false})
+				stale.W = w.signedIn(stale.Name)
+				staleCall = call{method: "DELETE", path: fmt.Sprintf("/api/books/%d/review", b)}
+			}
 			before := w.snap()
+			if stale != nil {
+				if r := staleCall.send(stale.W); r.Status != 403 || r.errMessage() != guardMessage {
+					t.Errorf("a user who lost reviews.write deleting their own review: %d, want 403: %.200s", r.Status, r.Raw)
+				}
+			}
 			if r := c.send(anon); r.Status != 401 {
 				t.Errorf("anonymous: %d, want 401: %.200s", r.Status, r.Raw)
 			}

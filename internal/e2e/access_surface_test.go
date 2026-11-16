@@ -497,7 +497,6 @@ func TestEveryStateChangingRouteRefusesCrossSiteAndFormPosts(t *testing.T) {
 	if r := newWho(t, w.s).signIn("csrf-made", adminPassword); r.Status == 200 {
 		t.Errorf("the cross-site registration made an account")
 	}
-	_ = time.Second
 }
 
 // ROLE-3 "Removed permission": switching a permission off, or lowering a role,
@@ -516,6 +515,15 @@ func TestAPermissionSwitchedOffMidSessionIsRefusedOnTheNextRequest(t *testing.T)
 		perm.InvitationsManage: {method: "GET", path: "/api/admin/invitations"},
 		perm.UsersManage:       {method: "GET", path: "/api/admin/users"},
 		perm.CatalogManage:     {method: "POST", path: "/api/catalog/lookup", body: jsonBody(map[string]string{"isbn": "9780261103573"})},
+		perm.LoansOwnRenew:     {method: "POST", path: "/api/me/loans/999999/renew"},
+		perm.ReviewsWrite:      {method: "PUT", path: fmt.Sprintf("/api/books/%d/review", w.coverBook), body: jsonBody(map[string]any{"rating": 3, "text": "probe"})},
+		perm.ReviewsRemove:     {method: "DELETE", path: "/api/reviews/999999"},
+		perm.SelfCheckout:      {method: "POST", path: "/api/me/checkout", body: jsonBody(map[string]string{"code": "no-such-copy"})},
+		perm.CardsReissue:      {method: "POST", path: "/api/users/999999/card/reissue"},
+		perm.UsersPermissions:  {method: "PUT", path: "/api/admin/users/999999/role", body: jsonBody(map[string]string{"role": "patron"})},
+	}
+	if len(probe) != len(perm.All) {
+		t.Fatalf("%d probes for %d permissions: every permission needs one", len(probe), len(perm.All))
 	}
 	acc := w.account("administrator", "midsession")
 	for p, c := range probe {
@@ -524,7 +532,7 @@ func TestAPermissionSwitchedOffMidSessionIsRefusedOnTheNextRequest(t *testing.T)
 				t.Fatalf("a holder of %s is refused before anything is switched off: %d %.200s", p, r.Status, r.Raw)
 			}
 			w.root.want(200, "PUT", fmt.Sprintf("/api/admin/users/%d/permissions/%s", acc.ID, p), map[string]bool{"on": false})
-			if r := c.send(acc.W); r.Status != 403 && r.Status != 401 {
+			if r := c.send(acc.W); !refusedByGuard(r) {
 				t.Errorf("the very next request after switching %s off: %d, want 403: %.200s", p, r.Status, r.Raw)
 			}
 			w.root.want(200, "PUT", fmt.Sprintf("/api/admin/users/%d/permissions/%s", acc.ID, p), map[string]bool{"on": true})
