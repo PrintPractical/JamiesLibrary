@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"mime/multipart"
@@ -122,7 +123,12 @@ func ownCodes(t testing.TB, dir string) []string {
 
 // export is everything the library shows an administrator, as canonical text
 // keyed by what it is, plus the hash of every cover and the logo.
-func export(t *testing.T, c *pc) map[string]string {
+func export(t *testing.T, c *pc) map[string]string { return exportWith(t, c, true) }
+
+// exportWith is export; without detail it leaves out the book pages, which an
+// older release (the current code on an older schema) can't draw when they
+// need a table the newer schema added, and reads the book list and covers instead.
+func exportWith(t *testing.T, c *pc, detail bool) map[string]string {
 	t.Helper()
 	out := map[string]string{}
 	get := func(key, path string) []byte {
@@ -151,8 +157,26 @@ func export(t *testing.T, c *pc) map[string]string {
 	get("users", "/api/admin/users")
 	get("overdue", "/api/desk/overdue")
 	for _, id := range bookIDs(t, c) {
-		get(fmt.Sprintf("book-%d", id), fmt.Sprintf("/api/books/%d", id))
-		d := c.must(200, "GET", fmt.Sprintf("/api/books/%d", id), nil)
+		var d map[string]any
+		if detail {
+			get(fmt.Sprintf("book-%d", id), fmt.Sprintf("/api/books/%d", id))
+			d = c.must(200, "GET", fmt.Sprintf("/api/books/%d", id), nil)
+		} else {
+			d = nil
+			for page := 1; d == nil; page++ {
+				r := c.must(200, "GET", fmt.Sprintf("/api/books?page=%d", page), nil)
+				for _, b := range r["books"].([]any) {
+					if int64(b.(map[string]any)["id"].(float64)) == id {
+						d = b.(map[string]any)
+					}
+				}
+				if page > 100 {
+					t.Fatalf("book %d not in the list", id)
+				}
+			}
+			b, _ := json.Marshal(d)
+			out[fmt.Sprintf("listed-%d", id)] = string(b)
+		}
 		if cu, _ := d["cover_url"].(string); cu != "" {
 			u, _ := url.Parse(cu)
 			_, img, _ := c.raw("GET", u.Path, "", nil)

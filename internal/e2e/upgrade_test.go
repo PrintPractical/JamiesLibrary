@@ -342,7 +342,7 @@ func olderVersionShowsTheSameLibrary(t *testing.T, touched, pristine string, ver
 		s := testutil.StartServer(t, testutil.Options{DataDir: dir, Migrations: older})
 		c := newPC(t, s.URL)
 		c.signIn(fixtureAdminUser, adminPassword)
-		out := export(t, c)
+		out := exportWith(t, c, false)
 		if err := s.Stop(); err != nil {
 			t.Fatal(err)
 		}
