@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"time"
 
+	"jamieslibrary/internal/activity"
 	"jamieslibrary/internal/auth"
 	"jamieslibrary/internal/config"
 	"jamieslibrary/internal/httpapi"
@@ -126,7 +127,7 @@ func Run(ctx context.Context, o Options) error {
 		func() time.Duration { return time.Duration(set.Get().SessionIdleMinutes) * time.Minute }, log)
 	h, err := httpapi.NewHandler(httpapi.Options{
 		TrustPort: trustPort, Version: o.Version, Logger: log, Static: webui.Handler(),
-		Auth: authSvc, Users: usersSvc, Settings: set,
+		Auth: authSvc, Users: usersSvc, Settings: set, Activity: activity.New(st), Store: st,
 		PublicCatalogOn: func() bool { return set.Get().PublicCatalog },
 	})
 	if err != nil {
