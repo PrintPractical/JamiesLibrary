@@ -78,6 +78,12 @@ func (s *syncBuf) Write(p []byte) (int, error) {
 	return s.b.Write(p)
 }
 
+func (s *syncBuf) reset() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.b.Reset()
+}
+
 func (s *syncBuf) String() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -94,47 +100,40 @@ func freePort(t testing.TB) int {
 	return ln.Addr().(*net.TCPAddr).Port
 }
 
+// pickPort chooses the port a server is started on; a test replaces it to
+// make the choice go wrong.
+var pickPort = freePort
+
 // proc is one running server process.
 type proc struct {
-	t      *testing.T
-	cmd    *exec.Cmd
-	dir    string
-	Base   string
-	Stdout syncBuf
-	Stderr syncBuf
-	done   chan struct{}
-	err    error
+	t       *testing.T
+	cmd     *exec.Cmd
+	dir     string
+	env     map[string]string
+	initial string // a copy of dir as it was before the first start
+	Base    string
+	Control string // host:port of the test control listener
+	Stdout  syncBuf
+	Stderr  syncBuf
+	done    chan struct{}
+	err     error
 }
 
+// maxBindAttempts bounds how often a start is retried on fresh ports.
+const maxBindAttempts = 5
+
 // launch starts the binary on dir with only the variables given (and a HOME and
-// working directory of their own, both empty), and does not wait for it.
+// working directory of their own, both empty), and does not wait for it. The
+// ports are free when chosen but another process may take them before the
+// server binds; waitReady then starts the server again on new ones.
 func launch(t *testing.T, dir string, env map[string]string) *proc {
 	t.Helper()
-	p := &proc{t: t, dir: dir, done: make(chan struct{})}
-	port := freePort(t)
-	p.Base = fmt.Sprintf("http://127.0.0.1:%d", port)
-	e := []string{
-		"JL_DATA_DIR=" + dir,
-		fmt.Sprintf("JL_HTTP_PORT=%d", port),
-		"JL_HTTP_ONLY=1",
-		"JL_BIND_ADDRESS=127.0.0.1",
-		fmt.Sprintf("JL_TEST_CONTROL_ADDR=127.0.0.1:%d", freePort(t)),
-		"HOME=" + t.TempDir(),
+	p := &proc{t: t, dir: dir, env: env}
+	if _, err := os.Lstat(dir); err == nil {
+		p.initial = t.TempDir()
+		copyDir(t, dir, p.initial)
 	}
-	for k, v := range env {
-		e = append(e, k+"="+v)
-	}
-	p.cmd = exec.Command(binary(t), "serve")
-	p.cmd.Dir = t.TempDir()
-	p.cmd.Env = e
-	p.cmd.Stdout, p.cmd.Stderr = &p.Stdout, &p.Stderr
-	if err := p.cmd.Start(); err != nil {
-		t.Fatal(err)
-	}
-	go func() {
-		p.err = p.cmd.Wait()
-		close(p.done)
-	}()
+	p.spawn()
 	t.Cleanup(func() {
 		select {
 		case <-p.done:
@@ -146,21 +145,91 @@ func launch(t *testing.T, dir string, env map[string]string) *proc {
 	return p
 }
 
+// spawn starts the process on freshly chosen ports.
+func (p *proc) spawn() {
+	t := p.t
+	t.Helper()
+	port := pickPort(t)
+	p.Base = fmt.Sprintf("http://127.0.0.1:%d", port)
+	p.Control = fmt.Sprintf("127.0.0.1:%d", pickPort(t))
+	e := []string{
+		"JL_DATA_DIR=" + p.dir,
+		fmt.Sprintf("JL_HTTP_PORT=%d", port),
+		"JL_HTTP_ONLY=1",
+		"JL_BIND_ADDRESS=127.0.0.1",
+		"JL_TEST_CONTROL_ADDR=" + p.Control,
+		"HOME=" + t.TempDir(),
+	}
+	for k, v := range p.env {
+		e = append(e, k+"="+v)
+	}
+	p.Stdout.reset()
+	p.Stderr.reset()
+	p.done = make(chan struct{})
+	cmd := exec.Command(binary(t), "serve")
+	cmd.Dir = t.TempDir()
+	cmd.Env = e
+	cmd.Stdout, cmd.Stderr = &p.Stdout, &p.Stderr
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	p.cmd, p.err = cmd, nil
+	done := p.done
+	go func() {
+		err := cmd.Wait()
+		p.err = err
+		close(done)
+	}()
+}
+
+// restart starts the server again on new ports, on the data directory as it was
+// before the first attempt (or absent, if it was), so a start that got as far as migrating it leaves
+// nothing behind.
+func (p *proc) restart() {
+	p.t.Helper()
+	if err := os.RemoveAll(p.dir); err != nil {
+		p.t.Fatal(err)
+	}
+	if p.initial != "" {
+		if err := os.MkdirAll(p.dir, 0o700); err != nil {
+			p.t.Fatal(err)
+		}
+		copyDir(p.t, p.initial, p.dir)
+	}
+	p.spawn()
+}
+
+// lostPort reports whether the server exited because a port was taken.
+func (p *proc) lostPort() bool {
+	return strings.Contains(p.Stderr.String(), "address already in use")
+}
+
 // waitReady waits until the server answers its health check. It returns an
-// error if the process exits first or the wait runs out.
+// error if the process exits first or the wait runs out. A server that cannot
+// bind its port because another process took it is started again, on new ports.
 func (p *proc) waitReady() error {
 	deadline := time.Now().Add(20 * time.Second)
+	attempts := 1
 	for time.Now().Before(deadline) {
 		select {
 		case <-p.done:
+			if attempts < maxBindAttempts && p.lostPort() {
+				attempts++
+				p.restart()
+				continue
+			}
 			return fmt.Errorf("the server exited (%v) before it was ready\nstdout: %s\nstderr: %s", p.err, p.Stdout.String(), p.Stderr.String())
 		default:
 		}
-		resp, err := http.Get(p.Base + "/api/health")
-		if err == nil {
-			resp.Body.Close()
-			if resp.StatusCode == 200 {
-				return nil
+		// The health check alone could be answered by whoever else holds the
+		// port, so the server must also have said that it listens there.
+		if strings.Contains(p.Stderr.String(), "msg=listening addr="+strings.TrimPrefix(p.Base, "http://")) {
+			resp, err := http.Get(p.Base + "/api/health")
+			if err == nil {
+				resp.Body.Close()
+				if resp.StatusCode == 200 {
+					return nil
+				}
 			}
 		}
 		time.Sleep(10 * time.Millisecond)
