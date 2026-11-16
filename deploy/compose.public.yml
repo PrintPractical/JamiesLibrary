@@ -32,9 +32,11 @@ services:
         ipv4_address: 172.30.0.10
 
   caddy:
-    # Pinned by digest, like the base images: the internet-facing piece changes only when you
-    # decide. To update, pull a newer caddy:2.x, copy its digest here, and test.
-    image: caddy:2.10@sha256:c3d7ee5d2b11f9dc54f947f68a734c84e9c9666c92c88a7f30b9cba5da182adb
+    # Pinned by digest, like the base images, so the internet-facing piece changes only when you
+    # decide. Caddy retires old release lines, so a pin on one stops getting security fixes: when
+    # Caddy publishes a security advisory (github.com/caddyserver/caddy/security/advisories),
+    # check that page first, then move to the newest caddy 2.x index digest, and test.
+    image: caddy:2.11@sha256:4e2425f6009577e7c651010f16679c28f7d12df3e7b1914f941a7a3370746b3c
     restart: unless-stopped
     read_only: true
     cap_drop: [ALL]
