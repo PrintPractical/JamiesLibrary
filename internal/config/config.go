@@ -2,11 +2,14 @@
 package config
 
 import (
+	"jamieslibrary/internal/ratelimit"
+
 	"flag"
 	"fmt"
 	"io"
 	"log/slog"
 	"net"
+	"net/netip"
 	"strconv"
 	"strings"
 )
@@ -32,7 +35,10 @@ type Config struct {
 	// BindAddress is the local IP address both listeners bind to (JL_BIND_ADDRESS);
 	// empty means every interface.
 	BindAddress string
-	LogLevel    slog.Level
+	// TrustedProxies are the reverse proxies whose X-Forwarded-For is believed
+	// (JL_TRUSTED_PROXIES); none by default.
+	TrustedProxies []netip.Prefix
+	LogLevel       slog.Level
 }
 
 const (
@@ -108,6 +114,9 @@ func Parse(args []string, getenv func(string) string) (Config, error) {
 		return Config{}, err
 	}
 	if c.Hostnames, err = parseHostnames(env("JL_HOSTNAMES", "")); err != nil {
+		return Config{}, err
+	}
+	if c.TrustedProxies, err = ratelimit.ParseTrusted(env("JL_TRUSTED_PROXIES", "")); err != nil {
 		return Config{}, err
 	}
 	c.TLSCert, c.TLSKey = env("JL_TLS_CERT", ""), env("JL_TLS_KEY", "")

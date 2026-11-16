@@ -137,3 +137,17 @@ func TestBindAddress(t *testing.T) {
 		t.Errorf("flag: %v", err)
 	}
 }
+
+func TestTrustedProxies(t *testing.T) {
+	if c, err := Parse(nil, env(nil)); err != nil || len(c.TrustedProxies) != 0 {
+		t.Fatalf("default: %v %v", c.TrustedProxies, err)
+	}
+	c, err := Parse(nil, env(map[string]string{"JL_TRUSTED_PROXIES": "10.0.0.0/8, fd00::/8"}))
+	if err != nil || len(c.TrustedProxies) != 2 {
+		t.Fatalf("%v %v", c.TrustedProxies, err)
+	}
+	_, err = Parse(nil, env(map[string]string{"JL_TRUSTED_PROXIES": "10.0.0.0/8, my-proxy"}))
+	if err == nil || !strings.Contains(err.Error(), "JL_TRUSTED_PROXIES") || !strings.Contains(err.Error(), "my-proxy") {
+		t.Fatalf("a bad entry must be named: %v", err)
+	}
+}

@@ -10,6 +10,7 @@ import (
 	"jamieslibrary/internal/activity"
 	"jamieslibrary/internal/apperr"
 	"jamieslibrary/internal/auth"
+	"jamieslibrary/internal/ratelimit"
 	"jamieslibrary/internal/settings"
 	"jamieslibrary/internal/store"
 	"jamieslibrary/internal/useradmin"
@@ -24,6 +25,9 @@ type Options struct {
 	Static http.Handler
 	// PublicCatalogOn says whether the public-catalog setting is on; when nil it is off.
 	PublicCatalogOn func() bool
+	// TrustPort is the plain-HTTP port that serves the one-time trust step (0 when
+	// there is none). The web app reads it to link the camera setup guide.
+	TrustPort int
 	// Auth, Users and Settings are the services behind sign-in and /api/me; when
 	// Auth is set the auth routes are registered and Auth authenticates requests.
 	// Settings is the one instance the whole server shares.
@@ -40,6 +44,11 @@ type Options struct {
 	// Authenticate, when set, wraps the routes and puts the caller in the
 	// request context (auth.WithCaller). Without it no request has a caller.
 	Authenticate func(http.Handler) http.Handler
+	// Clients finds each request's client address; the default trusts no proxy.
+	Clients *ratelimit.Clients
+	// Limiter holds the failed-attempt counts. The default is a fresh one,
+	// which a server replaces with the one it shares with the other routes.
+	Limiter *ratelimit.Limiter
 	// Routes registers the API's routes, each with its access.
 	Routes func(*Router)
 }
@@ -50,6 +59,12 @@ type Options struct {
 func NewHandler(o Options) (http.Handler, error) {
 	if o.Logger == nil {
 		o.Logger = slog.Default()
+	}
+	if o.Clients == nil {
+		o.Clients = ratelimit.NewClients(nil)
+	}
+	if o.Limiter == nil {
+		o.Limiter = ratelimit.New()
 	}
 	rt, err := buildRouter(o)
 	if err != nil {
@@ -71,6 +86,9 @@ func buildRouter(o Options) (*Router, error) {
 	rt := newRouter(o.PublicCatalogOn)
 	rt.HandleFunc("GET /api/health", Public(), func(w http.ResponseWriter, r *http.Request) {
 		WriteJSON(w, http.StatusOK, map[string]string{"status": "ok", "version": o.Version})
+	})
+	rt.HandleFunc("GET /api/client-config", Public(), func(w http.ResponseWriter, r *http.Request) {
+		WriteJSON(w, http.StatusOK, map[string]int{"trust_port": o.TrustPort})
 	})
 	registerAPI(rt, o)
 	if o.Routes != nil {

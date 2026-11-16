@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"jamieslibrary/internal/activity"
+	"jamieslibrary/internal/barcode/barcodetest"
 	"jamieslibrary/internal/perm"
 )
 
@@ -54,6 +55,28 @@ func TestViewCard(t *testing.T) {
 	}
 	if s.cardOf(quinn) == c.Number {
 		t.Fatal("two patrons share a card")
+	}
+}
+
+// CARD-1: the images a patron is shown say their card number, and only that. A scanner reading the
+// barcode or the QR code at the desk must get what /api/me/card names.
+func TestServedCardImagesDecodeToTheCardNumber(t *testing.T) {
+	s := newSite(t)
+	s.addUser("pat", goodPassword, perm.Patron)
+	s.addUser("quinn", goodPassword, perm.Patron)
+	for _, name := range []string{"pat", "quinn"} {
+		cookie := s.signIn(name, goodPassword)
+		want := s.cardOf(cookie)
+		for kind, symbology := range map[string]string{"barcode": "code128", "qr": "qr"} {
+			img := s.req("GET", "/api/me/card/"+kind+".svg", cookie, "")
+			if img.Code != 200 {
+				t.Fatalf("%s %s: %d", name, kind, img.Code)
+			}
+			got, err := barcodetest.DecodeSVG(symbology, img.Body.String())
+			if err != nil || got != want {
+				t.Errorf("%s's %s decodes to %q (%v), want their card number %q", name, kind, got, err, want)
+			}
+		}
 	}
 }
 
