@@ -55,3 +55,24 @@ func TestPrintTrustGuide(t *testing.T) {
 		t.Errorf("several addresses:\n%s", many.String())
 	}
 }
+
+func TestPrintSetupPage(t *testing.T) {
+	cases := []struct {
+		name  string
+		cfg   config.Config
+		hosts []string
+		want  string
+	}{
+		{"https address and port", config.Config{HTTPSPort: 8443}, []string{"192.168.1.20"}, "Setup page: https://192.168.1.20:8443/setup\n"},
+		{"port 443 is left out", config.Config{HTTPSPort: 443}, []string{"library.lan"}, "Setup page: https://library.lan/setup\n"},
+		{"each host", config.Config{HTTPSPort: 8443}, []string{"10.0.0.5", "10.0.0.6"}, "Setup page: https://10.0.0.5:8443/setup\nSetup page: https://10.0.0.6:8443/setup\n"},
+		{"behind a proxy", config.Config{HTTPOnly: true, HTTPSPort: 8443}, []string{"10.0.0.5"}, "Setup page: the address this library is served at, followed by /setup (for example https://library.example.org/setup).\n"},
+	}
+	for _, c := range cases {
+		var b strings.Builder
+		printSetupPage(&b, c.cfg, c.hosts)
+		if b.String() != c.want {
+			t.Errorf("%s:\n%s\nwant\n%s", c.name, b.String(), c.want)
+		}
+	}
+}

@@ -22,12 +22,13 @@ The log ends with the fingerprint of the local certificate and a one-time setup 
 
 ```
 Local CA root SHA-256 fingerprint: FF:F0:19:F1:4F:61:28:05:46:D3:32:B8:F6:EA:1F:A6:BF:CC:5D:77:4F:95:56:A7:B4:5E:DF:2D:C5:E1:59:D5
-No administrator exists yet. To create the first one, open the app in a browser and enter this one-time code.
+No administrator exists yet. To create the first one, open the setup page in a browser and enter this one-time code.
+Setup page: https://192.168.1.20:8443/setup
 On a phone or another computer, first follow the trust guide: http://192.168.1.20:8080/trust/
 SETUP CODE: VD0Y-CKSB-WK71-0NZM
 ```
 
-Open `https://THIS-MACHINE:8443` (the machine's address or name, see [Network access](#network-access)) and enter the code to create the first administrator. The code is new at every start until an administrator exists, is never stored, and 10 wrong tries block an address for 15 minutes. After a restart, the newest `SETUP CODE` in the log is the one that works.
+Open the setup page the console names, `https://THIS-MACHINE:8443/setup` (the machine's address or name, see [Network access](#network-access)), and enter the code. While no administrator exists, the sign-in page and `/register` send visitors there too to create the first administrator. The code is new at every start until an administrator exists, is never stored, and 10 wrong tries block an address for 15 minutes. After a restart, the newest `SETUP CODE` in the log is the one that works.
 
 Use `-p jamieslibrary` on every compose command in this guide. Compose names the data volume after the project, which would otherwise be the folder name (`deploy`); with `-p jamieslibrary` it is `jamieslibrary_jamieslibrary-data`, which is the name the backup commands below use.
 
@@ -110,6 +111,8 @@ Local CA root SHA-256 fingerprint: FF:F0:19:F1:...
 ```
 
 (`docker compose -p jamieslibrary -f deploy/compose.lan.yml logs | grep fingerprint` shows it.) Compare the first 8 and last 8 hex characters (letters and digits; ignore colons, spaces and capitals). If they differ, don't trust it. The fingerprint on the trust page itself was fetched over plain HTTP and is only for reference.
+
+**On a Mac,** don't double-click the downloaded certificate. On some Macs that fails with "Unable to import … Error: -25294", which means Keychain Access found no keychain to put it in (the login keychain is missing or isn't the default). Open Keychain Access, choose File › Import Items…, pick `jamies-library-ca.crt`, and choose the keychain yourself: login, or System if login is missing or the import still fails (System trusts it for every user of the Mac and asks for an administrator's password). Nothing is trusted yet. Open the certificate, compare its SHA-256 under Fingerprints as above, and only if they match set "When using this certificate" to Always Trust. If they differ, delete it. The guide deliberately offers no Terminal command or profile for the Mac, because the guide page comes over plain HTTP and so could be altered; the check is made in the Mac's own windows. If the error persists after choosing a keychain, the Mac's keychains may be damaged (Keychain Access › First Aid); the exact wording of the dialogs varies by macOS version.
 
 **What your device trusts, plainly.** By doing the step you tell the device to believe certificates signed by this installation's own authority, and only for this installation's own names and for local-network names and addresses (names ending in `.local`, `.lan`, `.home.arpa`, `.internal` or `.localhost`, and addresses in the private ranges above, plus any names you set in `JL_HOSTNAMES`). That limit is written into the certificate itself, so a device refuses a certificate for a public website such as a bank's even if the authority's key were stolen. The authority's key lives on the server only: the data directory and its backups hold it, so keep them private ([Security](#security)).
 

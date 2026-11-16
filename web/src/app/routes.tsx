@@ -29,6 +29,7 @@ import { People } from "../features/people/People";
 import { UserPage } from "../features/people/UserPage";
 import { Settings } from "../features/settings/Settings";
 import { Setup } from "../features/setup/Setup";
+import { SetupGate } from "../features/setup/SetupGate";
 import { NotFound } from "../features/placeholder/NotFound";
 import { allowed, adminItems, isStaff, patronItems, staffFooterItems, staffItems } from "./navigation";
 import { useSession } from "./session";
@@ -167,8 +168,8 @@ export const routeTable: RouteObject[] = [
     ],
   },
   { path: "setup", element: <Setup /> },
-  { path: "signin", element: <SignIn /> },
-  { path: "register", element: <Register /> },
+  { path: "signin", element: <SetupGate><SignIn /></SetupGate> },
+  { path: "register", element: <SetupGate><Register /></SetupGate> },
 ];
 
 export function AppRoutes() {
