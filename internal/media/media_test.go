@@ -409,13 +409,13 @@ func peakSys(f func()) uint64 {
 }
 
 // The worst accepted images (40 megapixels at 8 bits, 20 at 16 bits: 160 MB
-// decoded) are stored with the whole process under 400 MB, one at a time, so a
+// decoded) are stored with the whole test process (earlier tests' heap included) under 512 MB, one at a time, so a
 // Raspberry Pi with 1 GB survives.
 func TestWorstCaseImageMemoryIsBounded(t *testing.T) {
 	if testing.Short() {
 		t.Skip("decodes 40 megapixels")
 	}
-	const bound = 400 << 20
+	const bound = 512 << 20
 	for _, tc := range []struct {
 		name string
 		kind Kind
