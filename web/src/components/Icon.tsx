@@ -26,6 +26,9 @@ const PATHS = {
   upload: ["M12 16V4M7 9l5-5 5 5", "M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"],
   left: ["M15 6l-6 6 6 6"],
   right: ["m9 6 6 6-6 6"],
+  clock: ["circle:12,12,9", "M12 7v5l3 2"],
+  info: ["circle:12,12,9", "M12 11v5.5M12 7.5h.01"],
+  renew: ["M20 11a8 8 0 0 0-14.7-4.3M4 13a8 8 0 0 0 14.7 4.3", "M4 4v4h4M20 20v-4h-4"],
   close: ["M6 6l12 12M18 6 6 18"],
 } as const;
 

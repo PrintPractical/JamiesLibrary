@@ -6,6 +6,9 @@ import { Account } from "../features/account/Account";
 import { ForcedChange } from "../features/account/ForcedChange";
 import { Register } from "../features/account/Register";
 import { SignIn } from "../features/account/SignIn";
+import { History } from "../features/patron/History";
+import { Home } from "../features/patron/Home";
+import { SelfCheckout } from "../features/patron/SelfCheckout";
 import { Setup } from "../features/setup/Setup";
 import { NotFound } from "../features/placeholder/NotFound";
 import { Placeholder } from "../features/placeholder/Placeholder";
@@ -105,10 +108,11 @@ export function AppRoutes() {
     <Routes>
       <Route element={<Guard />}>
         <Route element={<PatronArea />}>
-          <Route index element={page("Home")} />
+          <Route index element={<Home />} />
           <Route path="browse" element={gated(["catalog.browse"], "Browse")} />
           <Route path="card" element={page("My card")} />
-          <Route path="loans" element={gated(["loans.own.view"], "My books")} />
+          <Route path="loans" element={<Allow any={["loans.own.view"]}><History /></Allow>} />
+          <Route path="checkout" element={<Allow any={["circ.self_checkout"]}><SelfCheckout /></Allow>} />
           <Route path="account" element={<Account />} />
           <Route path="books/:id" element={gated(["catalog.browse"], "Book")} />
           <Route path="*" element={<NotFound />} />

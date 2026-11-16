@@ -4,6 +4,8 @@ export type Me = {
   user: { id: number; username: string; display_name: string; role: string };
   permissions: string[];
   must_change_password: boolean;
+  /** The library's rules a signed-in user needs: the zone due dates are in, the renewal limit, self-checkout. */
+  settings: { time_zone: string; loan_period_days: number; max_renewals: number; self_checkout: boolean };
 };
 
 /** What anyone may see: the sign-in page draws itself from it. */

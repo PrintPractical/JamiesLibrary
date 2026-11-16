@@ -516,3 +516,15 @@ a:focus-visible {
   background: #efe5d5;
   color: var(--ink-2);
 }
+.b-warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.b-err {
+  background: var(--err-soft);
+  color: var(--err);
+}
+.badge svg {
+  width: 15px;
+  height: 15px;
+}

@@ -43,13 +43,13 @@ describe("UX-2 Separate patron and staff experiences", () => {
     fakeServer({ "GET /api/me": { body: meOf("patron") } });
     await renderApp("/");
     for (const nav of navs()) expect(links(nav)).toEqual(["Home", "Browse", "My card", "My books", "Account"]);
-    expect(screen.queryByRole("link", { name: /check out|check in|desk|catalog|admin/i })).toBeNull();
+    for (const nav of navs()) expect(within(nav).queryByRole("link", { name: /check out|check in|desk|catalog|admin/i })).toBeNull();
   });
 
   test("Patron navigation: a patron who opens a staff address is sent to the patron home", async () => {
     fakeServer({ "GET /api/me": { body: meOf("patron") } });
     await renderApp("/desk/checkout");
-    expect(await screen.findByRole("heading", { name: "Home" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /^Good (morning|afternoon|evening), Pat$/ })).toBeInTheDocument();
   });
 
   test("Patron navigation: a patron's items follow their permissions", async () => {
