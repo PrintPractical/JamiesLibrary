@@ -4,6 +4,8 @@ export type Me = {
   user: { id: number; username: string; display_name: string; role: string };
   permissions: string[];
   must_change_password: boolean;
+  /** The library's rules; only the time zone is read here. */
+  settings?: { time_zone: string };
 };
 
 /** What anyone may see: the sign-in page draws itself from it. */
