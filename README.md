@@ -70,7 +70,7 @@ A bad value stops the server with a message naming it. SIGTERM or SIGINT shuts t
 
 `scripts/check.sh` runs everything: in `web/` the typecheck, lint, tests and build, then `gofmt`, `go vet` and `go test`.
 Install dependencies first with `cd web && npm ci` and `go mod download`; the check itself needs no network.
-`scripts/readme-install-test.sh` follows the Docker install steps above on a clean checkout, then the locked-out recovery steps (needs Docker, and ports 8080 and 8443 free); `scripts/loadtest.sh IMAGE` is the 20,000-copy load and memory check.
+`scripts/readme-install-test.sh` follows the Docker install steps above on a clean checkout, then the locked-out recovery steps. Don't run it on a machine that serves the library: it needs ports 8080 and 8443 free and refuses to start otherwise, and it uses its own project, image and volume names (never `jamieslibrary`) and removes only those; `scripts/loadtest.sh IMAGE` is the 20,000-copy load and memory check.
 For the web app with live reload, run the server and `npm run dev` in `web/`; it proxies `/api` to port 8080.
 
 ## Documentation
