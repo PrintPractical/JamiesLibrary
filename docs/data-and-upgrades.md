@@ -9,6 +9,9 @@ data/
   lock                        held while the server runs
   library.db                  the database
   library.db-wal, -shm        the database's write-ahead log, present while it runs
+  tls/                        the local certificate authority and the server's certificates (not made when the app is served over plain HTTP for a proxy)
+  local-ca-made               empty marker: says a local certificate authority was made, so a lost tls/ is noticed
+  images/                     cover images and the library's logo
   backups/                    one copy of the database per upgrade, see below
   tmp/                        short-lived files; any over an hour old are removed at start and hourly
 ```
@@ -33,7 +36,7 @@ Copy only while the server is stopped: a copy taken while it runs can miss what 
 another Jamie's Library is already using the data directory "...": stop it first, or give this one its own directory
 ```
 
-Backups hold private data (accounts and every borrower's history). Keep them as private as the data directory: store them where only the library's administrator can read them.
+Backups hold private data: accounts and password hashes, every borrower's history, and the key of the local certificate authority in `tls/`. Restoring `tls/` is what lets phones keep trusting a restored server. Keep them as private as the data directory: store them where only the library's administrator can read them.
 
 ## Upgrading
 
