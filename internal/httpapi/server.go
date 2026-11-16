@@ -36,6 +36,10 @@ type Options struct {
 	// TrustPort is the plain-HTTP port that serves the one-time trust step (0 when
 	// there is none). The web app reads it to link the camera setup guide.
 	TrustPort int
+	// CAFingerprint is the local CA root's SHA-256 fingerprint (AB:CD:… form),
+	// or "" when the app doesn't use the local CA. Administrators see it in the
+	// settings so they can check what a device shows against it.
+	CAFingerprint string
 	// Auth, Users and Settings are the services behind sign-in and /api/me; when
 	// Auth is set the auth routes are registered and Auth authenticates requests.
 	// Settings is the one instance the whole server shares.
