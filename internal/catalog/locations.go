@@ -103,7 +103,11 @@ func (s *Service) RenameLocation(ctx context.Context, actor, id int64, name stri
 	if err != nil {
 		return Location{}, err
 	}
-	return Location{ID: id, Name: name}, nil
+	counts, err := countByLocation(ctx, s.st.DB())
+	if err != nil {
+		return Location{}, err
+	}
+	return Location{ID: id, Name: name, Copies: counts[id]}, nil
 }
 
 // DeleteLocation deletes an empty location. One that holds copies is a

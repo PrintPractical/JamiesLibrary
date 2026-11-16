@@ -463,6 +463,17 @@ func TestCreateLocationWithPunctuation(t *testing.T) {
 	}
 }
 
+func TestRenameLocationReportsItsCopies(t *testing.T) {
+	s := newService(t, nil)
+	b := add(t, s, "Kept", "A")
+	loc, _ := s.CreateLocation(ctx, 1, "Kitchen")
+	addCopy(t, s, b.ID, CopyInput{LocationID: loc.ID})
+	l, err := s.RenameLocation(ctx, 1, loc.ID, "Kitchen shelf")
+	if err != nil || l.Copies != 1 {
+		t.Fatalf("%+v %v", l, err)
+	}
+}
+
 func TestRenameLocation(t *testing.T) {
 	s := newService(t, nil)
 	locs, _ := s.Locations(ctx)

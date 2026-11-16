@@ -652,3 +652,27 @@ func TestOpenLoanIsUniquePerCopy(t *testing.T) {
 		t.Errorf("a loan after the return: %v", err)
 	}
 }
+
+// A removed book's past loans keep its authors, so history reads as before.
+func TestHistoryKeepsAuthorsOfRemovedBook(t *testing.T) {
+	r := newRig(t)
+	b, _ := r.book("The Hobbit", isbnA, 1)
+	lib, _ := r.user("lib", perm.Librarian)
+	pat, card := r.user("pat", perm.Patron)
+	if _, err := r.svc.Checkout(ctx, lib.ID, card, isbnA); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.svc.Checkin(ctx, lib.ID, isbnA, 0, ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.cat.RemoveBook(ctx, 1, b.ID); err != nil {
+		t.Fatal(err)
+	}
+	page, err := r.svc.History(ctx, pat.ID, 1, 10)
+	if err != nil || len(page.Loans) != 1 {
+		t.Fatalf("%+v %v", page, err)
+	}
+	if l := page.Loans[0]; l.Title != "The Hobbit" || len(l.Authors) != 1 || l.Authors[0] != "An Author" {
+		t.Errorf("loan = %q %v", l.Title, l.Authors)
+	}
+}
