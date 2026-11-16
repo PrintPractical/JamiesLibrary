@@ -26,6 +26,11 @@
 .ab-isbn > .btn {
   margin-top: 28px;
 }
+@media (max-width: 600px) {
+  .ab-isbn > .btn {
+    margin-top: 0;
+  }
+}
 .ab .btn svg {
   width: 20px;
   height: 20px;
@@ -53,7 +58,9 @@
   display: flex;
   gap: 14px;
   align-items: flex-end;
-  flex-wrap: wrap;
+}
+.ab-coverbox > .stack {
+  min-width: 0;
 }
 .ab-cover {
   position: relative;
