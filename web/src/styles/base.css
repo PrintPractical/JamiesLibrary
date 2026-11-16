@@ -472,3 +472,47 @@ a:focus-visible {
 .card.stack > h2 {
   margin-bottom: 0;
 }
+
+/* small parts the mockups share */
+.tiny {
+  font-size: 13px;
+}
+.eyebrow {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.lbl {
+  font-weight: 700;
+  font-size: 14px;
+}
+.divider {
+  height: 1px;
+  background: var(--line);
+  margin: 16px 0;
+}
+.row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.b-ok {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+.b-plain {
+  background: #efe5d5;
+  color: var(--ink-2);
+}

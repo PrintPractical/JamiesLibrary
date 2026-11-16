@@ -16,6 +16,8 @@ export type Session = Loaded & {
   canAny: (permissions: readonly string[]) => boolean;
   /** Records the user the server just signed in, registered or returned from /api/me. */
   setMe: (me: Me) => void;
+  /** Re-reads the library's name, logo and colours (after an administrator changes them). */
+  reloadLibrary: () => Promise<void>;
   /** Re-reads who is signed in (after a password change, say). */
   refresh: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -90,6 +92,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setMe(me);
   }, [setMe]);
 
+  const reloadLibrary = useCallback(async () => {
+    const library = await authApi.getLibrary();
+    setState((s) => (s.status === "ready" ? { ...s, library } : s));
+  }, []);
+
   const signOut = useCallback(async () => {
     try {
       await authApi.signOut();
@@ -110,10 +117,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       can: (p) => held.has(p),
       canAny: (ps) => ps.some((p) => held.has(p)),
       setMe,
+      reloadLibrary,
       refresh,
       signOut,
     };
-  }, [state, setMe, refresh, signOut]);
+  }, [state, setMe, reloadLibrary, refresh, signOut]);
 
   const library = state.status === "ready" ? state.library : undefined;
   return (

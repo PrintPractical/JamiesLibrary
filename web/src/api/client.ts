@@ -27,7 +27,7 @@ export class NetworkError extends Error {
 
 export type ApiOptions = {
   method?: string;
-  /** Sent as JSON. */
+  /** Sent as JSON, or as it is when a FormData (a file upload). */
   body?: unknown;
   signal?: AbortSignal;
 };
@@ -58,7 +58,8 @@ async function toApiError(res: Response): Promise<ApiError> {
 export async function api<T = undefined>(path: string, options: ApiOptions = {}): Promise<T> {
   const { method = "GET", body, signal } = options;
   const headers: Record<string, string> = { Accept: "application/json" };
-  if (body !== undefined) headers["Content-Type"] = "application/json";
+  const upload = body instanceof FormData;
+  if (body !== undefined && !upload) headers["Content-Type"] = "application/json";
 
   let res: Response;
   try {
@@ -66,7 +67,7 @@ export async function api<T = undefined>(path: string, options: ApiOptions = {})
       method,
       headers,
       credentials: "same-origin",
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: body === undefined ? undefined : upload ? body : JSON.stringify(body),
       signal,
     });
   } catch (err) {
