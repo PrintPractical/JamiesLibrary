@@ -109,8 +109,9 @@ func (s *Service) rehash(ctx context.Context, cred users.Credentials, password s
 	}
 }
 
-// StartSession starts a new session for a user who has just been made (registration)
-// and returns its token. Sign-in is the way in for everyone else.
+// StartSession starts a session for a user who has just been let in by other
+// means than a password check, such as the first administrator's setup, and
+// returns its token.
 func (s *Service) StartSession(ctx context.Context, userID int64) (string, error) {
 	return s.create(ctx, userID)
 }

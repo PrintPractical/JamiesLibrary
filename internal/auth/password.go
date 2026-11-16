@@ -6,6 +6,7 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"fmt"
+	"math/big"
 	"strconv"
 	"strings"
 	"time"
@@ -216,4 +217,26 @@ func (p *Passwords) VerifyDummy(ctx context.Context, password string) error {
 	defer release()
 	_ = argon2.IDKey([]byte(password), h.salt, h.time, h.memory, h.threads, uint32(len(h.key)))
 	return nil
+}
+
+// TemporaryPasswordLength is the length of a password made for someone else to
+// sign in with once (recovery, an administrator's reset).
+const TemporaryPasswordLength = 16
+
+// tempAlphabet leaves out the characters that are easy to misread aloud or on
+// paper: 0 O 1 l I.
+const tempAlphabet = "23456789ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+
+// TemporaryPassword draws a password from crypto/rand. It passes CheckPassword.
+func TemporaryPassword() (string, error) {
+	max := big.NewInt(int64(len(tempAlphabet)))
+	out := make([]byte, TemporaryPasswordLength)
+	for i := range out {
+		n, err := rand.Int(rand.Reader, max)
+		if err != nil {
+			return "", fmt.Errorf("drawing a temporary password: %w", err)
+		}
+		out[i] = tempAlphabet[n.Int64()]
+	}
+	return string(out), nil
 }

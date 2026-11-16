@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"time"
 	"unicode/utf8"
 
 	"jamieslibrary/internal/apperr"
@@ -52,10 +53,15 @@ func (a *authRoutes) attempt(w http.ResponseWriter, r *http.Request, name string
 	key = a.clients.Key(r)
 	ok, retry := a.limiter.Allow(ratelimit.SignIn, key, name)
 	if !ok {
-		w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(retry.Seconds()))))
-		WriteError(w, r, apperr.New(apperr.Throttled, tooManyAttempts))
+		tooMany(w, r, retry)
 	}
 	return key, ok
+}
+
+// tooMany refuses a request from a blocked address, saying when to come back.
+func tooMany(w http.ResponseWriter, r *http.Request, retry time.Duration) {
+	w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(retry.Seconds()))))
+	WriteError(w, r, apperr.New(apperr.Throttled, tooManyAttempts))
 }
 
 // tooManyAttempts is what a blocked address is told, by every limited route.
