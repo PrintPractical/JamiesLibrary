@@ -491,3 +491,16 @@ func TestSingleLabelHostnamesAreRefusedBeforeACAIsMade(t *testing.T) {
 		}
 	}
 }
+
+// A root Security.framework can store: a subject key identifier, a CA with
+// the key usage a root needs, and the name constraints kept critical.
+func TestRootIsOneAMacKeychainCanHold(t *testing.T) {
+	ca, err := Open(t.TempDir(), Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := ca.RootCertificate()
+	if len(r.SubjectKeyId) == 0 || !r.IsCA || r.KeyUsage&x509.KeyUsageCertSign == 0 || !r.PermittedDNSDomainsCritical || len(r.PermittedIPRanges) == 0 {
+		t.Errorf("root: ski %x ca %v usage %v critical %v", r.SubjectKeyId, r.IsCA, r.KeyUsage, r.PermittedDNSDomainsCritical)
+	}
+}
