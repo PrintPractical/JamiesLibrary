@@ -1,0 +1,28 @@
+# Jamie's Library on a home or office network.
+#   docker compose -f deploy/compose.lan.yml up -d
+#   docker compose -f deploy/compose.lan.yml logs | grep "SETUP CODE"
+# Host networking lets the server see the machine's real addresses, so its certificate
+# names whatever address a phone uses. The app is then at https://THIS-MACHINE:8443 and
+# the trust guide at http://THIS-MACHINE:8080. Host networking needs Docker on Linux.
+services:
+  jamieslibrary:
+    image: jamieslibrary:latest
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    network_mode: host
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      # Add your own names and addresses here if you need them (see docs/install-lan.md).
+      # JL_HOSTNAMES: library.home.arpa
+      # JL_ADDRESSES: 192.168.1.20
+      GOMEMLIMIT: 400MiB
+    volumes:
+      - jamieslibrary-data:/data
+
+volumes:
+  # Everything the library keeps is in this one volume: back it up with the server stopped.
+  jamieslibrary-data:

@@ -1,0 +1,201 @@
+/* The patron's home, history and self-checkout screens (mockup patron-home). */
+.home {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.stack-s > * + * {
+  margin-top: 8px;
+}
+.hello {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.minicard {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: var(--r);
+  background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+  color: var(--on-primary);
+  text-decoration: none;
+  box-shadow: var(--shadow);
+}
+.minicard .bc {
+  background: #fffbf3;
+  border-radius: 6px;
+  padding: 6px 8px;
+  width: 110px;
+  flex: none;
+}
+.minicard .bc img {
+  display: block;
+  width: 100%;
+  height: 34px;
+  object-fit: fill;
+}
+.minicard b {
+  font-family: var(--serif);
+  font-size: 17px;
+  font-weight: 600;
+}
+.minicard > svg {
+  margin-left: auto;
+  width: 22px;
+  height: 22px;
+  flex: none;
+}
+.minicard > span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}
+.home-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  border: 1.5px solid var(--line-2);
+  border-radius: 999px;
+  background: #fffefb;
+  min-height: 48px;
+  color: var(--ink-2);
+  text-decoration: none;
+}
+.home-search svg {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+.grid {
+  display: grid;
+  gap: 22px;
+}
+.sechead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.card.loans {
+  padding: 0;
+}
+.my-loan {
+  display: flex;
+  gap: 14px;
+  padding: 16px;
+  align-items: flex-start;
+}
+.my-loan + .my-loan {
+  border-top: 1px solid var(--line);
+}
+.my-loan .meta {
+  flex: 1;
+  min-width: 0;
+}
+.my-loan h3 {
+  margin-bottom: 2px;
+  overflow-wrap: anywhere;
+}
+.acts {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+.note {
+  font-size: 14px;
+  color: var(--warn);
+  margin-top: 8px;
+  display: flex;
+  gap: 6px;
+}
+.note svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  margin-top: 2px;
+}
+.note-err {
+  color: var(--err);
+}
+.note span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.selfco {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+.card.history {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.history li {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 16px;
+}
+.history li + li {
+  border-top: 1px solid var(--line);
+}
+.history .meta {
+  min-width: 0;
+}
+.history h3 {
+  overflow-wrap: anywhere;
+}
+.history .dates {
+  text-align: right;
+  flex: none;
+}
+.history-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.btn svg {
+  width: 20px;
+  height: 20px;
+}
+.self-code {
+  font-family: ui-monospace, "DejaVu Sans Mono", monospace;
+  overflow-wrap: anywhere;
+}
+.self-checkout {
+  max-width: 640px;
+}
+@media (min-width: 900px) {
+  .hello {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .minicard {
+    width: 380px;
+  }
+  .grid {
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+@media (max-width: 480px) {
+  .history li {
+    flex-direction: column;
+    gap: 6px;
+  }
+  .history .dates {
+    text-align: left;
+  }
+}
+.history .dates span {
+  display: block;
+}

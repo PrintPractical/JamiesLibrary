@@ -1,0 +1,220 @@
+/* Check in, taken from the staff-checkin mockup. */
+.ci-layout {
+  display: grid;
+  gap: 16px;
+  margin-top: 12px;
+}
+@media (min-width: 900px) {
+  .ci-layout {
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+  }
+}
+.ci-lead {
+  margin-bottom: 0;
+}
+.ci-latest {
+  border-radius: var(--r);
+  border: 2px solid #e5c175;
+  background: var(--warn-soft);
+  overflow: hidden;
+}
+.ci-latest.ok {
+  border-color: #a9cdb2;
+  background: var(--ok-soft);
+}
+.ci-latest.err {
+  border-color: #e7a99e;
+  background: var(--err-soft);
+}
+.ci-latest.plain {
+  border-color: var(--line-2);
+  background: var(--card-2);
+}
+.ci-head {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 12px 16px;
+  background: #f5d998;
+  color: #3e2700;
+  font-weight: 800;
+}
+.ok .ci-head {
+  background: #c9e3cd;
+  color: #1d3f2b;
+}
+.err .ci-head {
+  background: #f5c9c0;
+  color: #5e1910;
+}
+.plain .ci-head {
+  background: #efe5d5;
+  color: var(--ink);
+}
+.ci-head svg {
+  width: 24px;
+  height: 24px;
+  flex: none;
+}
+.ci-body {
+  display: flex;
+  gap: 14px;
+  padding: 16px;
+  align-items: flex-start;
+}
+.ci-body > div:not(.ci-cover) {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ci-body h2 {
+  font-size: 22px;
+}
+.ci-where {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: var(--card);
+  border-radius: var(--r-s);
+  font-weight: 700;
+}
+.ci-where svg {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  color: var(--primary);
+}
+.ci-code {
+  font: 600 13px ui-monospace, "DejaVu Sans Mono", monospace;
+  color: var(--ink-2);
+}
+.ci-latest .ci-code {
+  color: inherit;
+}
+.ci-cover {
+  position: relative;
+  flex: none;
+  width: 64px;
+  aspect-ratio: 2 / 3;
+  border-radius: 3px 6px 6px 3px;
+  overflow: hidden;
+  color: #fff6e6;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 8px 6px 8px 11px;
+  font-family: var(--serif);
+  box-shadow:
+    inset 6px 0 0 rgba(0, 0, 0, 0.18),
+    inset 7px 0 0 rgba(255, 255, 255, 0.12),
+    0 2px 6px rgba(42, 31, 23, 0.25);
+}
+.ci-cover .t {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.15;
+  overflow: hidden;
+  max-height: 3.6em;
+}
+.ci-cover .a {
+  font-size: 8px;
+  font-family: var(--sans);
+  font-weight: 700;
+  opacity: 0.85;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  overflow: hidden;
+  line-height: 1.15;
+  max-height: 2.4em;
+}
+.ci-pad {
+  padding: 18px;
+}
+.ci-card-head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 18px 6px;
+}
+.ci-card-head h3 {
+  min-width: 0;
+}
+.ci-log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.ci-log li {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 16px;
+  border-top: 1px solid var(--line);
+}
+.ci-log li:first-child {
+  border-top: 0;
+}
+.ci-log .m {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ci-log .m b {
+  display: block;
+}
+.ci-empty {
+  padding: 12px 18px 18px;
+}
+.ci-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 99px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.ci-dot svg {
+  width: 18px;
+  height: 18px;
+}
+.ci-dot.ok { background: var(--ok-soft); color: var(--ok); }
+.ci-dot.warn { background: var(--warn-soft); color: var(--warn); }
+.ci-dot.err { background: var(--err-soft); color: var(--err); }
+.ci-dot.plain { background: #efe5d5; color: var(--ink-2); }
+.ci-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.ci-badge.ok { background: var(--ok-soft); color: var(--ok); }
+.ci-badge.warn { background: var(--warn-soft); color: var(--warn); }
+.ci-badge.err { background: var(--err-soft); color: var(--err); }
+.ci-badge.plain { background: #efe5d5; color: var(--ink-2); }
+.ci-choose {
+  border: 2px solid var(--primary);
+}
+.ci-choose p {
+  margin-top: 6px;
+}
+.ci-choose .ci-log {
+  margin-top: 8px;
+}
+.ci-choose .ci-log li {
+  padding: 12px 0;
+}
+.ci-choose .actions {
+  margin-top: 10px;
+}
+.card.ci-session {
+  padding: 0;
+}

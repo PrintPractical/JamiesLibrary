@@ -1,0 +1,205 @@
+// Package httpapi is the HTTP layer: the router, JSON and error helpers, and handlers.
+package httpapi
+
+import (
+	"log/slog"
+	"net/http"
+	"strings"
+	"time"
+
+	"jamieslibrary/internal/activity"
+	"jamieslibrary/internal/apperr"
+	"jamieslibrary/internal/auth"
+	"jamieslibrary/internal/catalog"
+	"jamieslibrary/internal/circ"
+	"jamieslibrary/internal/invitations"
+	"jamieslibrary/internal/media"
+	"jamieslibrary/internal/metadata"
+	"jamieslibrary/internal/ratelimit"
+	"jamieslibrary/internal/reports"
+	"jamieslibrary/internal/reviews"
+	"jamieslibrary/internal/settings"
+	"jamieslibrary/internal/setup"
+	"jamieslibrary/internal/store"
+	"jamieslibrary/internal/useradmin"
+	"jamieslibrary/internal/users"
+)
+
+// Options are what the router needs from the program around it.
+type Options struct {
+	Version string
+	Logger  *slog.Logger
+	// Static serves the web app for every path that isn't /api or /media.
+	Static http.Handler
+	// PublicCatalogOn says whether the public-catalog setting is on; when nil it is off.
+	PublicCatalogOn func() bool
+	// TrustPort is the plain-HTTP port that serves the one-time trust step (0 when
+	// there is none). The web app reads it to link the camera setup guide.
+	TrustPort int
+	// CAFingerprint is the local CA root's SHA-256 fingerprint (AB:CD:… form),
+	// or "" when the app doesn't use the local CA. Administrators see it in the
+	// settings so they can check what a device shows against it.
+	CAFingerprint string
+	// Auth, Users and Settings are the services behind sign-in and /api/me; when
+	// Auth is set the auth routes are registered and Auth authenticates requests.
+	// Settings is the one instance the whole server shares.
+	Auth     *auth.Service
+	Users    *users.Service
+	Settings *settings.Service
+	// Media stores the images /media/{name} serves; the route needs Settings too.
+	Media *media.Images
+	// Store lets a route compose services and the activity log in one
+	// transaction; the card routes need it as well as Users.
+	Store *store.Store
+	// Activity is the administrative activity log; when set its route is registered.
+	Activity *activity.Service
+	// Reports is the statistics and circulation report; when set its routes are registered.
+	Reports *reports.Service
+	// UserAdmin makes the changes to other people's accounts; when it and Users are set the user routes are registered.
+	UserAdmin *useradmin.Service
+	// Invitations makes and redeems invitation codes; when set with Auth and Users its routes are registered.
+	Invitations *invitations.Service
+	// Circ is circulation at the desk; when set (with Users) the desk routes are registered.
+	Circ *circ.Service
+	// Catalog and Metadata are the catalog and the ISBN lookup; when both are set
+	// (with Media) the lookup routes are registered.
+	Catalog  *catalog.Service
+	Metadata *metadata.Service
+	// Reviews is ratings and reviews; when set (with Catalog and Media) the book
+	// pages carry them and the review routes are registered.
+	Reviews *reviews.Service
+	// Authenticate, when set, wraps the routes and puts the caller in the
+	// request context (auth.WithCaller). Without it no request has a caller.
+	Authenticate func(http.Handler) http.Handler
+	// Clients finds each request's client address; the default trusts no proxy.
+	Clients *ratelimit.Clients
+	// Limiter holds the failed-attempt counts. The default is a fresh one,
+	// which a server replaces with the one it shares with the other routes.
+	Limiter *ratelimit.Limiter
+	// Setup is the first administrator's set-up; when set its routes are registered.
+	Setup *setup.Service
+	// Routes registers the API's routes, each with its access.
+	Routes func(*Router)
+}
+
+// NewHandler builds the router: /api/..., /media/..., and the web app. It
+// fails when any route has no valid access declaration, so the server doesn't
+// start with a route nobody decided about.
+func NewHandler(o Options) (http.Handler, error) {
+	if o.Logger == nil {
+		o.Logger = slog.Default()
+	}
+	if o.Clients == nil {
+		o.Clients = ratelimit.NewClients(nil)
+	}
+	if o.Limiter == nil {
+		o.Limiter = ratelimit.New()
+	}
+	rt, err := buildRouter(o)
+	if err != nil {
+		return nil, err
+	}
+	var h http.Handler = rt
+	if o.Authenticate == nil && o.Auth != nil {
+		o.Authenticate = o.Auth.Middleware(WriteError)
+	}
+	if o.Authenticate != nil {
+		h = o.Authenticate(h)
+	}
+	return withRequest(o.Logger, o.Clients, withProtections(h)), nil
+}
+
+// buildRouter registers every route, the API's own first. It is separate from
+// NewHandler so a test can walk the routes the server really has.
+func buildRouter(o Options) (*Router, error) {
+	rt := newRouter(o.PublicCatalogOn)
+	rt.HandleFunc("GET /api/health", Public(), func(w http.ResponseWriter, r *http.Request) {
+		WriteJSON(w, http.StatusOK, map[string]string{"status": "ok", "version": o.Version})
+	})
+	rt.HandleFunc("GET /api/client-config", Public(), func(w http.ResponseWriter, r *http.Request) {
+		WriteJSON(w, http.StatusOK, map[string]int{"trust_port": o.TrustPort})
+	})
+	registerAPI(rt, o)
+	if o.Routes != nil {
+		o.Routes(rt)
+	}
+	// Unknown API and media paths are JSON 404s, never the web app.
+	rt.HandleFunc("/api/", Public(), notFound)
+	rt.HandleFunc("/media/", Public(), notFound)
+	rt.HandleFunc("/media-tmp/", Public(), notFound)
+	if o.Static != nil {
+		rt.Handle("/", Public(), o.Static)
+	}
+	if err := rt.Err(); err != nil {
+		return nil, err
+	}
+	return rt, nil
+}
+
+// registerAPI is where each feature registers its routes, every one with its access.
+func registerAPI(rt *Router, o Options) {
+	if o.Auth != nil {
+		registerAuthRoutes(rt, o)
+	}
+	if o.Setup != nil && o.Auth != nil && o.Users != nil && o.Settings != nil {
+		registerSetupRoutes(rt, o)
+	}
+	if o.Media != nil && o.Settings != nil {
+		registerMedia(rt, o)
+	}
+	if o.Media != nil && o.Settings != nil {
+		registerSettingsRoutes(rt, o)
+	}
+	if o.Activity != nil {
+		registerActivityRoutes(rt, o)
+	}
+	if o.Reports != nil {
+		registerReportRoutes(rt, o)
+	}
+	if o.UserAdmin != nil && o.Users != nil {
+		registerUserRoutes(rt, o)
+	}
+	if o.Invitations != nil && o.Auth != nil && o.Users != nil {
+		registerInvitationRoutes(rt, o)
+	}
+	if o.Users != nil && o.Store != nil {
+		registerCardRoutes(rt, o)
+	}
+	if o.Circ != nil {
+		registerDeskRoutes(rt, o)
+		registerLoanRoutes(rt, o)
+	}
+	if o.Catalog != nil && o.Metadata != nil {
+		registerLookupRoutes(rt, o)
+	}
+	if o.Catalog != nil && o.Media != nil {
+		registerCatalogRoutes(rt, o)
+		registerCopyRoutes(rt, o)
+		registerPublicRoutes(rt, o)
+		if o.Reviews != nil {
+			registerReviewRoutes(rt, o)
+		}
+	}
+}
+
+func notFound(w http.ResponseWriter, r *http.Request) {
+	WriteError(w, r, apperr.New(apperr.NotFound, "There is nothing at "+cleanPath(r)+"."))
+}
+
+func cleanPath(r *http.Request) string {
+	p := r.URL.Path
+	if len(p) > 100 {
+		p = p[:100] + "…"
+	}
+	return strings.ReplaceAll(p, "\n", " ")
+}
+
+// Server bounds: header size and timeouts (r1-architecture §13, security design §12).
+const (
+	MaxHeaderBytes    = 64 << 10
+	ReadHeaderTimeout = 10 * time.Second
+	ReadTimeout       = 60 * time.Second
+	WriteTimeout      = 60 * time.Second
+	IdleTimeout       = 120 * time.Second
+	ShutdownTimeout   = 10 * time.Second
+)

@@ -1,0 +1,67 @@
+# Jamie's Library on an internet-facing server, behind the Caddy reverse proxy, which
+# gets and renews the HTTPS certificate itself. Before starting, put your own domain
+# name in deploy/Caddyfile (it is the first line), and point the name's DNS at this
+# server with ports 80 and 443 open.
+#   docker compose -f deploy/compose.public.yml up -d
+#   docker compose -f deploy/compose.public.yml logs jamieslibrary | grep "SETUP CODE"
+# The app listens on plain HTTP on the private "proxy" network only: no port is
+# published for it, so only Caddy can reach it.
+services:
+  jamieslibrary:
+    image: jamieslibrary:latest
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      JL_HTTP_ONLY: "1"
+      JL_HTTP_PORT: "8080"
+      # Listen on the proxy network's address only (fixed below).
+      JL_BIND_ADDRESS: 172.30.0.10
+      # Whose X-Forwarded-For is believed: Caddy's own address only (fixed below). Never the
+      # whole network: that includes the gateway, which is the host itself.
+      JL_TRUSTED_PROXIES: 172.30.0.2/32
+      GOMEMLIMIT: 400MiB
+    volumes:
+      - jamieslibrary-data:/data
+    networks:
+      proxy:
+        ipv4_address: 172.30.0.10
+
+  caddy:
+    # Pinned by digest, like the base images, so the internet-facing piece changes only when you
+    # decide. Caddy retires old release lines, so a pin on one stops getting security fixes: when
+    # Caddy publishes a security advisory (github.com/caddyserver/caddy/security/advisories),
+    # check that page first, then move to the newest caddy 2.x index digest, and test.
+    image: caddy:2.11@sha256:4e2425f6009577e7c651010f16679c28f7d12df3e7b1914f941a7a3370746b3c
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: ["no-new-privileges:true"]
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on: [jamieslibrary]
+    networks:
+      proxy:
+        ipv4_address: 172.30.0.2
+
+networks:
+  proxy:
+    ipam:
+      config:
+        # Fixed so the two addresses above can be named.
+        - subnet: 172.30.0.0/24
+
+volumes:
+  jamieslibrary-data:
+  caddy-data:
+  caddy-config:

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Open Jamie's Library securely</title>
+<link rel="stylesheet" href="/trust/assets/guide.css">
+</head>
+<body>
+<header class="appbar"><span class="name">Jamie's Library</span></header>
+<main class="content">
+{{if .Own}}
+  <div class="stack">
+    <h1>No step is needed</h1>
+    <p>This library uses its owner's own certificate, so your device already trusts it. There is nothing to install.</p>
+    {{if .HTTPSURL}}<p><a class="btn primary" href="{{.HTTPSURL}}">Open the library</a></p>{{end}}
+  </div>
+{{else}}
+  <div class="stack">
+    <p class="eyebrow">One-time step</p>
+    <h1>Open the library securely</h1>
+    <p>Your phone's camera can scan barcodes only on a secure page. Do this once on each device, and it stays set up. It takes about a minute and needs no other computer. Typing a code, or a handheld scanner, works without it.</p>
+  </div>
+
+  {{if .IPad}}<div class="alert"><b>On an iPad?</b> Use the <a href="#ios">iPhone and iPad steps</a>, open below the computer steps.</div>{{end}}
+
+  {{range .Sections}}
+  {{if .Open}}
+  <section class="card" id="{{.Key}}" aria-labelledby="h-{{.Key}}">
+    <h2 id="h-{{.Key}}">{{.Title}}</h2>
+    <p class="muted">{{.Intro}}</p>
+    <p><a class="btn secondary" href="{{.Download}}">{{.DownloadLabel}}</a></p>
+    <ol class="steps">{{range .Steps}}<li>{{.}}</li>{{end}}</ol>
+  </section>
+  {{else}}
+  <details class="card" id="{{.Key}}">
+    <summary>{{.Title}}</summary>
+    <p class="muted">{{.Intro}}</p>
+    <p><a class="btn secondary" href="{{.Download}}">{{.DownloadLabel}}</a></p>
+    <ol class="steps">{{range .Steps}}<li>{{.}}</li>{{end}}</ol>
+  </details>
+  {{end}}
+  {{end}}
+
+  <section class="card" aria-labelledby="h-check">
+    <h2 id="h-check">Check it is really this library</h2>
+    <p>Anyone on your network could swap the file you download for another one. So each set of steps above tells you to compare the SHA-256 fingerprint your device shows for the certificate with the one on the library's server console, or on the Settings page opened on another device that already trusts the library and shows no warning. Never sign in on the device you are setting up to read it: until it has done the step it would accept anyone's certificate. Compare the first 8 and the last 8 characters. Capitals, spaces and colons don't matter. If they differ, don't trust it.</p>
+    <p>This page's own copy is for reference only, and is not the check: this page came over a connection that isn't encrypted, so it could have been changed on the way.</p>
+    <code class="fp" id="fingerprint">{{.Fingerprint}}</code>
+  </section>
+
+  <section class="alert warn" aria-labelledby="h-what">
+    <b id="h-what">What your device will trust</b>
+    <p>Only this library installation, and local names and private network addresses (such as 192.168.x.x or library.local) signed by its key. It cannot vouch for any public website, such as your bank, even if its key were stolen.</p>
+  </section>
+
+  <section class="stack" aria-labelledby="h-done">
+    <h2 id="h-done">When you have done the step</h2>
+    {{if .HTTPSURL}}<p><a class="btn primary" href="{{.HTTPSURL}}">Open the library securely</a></p>
+    <p class="muted small">The page should open with a padlock and no warning. If you skip the step, the same button works, but your browser warns first and the camera stays off.</p>
+    {{else}}<p>Open the library at its https:// address.</p>{{end}}
+  </section>
+{{end}}
+</main>
+</body>
+</html>
