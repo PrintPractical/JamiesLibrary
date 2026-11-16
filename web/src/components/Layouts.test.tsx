@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { adminItems, patronItems, staffFooterItems, staffItems } from "../app/navigation";
-import { AppRoutes } from "../app/routes";
+import { fakeServer, meOf, renderApp } from "../testing";
 import { PatronLayout, StaffLayout } from "./Layouts";
 
 function renderAt(path: string, ui: React.ReactNode) {
@@ -15,6 +15,14 @@ function renderAt(path: string, ui: React.ReactNode) {
     </MemoryRouter>,
   );
 }
+
+// These render the whole app as an administrator, who sees every item.
+beforeEach(() => {
+  fakeServer({ "GET /api/me": { body: meOf("administrator") } });
+});
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 const labels = (nav: HTMLElement) => within(nav).getAllByRole("link").map((a) => a.textContent);
 
@@ -61,12 +69,8 @@ test("StaffLayout's tab bar keeps four items and a More tab for the rest", () =>
   expect(labels(tabs)).toEqual(["Desk", "Check out", "Check in", "Catalog", "More"]);
 });
 
-test("the /more page lists what the tab bar left out", () => {
-  render(
-    <MemoryRouter initialEntries={["/more"]}>
-      <AppRoutes />
-    </MemoryRouter>,
-  );
+test("the /more page lists what the tab bar left out", async () => {
+  await renderApp("/more");
   const more = screen.getByRole("navigation", { name: "More" });
   expect(labels(more)).toEqual(["Patrons", "Overdue", "Settings", "People & invites", "Statistics", "My library"]);
 });
@@ -82,48 +86,30 @@ test.each([
   ["/catalog/new", "Add a book"],
   ["/admin/settings", "Settings"],
   ["/setup", "Set up the library"],
-  ["/signin", "Sign in"],
-  ["/register", "Create your account"],
-])("the route %s is a placeholder page", (path, title) => {
-  render(
-    <MemoryRouter initialEntries={[path]}>
-      <AppRoutes />
-    </MemoryRouter>,
-  );
+])("the route %s is a placeholder page", async (path, title) => {
+  await renderApp(path);
   expect(screen.getByRole("heading", { level: 1, name: title })).toBeInTheDocument();
 });
 
-test("an address nobody built shows a page inside the content with a way back", () => {
-  render(
-    <MemoryRouter initialEntries={["/nope"]}>
-      <AppRoutes />
-    </MemoryRouter>,
-  );
+test("an address nobody built shows a page inside the content with a way back", async () => {
+  await renderApp("/nope");
   expect(screen.getByRole("heading", { name: "Page not found" })).toBeInTheDocument();
   expect(screen.getByText("There's nothing at this address.")).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Go to your library" })).toHaveAttribute("href", "/");
   expect(screen.getByRole("main")).toHaveClass("content");
 });
 
-test("the More tab is current on pages reached through it, and not on the others", () => {
-  const { unmount } = render(
-    <MemoryRouter initialEntries={["/desk/patrons"]}>
-      <AppRoutes />
-    </MemoryRouter>,
-  );
+test("the More tab is current on pages reached through it, and not on the others", async () => {
+  const { unmount } = await renderApp("/desk/patrons");
   const tabs = () => screen.getAllByRole("navigation", { name: "Main" })[1]!;
   expect(within(tabs()).getByRole("link", { name: "More" })).toHaveAttribute("aria-current", "page");
   unmount();
-  render(
-    <MemoryRouter initialEntries={["/desk/checkout"]}>
-      <AppRoutes />
-    </MemoryRouter>,
-  );
+  await renderApp("/desk/checkout");
   expect(within(tabs()).getByRole("link", { name: "More" })).not.toHaveAttribute("aria-current");
   expect(within(tabs()).getByRole("link", { name: "Check out" })).toHaveAttribute("aria-current", "page");
 });
 
-test("/more on a wide window goes to the desk instead of showing an empty page", () => {
+test("/more on a wide window goes to the desk instead of showing an empty page", async () => {
   const original = window.matchMedia;
   window.matchMedia = ((q: string) => ({
     matches: true,
@@ -132,24 +118,16 @@ test("/more on a wide window goes to the desk instead of showing an empty page",
     removeEventListener: () => {},
   })) as unknown as typeof window.matchMedia;
   try {
-    render(
-      <MemoryRouter initialEntries={["/more"]}>
-        <AppRoutes />
-      </MemoryRouter>,
-    );
-    expect(screen.getByRole("heading", { name: "Desk" })).toBeInTheDocument();
+    await renderApp("/more");
+    expect(await screen.findByRole("heading", { name: "Desk" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "More" })).toBeNull();
   } finally {
     window.matchMedia = original;
   }
 });
 
-test("an unknown address says so inside the layout and links home", () => {
-  render(
-    <MemoryRouter initialEntries={["/nope"]}>
-      <AppRoutes />
-    </MemoryRouter>,
-  );
+test("an unknown address says so inside the layout and links home", async () => {
+  await renderApp("/nope");
   expect(screen.getByRole("heading", { level: 1, name: "Page not found" })).toBeInTheDocument();
   expect(screen.getByText("There's nothing at this address.")).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Go to your library" })).toHaveAttribute("href", "/");

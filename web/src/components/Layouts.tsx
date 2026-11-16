@@ -2,14 +2,14 @@ import { useEffect, useState } from "react";
 import { Navigate } from "react-router";
 import { MoreList, Shell, type NavItem, type ShellProps } from "./Shell";
 
-export type PatronLayoutProps = Pick<ShellProps, "libraryName" | "user"> & { items: NavItem[] };
+export type PatronLayoutProps = Pick<ShellProps, "libraryName" | "logoUrl" | "user"> & { items: NavItem[] };
 
 /** Bottom tab bar on phones, side bar on desktop, the same items in the same order. */
 export function PatronLayout({ items, ...rest }: PatronLayoutProps) {
   return <Shell items={items} {...rest} />;
 }
 
-export type StaffLayoutProps = Pick<ShellProps, "libraryName" | "user"> & {
+export type StaffLayoutProps = Pick<ShellProps, "libraryName" | "logoUrl" | "user"> & {
   items: NavItem[];
   adminItems?: NavItem[];
   /** "My library": the way to the patron side. */
