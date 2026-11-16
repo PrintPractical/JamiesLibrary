@@ -67,12 +67,14 @@ type deskLoanBody struct {
 	DueDate      string   `json:"due_date"`
 	ReturnedAt   string   `json:"returned_at,omitempty"`
 	DaysLate     int      `json:"days_late"`
+	Overdue      bool     `json:"overdue"`
+	Renewals     int      `json:"renewals"`
 }
 
 func loanBody(l circ.Loan) deskLoanBody {
 	return deskLoanBody{ID: l.ID, CopyID: l.CopyID, CopyNumber: l.CopyNumber, CopyCode: l.CopyCode, BookID: l.BookID,
 		Title: l.Title, Authors: l.Authors, Location: l.Location, PatronID: l.PatronID, PatronName: l.PatronName,
-		CheckedOutAt: l.CheckedOutAt, DueDate: l.DueDate, ReturnedAt: l.ReturnedAt, DaysLate: l.DaysLate}
+		CheckedOutAt: l.CheckedOutAt, DueDate: l.DueDate, ReturnedAt: l.ReturnedAt, DaysLate: l.DaysLate, Overdue: l.DaysLate > 0, Renewals: l.Renewals}
 }
 
 func copyBody(c *circ.CopyInfo) *deskCopyBody {
