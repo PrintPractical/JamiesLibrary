@@ -34,11 +34,11 @@ const (
 	CoverLimit = 5 << 20 // CAT-1: a cover is at most 5 MB
 	LogoLimit  = 2 << 20 // ADMIN-1: the logo is at most 2 MB
 
-	MaxPixels     = 40_000_000 // refused from the header, before any decoding
-	MaxPixels16   = 20_000_000 // the same for a 16-bit PNG, which decodes to 8 bytes a pixel
-	MaxCoverSide  = 1200       // covers are scaled down to this on the long side
-	JPEGQuality   = 85
-	maxConcurrent = 1 // decodes at once: with the pixel caps a decode holds at most 160 MB, so the process peaks near 350 MB
+	MaxPixels      = 40_000_000 // refused from the header, before any decoding
+	MaxDecodeBytes = 160 << 20  // what a decode may hold, estimated from the header
+	MaxCoverSide   = 1200       // covers are scaled down to this on the long side
+	JPEGQuality    = 85
+	maxConcurrent  = 1 // decodes at once: with the pixel caps a decode holds at most 160 MB, so the process peaks near 350 MB
 )
 
 // Kind says what an image is for.
@@ -98,8 +98,8 @@ func (im *Images) Store(r io.Reader, limit int64, kind Kind) (string, error) {
 		return "", refuse("That image has too many pixels (the limit is 40 megapixels). Choose a smaller one.")
 	}
 
-	if int64(cfg.Width)*int64(cfg.Height) > MaxPixels16 && isPNG16(data) {
-		return "", refuse("That 16-bit PNG has too many pixels (the limit is 20 megapixels). Save it as an ordinary PNG or JPEG, or choose a smaller one.")
+	if cost := decodeCost(data, cfg); cost > MaxDecodeBytes {
+		return "", refuse(tooBigToOpen(cfg, cost))
 	}
 
 	im.sem <- struct{}{}
@@ -115,9 +115,81 @@ func (im *Images) Store(r io.Reader, limit int64, kind Kind) (string, error) {
 	return im.save(out, ext)
 }
 
+// decodeCost estimates, from the header alone, the bytes a full decode holds.
+// The standard decoders keep more than the picture: a 16-bit PNG is 8 bytes a
+// pixel, and a progressive JPEG keeps a 256-byte coefficient block for every
+// 8x8 block of every component until it is done. Everything else is taken as 4.
+func decodeCost(data []byte, cfg image.Config) int64 {
+	px := int64(cfg.Width) * int64(cfg.Height)
+	switch {
+	case isPNG16(data):
+		return px * 8
+	case bytes.HasPrefix(data, []byte{0xFF, 0xD8}):
+		if coeff, ok := jpegCoefficientBytes(data); ok {
+			return px*4 + coeff
+		}
+	}
+	return px * 4
+}
+
 // isPNG16 reports whether data is a PNG whose header says 16 bits a channel.
 func isPNG16(data []byte) bool {
 	return len(data) > 24 && bytes.HasPrefix(data, []byte("\x89PNG\r\n\x1a\n")) && data[24] == 16
+}
+
+// jpegCoefficientBytes reads the frame header of a progressive JPEG (SOF2) and
+// returns the coefficient storage the decoder will allocate for it, in bytes.
+// It reports false for a baseline file, which keeps none, and for a header it
+// cannot read (the decoder then refuses the file itself).
+func jpegCoefficientBytes(data []byte) (int64, bool) {
+	for i := 2; i+4 <= len(data); {
+		if data[i] != 0xFF {
+			return 0, false
+		}
+		m := data[i+1]
+		if m == 0xFF { // fill byte
+			i++
+			continue
+		}
+		if m == 0x01 || (m >= 0xD0 && m <= 0xD8) { // markers without a length
+			i += 2
+			continue
+		}
+		n := int(data[i+2])<<8 | int(data[i+3])
+		if m == 0xC2 { // SOF2: progressive
+			seg := data[i+4:]
+			if n < 8 || len(seg) < n-2 {
+				return 0, false
+			}
+			h, w, nc := int(seg[1])<<8|int(seg[2]), int(seg[3])<<8|int(seg[4]), int(seg[5])
+			if nc < 1 || nc > 4 || n < 8+3*nc {
+				return 0, false
+			}
+			hmax, vmax := 1, 1
+			for c := 0; c < nc; c++ {
+				hmax, vmax = max(hmax, int(seg[6+3*c+1]>>4)), max(vmax, int(seg[6+3*c+1]&15))
+			}
+			mx, my := (int64(w)+int64(8*hmax)-1)/int64(8*hmax), (int64(h)+int64(8*vmax)-1)/int64(8*vmax)
+			var blocks int64
+			for c := 0; c < nc; c++ {
+				blocks += mx * int64(seg[6+3*c+1]>>4) * my * int64(seg[6+3*c+1]&15)
+			}
+			return blocks * 256, true
+		}
+		if m >= 0xC0 && m <= 0xCF && m != 0xC4 && m != 0xC8 && m != 0xCC {
+			return 0, false // another frame type: baseline keeps no coefficients
+		}
+		i += 2 + n
+	}
+	return 0, false
+}
+
+// tooBigToOpen is the refusal for an image whose decode would hold too much.
+func tooBigToOpen(cfg image.Config, cost int64) string {
+	px := int64(cfg.Width) * int64(cfg.Height)
+	allowed := px * MaxDecodeBytes / max(cost, 1) / 1_000_000
+	return fmt.Sprintf("That image is too large to open safely: %d megapixels, and this kind of file (16-bit PNG, progressive or CMYK JPEG) can be at most about %d. Save it as an ordinary JPEG or PNG, or scale it down, and try again.",
+		px/1_000_000, allowed)
 }
 
 func encode(src image.Image, kind Kind) ([]byte, string, error) {

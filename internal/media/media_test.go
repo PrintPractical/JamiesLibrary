@@ -5,6 +5,7 @@ import (
 	"compress/zlib"
 	"encoding/base64"
 	"encoding/binary"
+	"fmt"
 	"hash/crc32"
 	"image"
 	"image/color"
@@ -416,19 +417,36 @@ func TestWorstCaseImageMemoryIsBounded(t *testing.T) {
 		t.Skip("decodes 40 megapixels")
 	}
 	const bound = 512 << 20
-	for _, tc := range []struct {
+	type tcase struct {
 		name string
 		kind Kind
-		ct   byte
-	}{{"cover rgb", Cover, 2}, {"cover rgba", Cover, 6}, {"logo rgb", Logo, 2}, {"logo rgba", Logo, 6}} {
+		data func(t *testing.T) []byte
+	}
+	var cases []tcase
+	for _, k := range []struct {
+		n    string
+		kind Kind
+	}{{"cover", Cover}, {"logo", Logo}} {
+		kind := k.kind
+		for _, ct := range []byte{2, 6} {
+			ct := ct
+			cases = append(cases, tcase{fmt.Sprintf("%s png16 type %d", k.n, ct), kind,
+				func(t *testing.T) []byte { return bigPNG16(t, 5000, 4000, ct) }})
+		}
+		for _, f := range []string{"progressive-cmyk-8mp.jpg", "progressive-444-10mp.jpg"} {
+			f := f
+			cases = append(cases, tcase{k.n + " " + f, kind, func(t *testing.T) []byte { return testdata(t, f) }})
+		}
+	}
+	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			im, _ := newImages(t)
-			data := bigPNG16(t, 5000, 4000, tc.ct)
-			if len(data) > CoverLimit {
+			data := tc.data(t)
+			if len(data) > LogoLimit {
 				t.Fatalf("test image is %d bytes", len(data))
 			}
 			var err error
-			peak := peakSys(func() { _, err = im.Store(bytes.NewReader(data), CoverLimit, tc.kind) })
+			peak := peakSys(func() { _, err = im.Store(bytes.NewReader(data), LogoLimit, tc.kind) })
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -437,6 +455,59 @@ func TestWorstCaseImageMemoryIsBounded(t *testing.T) {
 				t.Errorf("peak %d MB over the %d MB bound", peak>>20, bound>>20)
 			}
 		})
+	}
+}
+
+func testdata(t *testing.T, name string) []byte {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join("testdata", name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
+// A progressive JPEG keeps 256 bytes of coefficients per 8x8 block of each
+// component: a 40-megapixel CMYK one (611 KB on the wire) would hold ~800 MB.
+// Both are refused from the header alone: the header is all that is sent.
+func TestProgressiveJPEGsOverTheDecodeBudgetAreRefusedFromTheHeader(t *testing.T) {
+	im, dir := newImages(t)
+	for _, f := range []string{"progressive-cmyk-40mp.jpg", "progressive-420-40mp.jpg"} {
+		data := testdata(t, f)
+		for name, body := range map[string][]byte{"whole": data, "header only": data[:700]} {
+			var before, after runtime.MemStats
+			runtime.ReadMemStats(&before)
+			_, err := im.Store(bytes.NewReader(body), LogoLimit, Cover)
+			runtime.ReadMemStats(&after)
+			e := wantCode(t, err, apperr.Invalid)
+			if !strings.Contains(e.Message, "too large to open safely") || !strings.Contains(e.Message, "megapixels") {
+				t.Errorf("%s %s: message %q", f, name, e.Message)
+			}
+			if got := after.TotalAlloc - before.TotalAlloc; got > 20<<20 {
+				t.Errorf("%s %s: refusal allocated %d MB", f, name, got>>20)
+			}
+		}
+	}
+	if n := filesIn(t, dir); len(n) != 0 {
+		t.Errorf("files left behind: %v", n)
+	}
+}
+
+// decodeCost counts what the header says: coefficient blocks for a progressive
+// JPEG, none for a baseline one.
+func TestDecodeCost(t *testing.T) {
+	cmyk := testdata(t, "progressive-cmyk-8mp.jpg")
+	cfg, _, _ := image.DecodeConfig(bytes.NewReader(cmyk))
+	if got := decodeCost(cmyk, cfg); got < 150<<20 || got > MaxDecodeBytes {
+		t.Errorf("progressive CMYK 8 MP cost %d MB", got>>20)
+	}
+	base := jpegBytes(t, 1000, 1000)
+	cfg, _, _ = image.DecodeConfig(bytes.NewReader(base))
+	if got := decodeCost(base, cfg); got != 4_000_000 {
+		t.Errorf("baseline cost %d", got)
+	}
+	if _, ok := jpegCoefficientBytes([]byte{0xFF, 0xD8, 0xFF}); ok {
+		t.Error("a cut-off header was read")
 	}
 }
 
@@ -450,7 +521,7 @@ func TestHuge16BitPNGIsRefusedBeforeDecoding(t *testing.T) {
 	func() {
 		_, err := im.Store(bytes.NewReader(data), CoverLimit, Cover)
 		e := wantCode(t, err, apperr.Invalid)
-		if !strings.Contains(e.Message, "20 megapixels") {
+		if !strings.Contains(e.Message, "too large to open safely") {
 			t.Errorf("message %q", e.Message)
 		}
 	}()
