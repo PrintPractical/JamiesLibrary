@@ -28,6 +28,7 @@ const (
 	InvitationCreated     = "invitation.created"
 	InvitationRevoked     = "invitation.revoked"
 	CardReissued          = "card.reissued"
+	ReviewRemoved         = "review.removed"
 )
 
 // Limits on what is stored and on a page of the log.

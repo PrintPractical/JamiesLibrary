@@ -16,6 +16,7 @@ import (
 	"jamieslibrary/internal/media"
 	"jamieslibrary/internal/metadata"
 	"jamieslibrary/internal/ratelimit"
+	"jamieslibrary/internal/reviews"
 	"jamieslibrary/internal/settings"
 	"jamieslibrary/internal/setup"
 	"jamieslibrary/internal/store"
@@ -57,6 +58,9 @@ type Options struct {
 	// (with Media) the lookup routes are registered.
 	Catalog  *catalog.Service
 	Metadata *metadata.Service
+	// Reviews is ratings and reviews; when set (with Catalog and Media) the book
+	// pages carry them and the review routes are registered.
+	Reviews *reviews.Service
 	// Authenticate, when set, wraps the routes and puts the caller in the
 	// request context (auth.WithCaller). Without it no request has a caller.
 	Authenticate func(http.Handler) http.Handler
@@ -161,6 +165,9 @@ func registerAPI(rt *Router, o Options) {
 	if o.Catalog != nil && o.Media != nil {
 		registerCatalogRoutes(rt, o)
 		registerPublicRoutes(rt, o)
+		if o.Reviews != nil {
+			registerReviewRoutes(rt, o)
+		}
 	}
 }
 
