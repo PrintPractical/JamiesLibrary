@@ -27,6 +27,7 @@ const (
 	UserPasswordReset     = "user.password_reset"
 	InvitationCreated     = "invitation.created"
 	InvitationRevoked     = "invitation.revoked"
+	CardReissued          = "card.reissued"
 )
 
 // Limits on what is stored and on a page of the log.
@@ -36,7 +37,9 @@ const (
 	MaxDetailsBytes = 4096
 	DefaultPageSize = 50
 	MaxPageSize     = 100
-	ConsoleName     = "Server console"
+	// MaxPage bounds the page number, so (page-1)*size cannot overflow.
+	MaxPage     = 1_000_000
+	ConsoleName = "Server console"
 )
 
 // Actor is who did the thing: an account, or the server console.
@@ -52,7 +55,9 @@ func ByUser(id int64) Actor { return Actor{UserID: id} }
 var ServerConsole = Actor{Console: true}
 
 // forbiddenKeys are detail names that would hold a secret. Record refuses
-// them, so a mistake in a caller cannot put a code or password in the log.
+// them at any depth, so a caller that puts a code or password under such a name
+// is stopped. It cannot see a secret under an innocent name: callers pass ids,
+// roles and permission names only.
 var forbiddenKeys = []string{"password", "passcode", "code", "token", "secret", "hash"}
 
 // Record writes one entry inside tx. target says what was acted on, such as
@@ -68,20 +73,19 @@ func Record(ctx context.Context, tx store.Tx, actor Actor, action, target string
 	if !actor.Console && actor.UserID <= 0 {
 		return fmt.Errorf("activity: %s has no actor", action)
 	}
-	for k := range details {
-		lk := strings.ToLower(k)
-		for _, bad := range forbiddenKeys {
-			if strings.Contains(lk, bad) {
-				return fmt.Errorf("activity: detail %q may hold a secret and is not logged", k)
-			}
-		}
-	}
 	if details == nil {
 		details = map[string]any{}
 	}
 	body, err := json.Marshal(details)
 	if err != nil {
 		return fmt.Errorf("activity: details of %s: %w", action, err)
+	}
+	var tree any
+	if err := json.Unmarshal(body, &tree); err != nil {
+		return fmt.Errorf("activity: details of %s: %w", action, err)
+	}
+	if k := forbiddenKey(tree); k != "" {
+		return fmt.Errorf("activity: detail %q may hold a secret and is not logged", k)
 	}
 	if len(body) > MaxDetailsBytes {
 		return fmt.Errorf("activity: details of %s are over %d bytes", action, MaxDetailsBytes)
@@ -96,6 +100,32 @@ func Record(ctx context.Context, tx store.Tx, actor Actor, action, target string
 		return fmt.Errorf("activity: recording %s: %w", action, err)
 	}
 	return nil
+}
+
+// forbiddenKey returns the first key anywhere in the decoded JSON value whose
+// name suggests a secret, or "".
+func forbiddenKey(v any) string {
+	switch v := v.(type) {
+	case map[string]any:
+		for k, child := range v {
+			lk := strings.ToLower(k)
+			for _, bad := range forbiddenKeys {
+				if strings.Contains(lk, bad) {
+					return k
+				}
+			}
+			if f := forbiddenKey(child); f != "" {
+				return f
+			}
+		}
+	case []any:
+		for _, child := range v {
+			if f := forbiddenKey(child); f != "" {
+				return f
+			}
+		}
+	}
+	return ""
 }
 
 // Service reads the log.
@@ -125,7 +155,7 @@ type Page struct {
 }
 
 // List returns page number page (from 1) of the log, newest first. A page
-// size of 0 means DefaultPageSize; one over MaxPageSize, or a page below 1, is refused.
+// size of 0 means DefaultPageSize; one over MaxPageSize, or a page outside 1 to MaxPage, is refused.
 func (s *Service) List(ctx context.Context, page, size int) (Page, error) {
 	if size == 0 {
 		size = DefaultPageSize
@@ -133,8 +163,8 @@ func (s *Service) List(ctx context.Context, page, size int) (Page, error) {
 	if size < 1 || size > MaxPageSize {
 		return Page{}, apperr.OnField(apperr.Invalid, "per_page", fmt.Sprintf("Ask for between 1 and %d entries per page.", MaxPageSize))
 	}
-	if page < 1 {
-		return Page{}, apperr.OnField(apperr.Invalid, "page", "The page number starts at 1.")
+	if page < 1 || page > MaxPage {
+		return Page{}, apperr.OnField(apperr.Invalid, "page", fmt.Sprintf("The page number is from 1 to %d.", MaxPage))
 	}
 	out := Page{Entries: []Entry{}, Page: page, PageSize: size}
 	if err := s.st.DB().QueryRowContext(ctx, `SELECT count(*) FROM activity`).Scan(&out.Total); err != nil {
