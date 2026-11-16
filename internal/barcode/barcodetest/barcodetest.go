@@ -8,6 +8,7 @@ import (
 	"image/color"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/makiuchi-d/gozxing"
 	"github.com/makiuchi-d/gozxing/oned"
@@ -77,4 +78,84 @@ func DecodeSVG(kind, svg string) (string, error) {
 		return "", err
 	}
 	return Decode(kind, img)
+}
+
+// PDFPage is what a PDF made by internal/barcode shows on one page.
+type PDFPage struct {
+	Width, Height float64  // mm
+	Texts         []string // each line of text drawn, in drawing order
+	Bars          int      // filled rectangles: the bars of every code
+}
+
+var (
+	pdfPageObj = regexp.MustCompile(`/Type /Page[^s]`)
+	pdfBox     = regexp.MustCompile(`/MediaBox \[0 0 ([\d.]+) ([\d.]+)\]`)
+	pdfStream  = regexp.MustCompile(`(?s)stream\n(.*?)endstream`)
+	pdfText    = regexp.MustCompile(`\(((?:[^()\\]|\\.)*)\) Tj`)
+	pdfRect    = regexp.MustCompile(`-?[\d.]+ -?[\d.]+ -?[\d.]+ -?[\d.]+ re f`)
+)
+
+// ReadPDF reads back an uncompressed PDF drawn by internal/barcode: its pages'
+// sizes, text and bars. The text is read from the 16-bit characters the PDF
+// holds, so only text in the Basic Latin to Latin Extended range is read right.
+func ReadPDF(pdf []byte) ([]PDFPage, error) {
+	s := string(pdf)
+	if !strings.HasPrefix(s, "%PDF-") {
+		return nil, fmt.Errorf("barcodetest: not a PDF")
+	}
+	box := pdfBox.FindStringSubmatch(s)
+	if box == nil {
+		return nil, fmt.Errorf("barcodetest: no MediaBox")
+	}
+	w, _ := strconv.ParseFloat(box[1], 64)
+	h, _ := strconv.ParseFloat(box[2], 64)
+	n := len(pdfPageObj.FindAllString(s, -1))
+	streams := pdfStream.FindAllStringSubmatch(s, -1)
+	if len(streams) < n {
+		return nil, fmt.Errorf("barcodetest: %d pages but %d content streams", n, len(streams))
+	}
+	pages := make([]PDFPage, n)
+	for i := range pages {
+		p := PDFPage{Width: w / 72 * 25.4, Height: h / 72 * 25.4, Bars: len(pdfRect.FindAllString(streams[i][1], -1))}
+		for _, m := range pdfText.FindAllStringSubmatch(streams[i][1], -1) {
+			p.Texts = append(p.Texts, decodePDFText(m[1]))
+		}
+		pages[i] = p
+	}
+	return pages, nil
+}
+
+// decodePDFText unescapes a PDF string and reads its UTF-16BE characters.
+func decodePDFText(s string) string {
+	var raw []byte
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\\' && i+1 < len(s) {
+			i++
+			switch s[i] {
+			case 'n':
+				raw = append(raw, '\n')
+			case 'r':
+				raw = append(raw, '\r')
+			case 't':
+				raw = append(raw, '\t')
+			case '0', '1', '2', '3', '4', '5', '6', '7':
+				j := i
+				for j < len(s) && j < i+3 && s[j] >= '0' && s[j] <= '7' {
+					j++
+				}
+				v, _ := strconv.ParseUint(s[i:j], 8, 8)
+				raw = append(raw, byte(v))
+				i = j - 1
+			default:
+				raw = append(raw, s[i])
+			}
+			continue
+		}
+		raw = append(raw, s[i])
+	}
+	var out []rune
+	for i := 0; i+1 < len(raw); i += 2 {
+		out = append(out, rune(raw[i])<<8|rune(raw[i+1]))
+	}
+	return string(out)
 }

@@ -1,12 +1,14 @@
 package catalog
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
 
 	"jamieslibrary/internal/apperr"
 	"jamieslibrary/internal/settings"
+	"jamieslibrary/internal/store"
 )
 
 func addISBNBook(t *testing.T, s *Service, title string) Book {
@@ -41,7 +43,7 @@ func addCopy(t *testing.T, s *Service, book int64, in CopyInput) Copy {
 
 func setMode(t *testing.T, s *Service, mode string) {
 	t.Helper()
-	if err := s.SetCopyIDMode(ctx, 1, mode); err != nil {
+	if err := s.SetCopyIDMode(ctx, 1, mode, nil); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -405,7 +407,7 @@ func TestSwitchBackKeepsCodesAndScanningStillWorks(t *testing.T) {
 func TestSwitchRejectsAnUnknownModeAndChangesNothing(t *testing.T) {
 	s := newService(t, nil)
 	addCopy(t, s, addISBNBook(t, s, "X").ID, CopyInput{})
-	wantField(t, s.SetCopyIDMode(ctx, 1, "both"), apperr.Invalid, "copy_id_mode")
+	wantField(t, s.SetCopyIDMode(ctx, 1, "both", nil), apperr.Invalid, "copy_id_mode")
 	var n int
 	s.st.DB().QueryRow(`SELECT count(*) FROM identifiers`).Scan(&n)
 	if n != 0 || s.settings.Get().CopyIDMode != "isbn" {
@@ -492,5 +494,57 @@ func TestDeleteLocationRefusedThenMoveThenDelete(t *testing.T) {
 	cs, _ := s.CopiesOf(ctx, b2.ID)
 	if len(cs) != 2 || cs[0].LocationName != "Dest" {
 		t.Fatalf("%+v", cs)
+	}
+}
+
+// A failing activity entry undoes the whole switch: the mode and the generated codes.
+func TestSetCopyIDModeAuditFailureRollsBack(t *testing.T) {
+	s := newService(t, NoLoans{})
+	b := addISBNBook(t, s, "One")
+	addCopy(t, s, b.ID, CopyInput{})
+	err := s.SetCopyIDMode(ctx, 1, settings.CopyIDOwn, func(context.Context, store.Tx, map[string]any) error { return errors.New("log is full") })
+	if err == nil {
+		t.Fatal("the switch went through without its entry")
+	}
+	cs, _ := s.CopiesOf(ctx, b.ID)
+	if s.settings.Get().CopyIDMode != settings.CopyIDISBN || cs[0].Code != "" {
+		t.Errorf("mode %s, code %q", s.settings.Get().CopyIDMode, cs[0].Code)
+	}
+}
+
+// The audit says the mode before and after and how many copies got a code.
+func TestSetCopyIDModeAuditDetails(t *testing.T) {
+	s := newService(t, NoLoans{})
+	b := addISBNBook(t, s, "One")
+	addCopy(t, s, b.ID, CopyInput{})
+	addCopy(t, s, b.ID, CopyInput{})
+	var got map[string]any
+	audit := func(_ context.Context, _ store.Tx, d map[string]any) error { got = d; return nil }
+	if err := s.SetCopyIDMode(ctx, 1, settings.CopyIDOwn, audit); err != nil {
+		t.Fatal(err)
+	}
+	if m := got["copy_id_mode"].(map[string]any); m["from"] != "isbn" || m["to"] != "own" || got["copies_given_ids"] != 2 {
+		t.Errorf("%v", got)
+	}
+}
+
+// A copy goes in a location made in the same call; a refused copy leaves none behind.
+func TestAddCopyInANewLocation(t *testing.T) {
+	s := newService(t, NoLoans{})
+	b := addISBNBook(t, s, "One")
+	c, err := s.AddCopy(ctx, 1, b.ID, CopyInput{NewLocation: " Attic "})
+	if err != nil || c.LocationName != "Attic" {
+		t.Fatalf("%+v %v", c, err)
+	}
+	_, err = s.AddCopy(ctx, 1, b.ID, CopyInput{NewLocation: "Cellar", Sticker: "bad sticker"})
+	if err == nil {
+		t.Fatal("a bad sticker was accepted")
+	}
+	_, err = s.AddCopy(ctx, 1, b.ID, CopyInput{NewLocation: "attic"})
+	wantField(t, err, apperr.Conflict, "new_location")
+	_, err = s.AddCopy(ctx, 1, b.ID, CopyInput{LocationID: 1, NewLocation: "Cellar"})
+	wantField(t, err, apperr.Invalid, "new_location")
+	if ls, _ := s.Locations(ctx); len(ls) != 2 {
+		t.Errorf("%d locations: %+v", len(ls), ls)
 	}
 }

@@ -56,22 +56,30 @@ func (s *Service) Locations(ctx context.Context) ([]Location, error) {
 // CreateLocation adds a location. A name another location has, ignoring
 // case, is refused.
 func (s *Service) CreateLocation(ctx context.Context, actor int64, name string) (Location, error) {
-	name, err := cleanText(name, "name", "location name", MaxLocation, true, false)
+	var l Location
+	err := s.st.WithTx(ctx, func(tx store.Tx) error {
+		var err error
+		l, err = insertLocation(ctx, tx, name, "name")
+		return err
+	})
+	return l, err
+}
+
+// insertLocation cleans a location name and adds it in the caller's
+// transaction. field names the input in an error.
+func insertLocation(ctx context.Context, q DB, name, field string) (Location, error) {
+	name, err := cleanText(name, field, "location name", MaxLocation, true, false)
 	if err != nil {
 		return Location{}, err
 	}
-	var id int64
-	err = s.st.WithTx(ctx, func(tx store.Tx) error {
-		if err := checkNameFree(ctx, tx, name, 0); err != nil {
-			return err
-		}
-		res, err := tx.ExecContext(ctx, `INSERT INTO locations (name, name_key) VALUES (?, ?)`, name, strings.ToLower(name))
-		if err != nil {
-			return err
-		}
-		id, err = res.LastInsertId()
-		return err
-	})
+	if err := checkNameFree(ctx, q, name, 0, field); err != nil {
+		return Location{}, err
+	}
+	res, err := q.ExecContext(ctx, `INSERT INTO locations (name, name_key) VALUES (?, ?)`, name, strings.ToLower(name))
+	if err != nil {
+		return Location{}, err
+	}
+	id, err := res.LastInsertId()
 	return Location{ID: id, Name: name}, err
 }
 
@@ -86,7 +94,7 @@ func (s *Service) RenameLocation(ctx context.Context, actor, id int64, name stri
 		if err := locationExists(ctx, tx, id); err != nil {
 			return err
 		}
-		if err := checkNameFree(ctx, tx, name, id); err != nil {
+		if err := checkNameFree(ctx, tx, name, id, "name"); err != nil {
 			return err
 		}
 		_, err := tx.ExecContext(ctx, `UPDATE locations SET name = ?, name_key = ? WHERE id = ?`, name, strings.ToLower(name), id)
@@ -156,7 +164,7 @@ func locationExists(ctx context.Context, q DB, id int64) error {
 	return err
 }
 
-func checkNameFree(ctx context.Context, q DB, name string, except int64) error {
+func checkNameFree(ctx context.Context, q DB, name string, except int64, field string) error {
 	var one int
 	err := q.QueryRowContext(ctx, `SELECT 1 FROM locations WHERE name_key = ? AND id <> ?`, strings.ToLower(name), except).Scan(&one)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -165,5 +173,5 @@ func checkNameFree(ctx context.Context, q DB, name string, except int64) error {
 	if err != nil {
 		return err
 	}
-	return apperr.OnField(apperr.Conflict, "name", "A location with this name already exists.")
+	return apperr.OnField(apperr.Conflict, field, "A location with this name already exists.")
 }

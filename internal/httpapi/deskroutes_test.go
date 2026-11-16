@@ -108,7 +108,7 @@ func TestDeskResolve(t *testing.T) {
 	if rec := resolve(card, "item"); rec.Code != 404 {
 		t.Errorf("a card at the item step: %d", rec.Code)
 	}
-	if err := cat.SetCopyIDMode(ctxBG, 1, settings.CopyIDOwn); err != nil {
+	if err := cat.SetCopyIDMode(ctxBG, 1, settings.CopyIDOwn, nil); err != nil {
 		t.Fatal(err)
 	}
 	if rec := resolve("9780306406157", "item"); rec.Code != 422 || !strings.Contains(errMessage(t, rec), "own barcode") {
