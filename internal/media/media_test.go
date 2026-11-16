@@ -2,6 +2,7 @@ package media
 
 import (
 	"bytes"
+	"compress/zlib"
 	"encoding/base64"
 	"encoding/binary"
 	"hash/crc32"
@@ -11,8 +12,12 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"runtime"
+	"runtime/debug"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"jamieslibrary/internal/apperr"
 )
@@ -344,5 +349,120 @@ func TestValidName(t *testing.T) {
 		if ValidName(name) != want {
 			t.Errorf("ValidName(%q) = %v", name, !want)
 		}
+	}
+}
+
+// bigPNG16 is a w by h 16-bit PNG of one flat colour: a few hundred KB on the
+// wire, 8 bytes a pixel once decoded. colorType 2 is RGB, 6 is RGBA.
+func bigPNG16(t *testing.T, w, h int, colorType byte) []byte {
+	t.Helper()
+	ihdr := make([]byte, 13)
+	binary.BigEndian.PutUint32(ihdr[0:], uint32(w))
+	binary.BigEndian.PutUint32(ihdr[4:], uint32(h))
+	ihdr[8], ihdr[9] = 16, colorType
+	bpp := 6
+	if colorType == 6 {
+		bpp = 8
+	}
+	var z bytes.Buffer
+	zw := zlib.NewWriter(&z)
+	row := make([]byte, 1+w*bpp)
+	for i := 1; i < len(row); i++ {
+		row[i] = 0x80
+	}
+	for y := 0; y < h; y++ {
+		zw.Write(row)
+	}
+	zw.Close()
+	out := append([]byte("\x89PNG\r\n\x1a\n"), chunk("IHDR", ihdr)...)
+	out = append(out, chunk("IDAT", z.Bytes())...)
+	return append(out, chunk("IEND", nil)...)
+}
+
+// peakSys runs f and returns the most memory the Go runtime held from the OS
+// at any moment, the whole test binary included (the runtime keeps what it
+// freed, so a later case can't hide behind an earlier one).
+func peakSys(f func()) uint64 {
+	runtime.GC()
+	debug.FreeOSMemory()
+	var peak atomic.Uint64
+	stop, done := make(chan struct{}), make(chan struct{})
+	go func() {
+		defer close(done)
+		var m runtime.MemStats
+		for {
+			runtime.ReadMemStats(&m)
+			if m.Sys > peak.Load() {
+				peak.Store(m.Sys)
+			}
+			select {
+			case <-stop:
+				return
+			case <-time.After(5 * time.Millisecond):
+			}
+		}
+	}()
+	f()
+	close(stop)
+	<-done
+	return peak.Load()
+}
+
+// The worst accepted images (40 megapixels at 8 bits, 20 at 16 bits: 160 MB
+// decoded) are stored with the whole process under 400 MB, one at a time, so a
+// Raspberry Pi with 1 GB survives.
+func TestWorstCaseImageMemoryIsBounded(t *testing.T) {
+	if testing.Short() {
+		t.Skip("decodes 40 megapixels")
+	}
+	const bound = 400 << 20
+	for _, tc := range []struct {
+		name string
+		kind Kind
+		ct   byte
+	}{{"cover rgb", Cover, 2}, {"cover rgba", Cover, 6}, {"logo rgb", Logo, 2}, {"logo rgba", Logo, 6}} {
+		t.Run(tc.name, func(t *testing.T) {
+			im, _ := newImages(t)
+			data := bigPNG16(t, 5000, 4000, tc.ct)
+			if len(data) > CoverLimit {
+				t.Fatalf("test image is %d bytes", len(data))
+			}
+			var err error
+			peak := peakSys(func() { _, err = im.Store(bytes.NewReader(data), CoverLimit, tc.kind) })
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Logf("peak %d MB", peak>>20)
+			if peak > bound {
+				t.Errorf("peak %d MB over the %d MB bound", peak>>20, bound>>20)
+			}
+		})
+	}
+}
+
+// A 16-bit PNG over 20 megapixels is refused before it is decoded (the body is
+// a valid 50-megapixel PNG; only the header cap can refuse it this cheaply).
+func TestHuge16BitPNGIsRefusedBeforeDecoding(t *testing.T) {
+	im, dir := newImages(t)
+	data := bigPNG16(t, 8000, 5000, 6)
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	func() {
+		_, err := im.Store(bytes.NewReader(data), CoverLimit, Cover)
+		e := wantCode(t, err, apperr.Invalid)
+		if !strings.Contains(e.Message, "20 megapixels") {
+			t.Errorf("message %q", e.Message)
+		}
+	}()
+	runtime.ReadMemStats(&after)
+	if got := after.TotalAlloc - before.TotalAlloc; got > 20<<20 {
+		t.Errorf("refusal allocated %d MB", got>>20)
+	}
+	if n := filesIn(t, dir); len(n) != 0 {
+		t.Errorf("files left behind: %v", n)
+	}
+	// The same size at 8 bits is within the 40-megapixel cap and is not refused for its depth.
+	if isPNG16(pngBytes(t, 4, 4, 255)) {
+		t.Error("an 8-bit PNG was taken for 16-bit")
 	}
 }

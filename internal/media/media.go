@@ -35,9 +35,10 @@ const (
 	LogoLimit  = 2 << 20 // ADMIN-1: the logo is at most 2 MB
 
 	MaxPixels     = 40_000_000 // refused from the header, before any decoding
+	MaxPixels16   = 20_000_000 // the same for a 16-bit PNG, which decodes to 8 bytes a pixel
 	MaxCoverSide  = 1200       // covers are scaled down to this on the long side
 	JPEGQuality   = 85
-	maxConcurrent = 2 // decodes at once: a 40-megapixel decode needs ~160 MB
+	maxConcurrent = 1 // decodes at once: with the pixel caps a decode holds at most 160 MB, so the process peaks near 350 MB
 )
 
 // Kind says what an image is for.
@@ -97,6 +98,10 @@ func (im *Images) Store(r io.Reader, limit int64, kind Kind) (string, error) {
 		return "", refuse("That image has too many pixels (the limit is 40 megapixels). Choose a smaller one.")
 	}
 
+	if int64(cfg.Width)*int64(cfg.Height) > MaxPixels16 && isPNG16(data) {
+		return "", refuse("That 16-bit PNG has too many pixels (the limit is 20 megapixels). Save it as an ordinary PNG or JPEG, or choose a smaller one.")
+	}
+
 	im.sem <- struct{}{}
 	defer func() { <-im.sem }()
 	src, _, err := image.Decode(bytes.NewReader(data))
@@ -110,42 +115,70 @@ func (im *Images) Store(r io.Reader, limit int64, kind Kind) (string, error) {
 	return im.save(out, ext)
 }
 
+// isPNG16 reports whether data is a PNG whose header says 16 bits a channel.
+func isPNG16(data []byte) bool {
+	return len(data) > 24 && bytes.HasPrefix(data, []byte("\x89PNG\r\n\x1a\n")) && data[24] == 16
+}
+
 func encode(src image.Image, kind Kind) ([]byte, string, error) {
-	if kind == Cover {
-		src = scaleDown(src, MaxCoverSide)
-	}
 	var buf bytes.Buffer
-	if kind == Logo && hasAlpha(src) {
-		if err := png.Encode(&buf, src); err != nil {
-			return nil, "", err
+	if kind == Logo {
+		if hasAlpha(src) {
+			if err := png.Encode(&buf, src); err != nil {
+				return nil, "", err
+			}
+			return buf.Bytes(), ".png", nil
 		}
-		return buf.Bytes(), ".png", nil
+		return encodeJPEG(&buf, flatten(src, src.Bounds().Dx(), src.Bounds().Dy()))
 	}
-	// JPEG has no transparency: flatten onto white.
-	b := src.Bounds()
-	flat := image.NewRGBA(image.Rect(0, 0, b.Dx(), b.Dy()))
-	draw.Draw(flat, flat.Bounds(), image.NewUniform(color.White), image.Point{}, draw.Src)
-	draw.Draw(flat, flat.Bounds(), src, b.Min, draw.Over)
-	if err := jpeg.Encode(&buf, flat, &jpeg.Options{Quality: JPEGQuality}); err != nil {
+	// A cover is scaled first, so the flattened copy is at most 1200 px a side
+	// however large the decoded picture is.
+	w, h := fit(src.Bounds(), MaxCoverSide)
+	return encodeJPEG(&buf, flatten(src, w, h))
+}
+
+func encodeJPEG(buf *bytes.Buffer, img image.Image) ([]byte, string, error) {
+	if err := jpeg.Encode(buf, img, &jpeg.Options{Quality: JPEGQuality}); err != nil {
 		return nil, "", err
 	}
 	return buf.Bytes(), ".jpg", nil
 }
 
-func scaleDown(src image.Image, maxSide int) image.Image {
-	b := src.Bounds()
-	w, h := b.Dx(), b.Dy()
-	long := max(w, h)
-	if long <= maxSide {
-		return src
+// fit is the size b is scaled to so its long side is at most maxSide.
+func fit(b image.Rectangle, maxSide int) (w, h int) {
+	w, h = b.Dx(), b.Dy()
+	if long := max(w, h); long > maxSide {
+		w, h = max(1, w*maxSide/long), max(1, h*maxSide/long)
 	}
-	nw, nh := max(1, w*maxSide/long), max(1, h*maxSide/long)
-	dst := image.NewRGBA(image.Rect(0, 0, nw, nh))
-	xdraw.CatmullRom.Scale(dst, dst.Bounds(), src, b, xdraw.Over, nil)
+	return w, h
+}
+
+// flatten draws src, scaled to w by h, onto white as an 8-bit image: JPEG has
+// no transparency, and a 16-bit decode (8 bytes a pixel) is not kept around.
+func flatten(src image.Image, w, h int) *image.RGBA {
+	dst := image.NewRGBA(image.Rect(0, 0, w, h))
+	draw.Draw(dst, dst.Bounds(), image.NewUniform(color.White), image.Point{}, draw.Src)
+	if b := src.Bounds(); b.Dx() == w && b.Dy() == h {
+		draw.Draw(dst, dst.Bounds(), src, b.Min, draw.Over)
+	} else {
+		xdraw.CatmullRom.Scale(dst, dst.Bounds(), src, b, xdraw.Over, nil)
+	}
 	return dst
 }
 
+// hasAlpha reports whether any pixel is not fully opaque. The decoders' own
+// types are scanned as bytes: At on a 40-megapixel image allocates per pixel.
 func hasAlpha(img image.Image) bool {
+	switch m := img.(type) {
+	case *image.NRGBA:
+		return anyAlpha(m.Pix, m.Stride, m.Rect.Dx(), m.Rect.Dy(), 4, 3, 1)
+	case *image.RGBA:
+		return anyAlpha(m.Pix, m.Stride, m.Rect.Dx(), m.Rect.Dy(), 4, 3, 1)
+	case *image.NRGBA64:
+		return anyAlpha(m.Pix, m.Stride, m.Rect.Dx(), m.Rect.Dy(), 8, 6, 2)
+	case *image.RGBA64:
+		return anyAlpha(m.Pix, m.Stride, m.Rect.Dx(), m.Rect.Dy(), 8, 6, 2)
+	}
 	if o, ok := img.(interface{ Opaque() bool }); ok && o.Opaque() {
 		return false
 	}
@@ -154,6 +187,22 @@ func hasAlpha(img image.Image) bool {
 		for x := b.Min.X; x < b.Max.X; x++ {
 			if _, _, _, a := img.At(x, y).RGBA(); a != 0xffff {
 				return true
+			}
+		}
+	}
+	return false
+}
+
+// anyAlpha scans the alpha bytes of w by h pixels of bpp bytes each, whose
+// alpha starts at off and is n bytes of 0xff when opaque.
+func anyAlpha(pix []byte, stride, w, h, bpp, off, n int) bool {
+	for y := 0; y < h; y++ {
+		row := pix[y*stride : y*stride+w*bpp]
+		for x := off; x < len(row); x += bpp {
+			for k := 0; k < n; k++ {
+				if row[x+k] != 0xff {
+					return true
+				}
 			}
 		}
 	}
