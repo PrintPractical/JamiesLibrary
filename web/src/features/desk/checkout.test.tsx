@@ -106,7 +106,9 @@ describe("refusals in the server's own words", () => {
     await beginSession();
     expect(screen.getByRole("region", { name: "Patron" })).toHaveTextContent("Deactivated");
     await scan("Copy barcode", "C-000412");
-    expect(await screen.findByRole("alert")).toHaveTextContent("account is deactivated");
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("account is deactivated");
+    expect(within(alert).queryByRole("link", { name: "Go to check in" })).toBeNull();
     expect(screen.getByLabelText("Copy barcode")).toBeInTheDocument();
   });
 

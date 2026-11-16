@@ -100,10 +100,11 @@ export function Checkout() {
     [],
   );
 
+  // A deactivated patron's refusal isn't cleared by checking anything in.
   const refuse = (err: unknown) => {
     const message = errorMessage(err);
     // A conflict (copy already out, none available, limit reached) is cleared at check-in.
-    setRefusal({ message, checkIn: err instanceof ApiError && err.status === 409 });
+    setRefusal({ message, checkIn: err instanceof ApiError && err.status === 409 && patron?.active !== false });
   };
 
   function scanCard(code: string) {
