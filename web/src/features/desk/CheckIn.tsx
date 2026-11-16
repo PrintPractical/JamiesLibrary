@@ -214,16 +214,17 @@ export function CheckIn() {
 
   const scan = useCallback(
     (code: string) => {
-      queue.current = queue.current.then(() => {
+      queue.current = queue.current.then(async () => {
         const open = pending.current;
-        if (!open) return run(code, {});
+        if (!open) {
+          await run(code, {});
+          return;
+        }
         // With a choice open, a scan is taken for the patron's card. A code that is no patron's
         // card is the next book: the choice is dropped and that code is checked in.
-        return run(open.code, { card: code }).then(async (ok) => {
-          if (ok) return;
-          show(null);
-          await run(code, {});
-        });
+        if (await run(open.code, { card: code })) return;
+        show(null);
+        await run(code, {});
       });
     },
     [run, show],
@@ -231,9 +232,9 @@ export function CheckIn() {
 
   const pick = useCallback(
     (loan: DeskLoan) => {
-      queue.current = queue.current.then(() => {
+      queue.current = queue.current.then(async () => {
         const open = pending.current;
-        return open ? run(open.code, { loanId: loan.id }).then(() => undefined) : undefined;
+        if (open) await run(open.code, { loanId: loan.id });
       });
     },
     [run],
