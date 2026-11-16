@@ -19,7 +19,7 @@ import (
 // CIRC-4, CIRC-7, ACCESS-4). The rules live in internal/settings and the image
 // checks in internal/media.
 func registerSettingsRoutes(rt *Router, o Options) {
-	a := &settingsRoutes{set: o.Settings, img: o.Media}
+	a := &settingsRoutes{set: o.Settings, img: o.Media, caFingerprint: o.CAFingerprint}
 	rt.HandleFunc("GET /api/library", Public(), a.library)
 	rt.HandleFunc("GET /api/admin/settings", Require(perm.SettingsManage), a.get)
 	rt.HandleFunc("PUT /api/admin/settings", Require(perm.SettingsManage), a.put)
@@ -40,6 +40,8 @@ func auditOf(r *http.Request) settings.Audit {
 type settingsRoutes struct {
 	set *settings.Service
 	img *media.Images
+	// caFingerprint is shown read-only in the administrator's settings.
+	caFingerprint string
 }
 
 // libraryBody is what anyone may see: the sign-in page draws itself from it.
@@ -89,13 +91,16 @@ type adminSettingsBody struct {
 	SessionIdleMinutes int          `json:"session_idle_minutes"`
 	SelfCheckout       bool         `json:"self_checkout"`
 	CopyIDMode         string       `json:"copy_id_mode"` // read-only here: the catalog API sets it
+	// CAFingerprint is the local CA's SHA-256 fingerprint, for checking a
+	// device's trust step against (read-only; empty without the local CA).
+	CAFingerprint string `json:"ca_fingerprint,omitempty"`
 }
 
-func adminOf(s settings.Settings) adminSettingsBody {
+func (a *settingsRoutes) adminOf(s settings.Settings) adminSettingsBody {
 	b := adminSettingsBody{
 		libraryBody: libraryOf(s), TimeZone: s.TimeZone, LoanPeriodDays: s.LoanPeriodDays, MaxLoans: s.MaxLoans,
 		MaxRenewals: s.MaxRenewals, SessionIdleMinutes: s.SessionIdleMinutes, SelfCheckout: s.SelfCheckout,
-		CopyIDMode: s.CopyIDMode,
+		CopyIDMode: s.CopyIDMode, CAFingerprint: a.caFingerprint,
 	}
 	for _, sc := range settings.Schemes() {
 		b.Schemes = append(b.Schemes, schemeBody{ID: sc.ID, Name: sc.Name, Description: sc.Description, Colours: sc.Tokens("")})
@@ -104,7 +109,7 @@ func adminOf(s settings.Settings) adminSettingsBody {
 }
 
 func (a *settingsRoutes) get(w http.ResponseWriter, r *http.Request) {
-	WriteJSON(w, http.StatusOK, adminOf(a.set.Get()))
+	WriteJSON(w, http.StatusOK, a.adminOf(a.set.Get()))
 }
 
 func (a *settingsRoutes) put(w http.ResponseWriter, r *http.Request) {
@@ -126,7 +131,7 @@ func (a *settingsRoutes) put(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, r, err)
 		return
 	}
-	WriteJSON(w, http.StatusOK, adminOf(got))
+	WriteJSON(w, http.StatusOK, a.adminOf(got))
 }
 
 // brandingIn is the body of the branding change and of its check.
@@ -146,7 +151,7 @@ func (a *settingsRoutes) putBranding(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, r, err)
 		return
 	}
-	WriteJSON(w, http.StatusOK, adminOf(a.set.Get()))
+	WriteJSON(w, http.StatusOK, a.adminOf(a.set.Get()))
 }
 
 type checkBody struct {
@@ -216,7 +221,7 @@ func (a *settingsRoutes) replaceLogo(w http.ResponseWriter, r *http.Request, nam
 	if old != "" && old != name {
 		_ = a.img.Delete(old) // a file left behind is harmless: nothing refers to it
 	}
-	WriteJSON(w, http.StatusOK, adminOf(a.set.Get()))
+	WriteJSON(w, http.StatusOK, a.adminOf(a.set.Get()))
 }
 
 // withField names the form field on a refusal that has none.

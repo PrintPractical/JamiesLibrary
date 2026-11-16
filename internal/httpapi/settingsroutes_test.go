@@ -2,7 +2,9 @@ package httpapi
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/json"
+	"hash/crc32"
 	"image"
 	"image/png"
 	"mime/multipart"
@@ -76,6 +78,27 @@ func pngBytes(t *testing.T) []byte {
 		t.Fatal(err)
 	}
 	return b.Bytes()
+}
+
+// pngOfSize is a valid PNG of exactly size bytes: a small picture with a text
+// chunk after its header that holds the padding.
+func pngOfSize(t *testing.T, size int) []byte {
+	t.Helper()
+	small := pngBytes(t)
+	const header = 8 + 25 // the signature and the IHDR chunk
+	pad := size - len(small) - 12 - len("Comment\x00")
+	if pad < 0 {
+		t.Fatalf("%d bytes is too small for a PNG with a text chunk", size)
+	}
+	data := append([]byte("tEXtComment\x00"), bytes.Repeat([]byte{'x'}, pad)...)
+	chunk := binary.BigEndian.AppendUint32(nil, uint32(len(data)-4))
+	chunk = append(chunk, data...)
+	chunk = binary.BigEndian.AppendUint32(chunk, crc32.ChecksumIEEE(data))
+	out := append(append(append([]byte{}, small[:header]...), chunk...), small[header:]...)
+	if len(out) != size {
+		t.Fatalf("built %d bytes, want %d", len(out), size)
+	}
+	return out
 }
 
 func (s settingsSite) images() int {
@@ -243,6 +266,28 @@ func TestBrandingCheck(t *testing.T) {
 }
 
 // ADMIN-1 "Bad logo": 10 MB, a non-image and an SVG are refused with a message and the branding and files are unchanged; a PNG works and can be removed.
+// ADMIN-1 "Logo": a picture over 2 MB is refused as too large and changes
+// nothing, one just under 2 MB is accepted. The sizes are written out, not
+// taken from the server's constant, so changing the limit fails this.
+func TestLogoLimitIsTwoMegabytes(t *testing.T) {
+	s := newSettingsSite(t)
+	const twoMB = 2 * 1024 * 1024
+	rec := s.upload(s.admin, pngOfSize(t, twoMB+1024))
+	code, field, msg := errField(t, rec)
+	if code != 413 || field != "logo" || msg == "" {
+		t.Fatalf("just over 2 MB: %d %q %q", code, field, msg)
+	}
+	if b := s.library(); b.LogoURL != "" || s.logTotal() != 0 || s.images() != 0 {
+		t.Fatalf("a refused logo changed something: %+v, %d entries, %d files", b, s.logTotal(), s.images())
+	}
+	if rec := s.upload(s.admin, pngOfSize(t, twoMB-1024)); rec.Code != 200 {
+		t.Fatalf("just under 2 MB: %d %s", rec.Code, rec.Body)
+	}
+	if !strings.HasPrefix(s.library().LogoURL, "/media/") {
+		t.Errorf("logo %q", s.library().LogoURL)
+	}
+}
+
 func TestBadLogoThenGoodLogo(t *testing.T) {
 	s := newSettingsSite(t)
 	for name, data := range map[string][]byte{
@@ -412,5 +457,38 @@ func TestLibraryBodyHoldsOnlyBranding(t *testing.T) {
 		if strings.Contains(body, secret) {
 			t.Errorf("the public body shows %s: %s", secret, body)
 		}
+	}
+}
+
+// The local CA's fingerprint is on the administrator's settings (for the trust
+// guide to point at), is read-only, and a librarian cannot read it.
+func TestAdminSettingsShowTheCAFingerprint(t *testing.T) {
+	const fp = "AB:CD:EF:01:23:45:67:89"
+	s := settingsSite{site: newSite(t, func(o *Options) { o.CAFingerprint = fp })}
+	s.addUser("ada", goodPassword, perm.Administrator)
+	s.addUser("lib", goodPassword, perm.Librarian)
+	s.admin, s.lib = s.signIn("ada", goodPassword), s.signIn("lib", goodPassword)
+
+	if got := s.adminSettings().CAFingerprint; got != fp {
+		t.Fatalf("GET fingerprint = %q, want %q", got, fp)
+	}
+	if rec := s.req("PUT", "/api/admin/settings", s.admin, `{"ca_fingerprint":"00"}`); rec.Code != 400 {
+		t.Errorf("PUT with ca_fingerprint = %d, want 400 (read-only)", rec.Code)
+	}
+	rec := s.req("GET", "/api/admin/settings", s.lib, "")
+	if rec.Code != 403 || strings.Contains(rec.Body.String(), fp) {
+		t.Errorf("librarian GET = %d %s", rec.Code, rec.Body)
+	}
+	if rec := s.req("GET", "/api/library", "", ""); strings.Contains(rec.Body.String(), fp) {
+		t.Errorf("public library body shows the fingerprint: %s", rec.Body)
+	}
+}
+
+// Without the local CA there is no fingerprint to show.
+func TestAdminSettingsOmitTheFingerprintWithoutTheCA(t *testing.T) {
+	s := newSettingsSite(t)
+	rec := s.req("GET", "/api/admin/settings", s.admin, "")
+	if strings.Contains(rec.Body.String(), "ca_fingerprint") {
+		t.Errorf("body: %s", rec.Body)
 	}
 }
