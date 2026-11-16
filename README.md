@@ -23,21 +23,23 @@ Without the web build step the binary still builds and runs, but serves a page s
 
 ## Install with Docker
 
+Step-by-step guides, each with installation, configuration, network access, security and maintenance (backup and upgrade): [on a home or office network](docs/install-lan.md) and [on the public internet](docs/install-public.md). A short version follows.
+
 You need Docker with the Compose plugin, on a 64-bit x86 or ARM (Raspberry Pi 4 or newer) Linux machine. Host networking, used below, is a Linux feature.
 
 ```sh
 git clone <this repository> jamieslibrary && cd jamieslibrary
-docker compose -f deploy/compose.lan.yml up -d --build
-docker compose -f deploy/compose.lan.yml logs | grep "SETUP CODE"
+docker compose -p jamieslibrary -f deploy/compose.lan.yml up -d --build
+docker compose -p jamieslibrary -f deploy/compose.lan.yml logs | grep "SETUP CODE"
 ```
 
-The last command prints the one-time `SETUP CODE: XXXX-XXXX-XXXX-XXXX`. Open `https://THIS-MACHINE:8443` in a browser and enter the code to create the first administrator. Phones and other computers should first follow the trust guide at `http://THIS-MACHINE:8080/trust/`, which is also where the local certificate is downloaded.
+The last command prints the one-time `SETUP CODE: XXXX-XXXX-XXXX-XXXX`. Open `https://THIS-MACHINE:8443` in a browser and enter the code to create the first administrator. Phones and other computers should first follow the trust guide at `http://THIS-MACHINE:8080/trust/`, which is also where the local certificate is downloaded; the guide says what a device trusts by doing the step.
 
-Everything the library keeps is in one Docker volume, `jamieslibrary-data`, mounted at `/data` in the container. To back it up, stop the container (`docker compose -f deploy/compose.lan.yml stop`), copy the volume's contents, and start it again. The backup holds passwords' hashes, every patron's history and the certificate key: keep it private. To recover a locked-out administrator: `docker compose -f deploy/compose.lan.yml exec jamieslibrary /usr/local/bin/jamieslibrary admin reset-password USERNAME`.
+Everything the library keeps is in one Docker volume, `jamieslibrary_jamieslibrary-data` (the project name `-p jamieslibrary` is part of it), mounted at `/data` in the container. To back it up, stop the container, copy the volume's contents, and start it again; the guides give the commands. The backup holds password hashes, every patron's history and the certificate key: keep it private. To recover a locked-out administrator: `docker compose -p jamieslibrary -f deploy/compose.lan.yml exec jamieslibrary /usr/local/bin/jamieslibrary admin reset-password USERNAME`.
 
 The container runs as user 65532 with a read-only root filesystem; only `/data` is writable. If you replace the volume with a folder on the host, the folder must be owned by user 65532. The image is built for `linux/amd64` and `linux/arm64`: `docker buildx build -f deploy/Dockerfile --platform linux/amd64,linux/arm64 -t jamieslibrary .` (add `--build-arg VERSION=1.0.0` to stamp the version).
 
-**On the internet, behind a reverse proxy:** `deploy/compose.public.yml` runs the app over plain HTTP on a private network, with Caddy in front getting the HTTPS certificate. Put your domain name in `deploy/Caddyfile`, open ports 80 and 443, and run `docker compose -f deploy/compose.public.yml up -d --build`. It sets `JL_HTTP_ONLY=1`, `JL_BIND_ADDRESS` and `JL_TRUSTED_PROXIES` for you; `JL_TRUSTED_PROXIES` lists only the proxy's own fixed address (`172.30.0.2/32`), never the whole network, whose gateway is the host itself: if you use another proxy, list only that proxy's address (see the settings table). The app offers the same functions in both setups.
+**On the internet, behind a reverse proxy:** `deploy/compose.public.yml` runs the app over plain HTTP on a private network, with Caddy in front getting the HTTPS certificate. Put your domain name in `deploy/Caddyfile`, open ports 80 and 443, and run `docker compose -p jamieslibrary -f deploy/compose.public.yml up -d --build`. It sets `JL_HTTP_ONLY=1`, `JL_BIND_ADDRESS` and `JL_TRUSTED_PROXIES` for you; `JL_TRUSTED_PROXIES` lists only the proxy's own fixed address (`172.30.0.2/32`), never the whole network, whose gateway is the host itself: if you use another proxy, list only that proxy's address (see the settings table and the [public guide](docs/install-public.md#behind-a-reverse-proxy)). The app offers the same functions in both setups.
 
 ## Release binaries
 
@@ -56,6 +58,11 @@ Each setting is a flag or a `JL_*` environment variable. A flag wins over the va
 | `--bind` | `JL_BIND_ADDRESS` | empty (every interface) | IP address both listeners bind to. Use `127.0.0.1` when a reverse proxy runs on the same host, so only the proxy can reach the app |
 | `--https-port` | `JL_HTTPS_PORT` | `8443` | HTTPS port |
 | `--log-level` | `JL_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error` |
+| | `JL_ADDRESSES` | empty | Extra local IP addresses the local HTTPS certificate must name, comma or space separated, for a server that can't see its own address (Docker without host networking). Only private-range addresses are used |
+| | `JL_HOSTNAMES` | empty | Your own host names for the library, such as `library.myschool.example`, which the local certificate authority may vouch for. Read at the very first start only |
+| | `JL_TLS_CERT`, `JL_TLS_KEY` | empty | Your own certificate chain and key (PEM), used instead of the local certificate authority. Both or neither; a renewed file is picked up without a restart |
+| | `JL_HTTP_ONLY` | `0` | `1` serves plain HTTP only, for a reverse proxy that adds HTTPS. Can't be used with `JL_TLS_CERT` |
+| | `JL_TRUSTED_PROXIES` | empty | Reverse proxies (CIDR ranges or bare addresses, comma or space separated) whose `X-Forwarded-For` is believed when counting failed sign-ins. List only the proxy's own address |
 
 A bad value stops the server with a message naming it. SIGTERM or SIGINT shuts the server down, letting running requests finish for up to 10 seconds.
 
@@ -68,5 +75,6 @@ For the web app with live reload, run the server and `npm run dev` in `web/`; it
 ## Documentation
 
 - [Architecture](docs/architecture.md): the parts, the repository layout, and how to add a migration, a route or a theme.
+- [Installing on a home or office network](docs/install-lan.md) and [on the public internet](docs/install-public.md): installation, configuration, network access, security, backup and upgrade.
 - [Data and upgrades](docs/data-and-upgrades.md): what the data directory holds, backing it up, and what to do when an upgrade refuses to start.
 - [Features](FEATURES.md) and [Changelog](CHANGELOG.md).
