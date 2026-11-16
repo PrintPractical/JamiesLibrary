@@ -41,6 +41,10 @@ The container runs as user 65532 with a read-only root filesystem; only `/data` 
 
 **On the internet, behind a reverse proxy:** `deploy/compose.public.yml` runs the app over plain HTTP on a private network, with Caddy in front getting the HTTPS certificate. Put your domain name in `deploy/Caddyfile`, open ports 80 and 443, and run `docker compose -p jamieslibrary -f deploy/compose.public.yml up -d --build`. It sets `JL_HTTP_ONLY=1`, `JL_BIND_ADDRESS` and `JL_TRUSTED_PROXIES` for you; `JL_TRUSTED_PROXIES` lists only the proxy's own fixed address (`172.30.0.2/32`), never the whole network, whose gateway is the host itself: if you use another proxy, list only that proxy's address (see the settings table and the [public guide](docs/install-public.md#behind-a-reverse-proxy)). The app offers the same functions in both setups.
 
+## Phones and computers
+
+Every screen works on a phone and on a computer's browser. The layout fits a phone as narrow as 360 pixels without sideways scrolling, and widens for a computer. Librarians can scan with a phone's camera, a handheld scanner or the keyboard (see [Working the desk](docs/guide-desk.md#scanning-typing-and-the-camera)); the camera needs the page served over HTTPS, which the library does itself (see the install guides). A library on a home network and one on the internet offer the same functions: the install guides differ only in how the program is reached and secured.
+
 ## Release binaries
 
 `scripts/release.sh VERSION [DIR]` builds the web app once, then the program for `linux/amd64`, `linux/arm64` and `darwin/arm64` into `DIR` (default `dist/`), with a `SHA256SUMS` file to check them with (`sha256sum -c SHA256SUMS`). Windows isn't built: the data directory lock needs a Unix system call.
