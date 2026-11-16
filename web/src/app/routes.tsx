@@ -6,6 +6,7 @@ import { Account } from "../features/account/Account";
 import { ForcedChange } from "../features/account/ForcedChange";
 import { Register } from "../features/account/Register";
 import { SignIn } from "../features/account/SignIn";
+import { CheckIn } from "../features/desk/CheckIn";
 import { NotFound } from "../features/placeholder/NotFound";
 import { Placeholder } from "../features/placeholder/Placeholder";
 import { allowed, adminItems, isStaff, patronItems, staffFooterItems, staffItems } from "./navigation";
@@ -115,7 +116,11 @@ export function AppRoutes() {
         <Route element={<StaffArea />}>
           <Route path="desk" element={page("Desk")} />
           <Route path="desk/checkout" element={gated(["circ.desk"], "Check out")} />
-          <Route path="desk/checkin" element={gated(["circ.desk"], "Check in")} />
+          <Route path="desk/checkin" element={
+              <Allow any={["circ.desk"]}>
+                <CheckIn />
+              </Allow>
+            } />
           <Route path="desk/patrons" element={gated(["patrons.lookup"], "Patrons")} />
           <Route path="desk/overdue" element={gated(["circ.desk"], "Overdue")} />
           <Route path="catalog" element={gated(["catalog.manage"], "Catalog")} />
