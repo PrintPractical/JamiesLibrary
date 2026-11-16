@@ -6,7 +6,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-const patron = { id: 7, display_name: "Maya Okafor", card: "L2041187", active: true, out: 5, overdue: 1, limit: 6 };
+const patron = { id: 7, display_name: "Maya Okafor", card: "L2041187", active: true, out: 4, overdue: 1, limit: 6 };
 const loan = (n: number, title: string, code: string) => ({
   id: n,
   copy_id: n,
@@ -53,7 +53,7 @@ describe("CIRC-1 Check out", () => {
     await beginSession();
     const who = screen.getByRole("region", { name: "Patron" });
     expect(who).toHaveTextContent("L2041187");
-    expect(who).toHaveTextContent("5 of 6 books out");
+    expect(who).toHaveTextContent("4 of 6 books out");
     expect(who).toHaveTextContent("1 overdue");
     expect(screen.getByRole("complementary")).toHaveTextContent("The Secret Garden");
     expect(screen.getByRole("complementary")).toHaveTextContent("Overdue 3 days");
@@ -66,7 +66,7 @@ describe("CIRC-1 Check out", () => {
     expect(within(section).getByText("Braiding Sweetgrass")).toBeInTheDocument();
     expect(section).toHaveTextContent("Due Mon 30 Nov");
     expect(section).toHaveTextContent("Copy 1 · Due 30 Nov");
-    expect(who).toHaveTextContent("7 of 6 books out"); // counts what went out too
+    expect(who).toHaveTextContent("6 of 6 books out"); // counts what went out too
     // no confirmation step: the card, then one checkout call per scan
     expect(calls.filter((c) => c.path === "/api/desk/checkout").map((c) => c.body)).toEqual([
       { patron: "L2041187", code: "C-000412" },
@@ -93,6 +93,82 @@ describe("CIRC-1 Check out", () => {
     await scan("Copy barcode", "C-000412");
     expect(await screen.findByRole("heading", { name: "This checkout · 1 book" })).toBeInTheDocument();
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+});
+
+describe("refusals in the server's own words", () => {
+  test("a deactivated patron: the badge, the refusal, and the session carries on", async () => {
+    fakeServer({
+      ...base,
+      "POST /api/desk/resolve": { body: { kind: "patron", patron: { ...patron, active: false } } },
+      "POST /api/desk/checkout": apiError(409, "conflict", "Maya Okafor's account is deactivated, so nothing can be checked out to them. An administrator can reactivate it."),
+    });
+    await beginSession();
+    expect(screen.getByRole("region", { name: "Patron" })).toHaveTextContent("Deactivated");
+    await scan("Copy barcode", "C-000412");
+    expect(await screen.findByRole("alert")).toHaveTextContent("account is deactivated");
+    expect(screen.getByLabelText("Copy barcode")).toBeInTheDocument();
+  });
+
+  test("no copy available", async () => {
+    fakeServer({
+      ...base,
+      "POST /api/desk/checkout": apiError(409, "conflict", "No copy of Piranesi is available: the only copy is out. Check one in first, or wait for a return."),
+    });
+    await beginSession();
+    await scan("Copy barcode", "9780140449136");
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("No copy of Piranesi is available");
+    expect(within(alert).getByRole("link", { name: "Go to check in" })).toBeInTheDocument();
+  });
+
+  test("a copy already out, in the server's wording, still offers check in", async () => {
+    fakeServer({
+      ...base,
+      "POST /api/desk/checkout": apiError(409, "conflict", "The Hobbit is already out: copy 1 is on loan to Sam Lee, due 2026-11-20. If it's in your hand, it was returned without being checked in: check it in first, then scan it again."),
+    });
+    await beginSession();
+    await scan("Copy barcode", "C-000318");
+    expect(within(await screen.findByRole("alert")).getByRole("link", { name: "Go to check in" })).toBeInTheDocument();
+  });
+});
+
+describe("one desk, many patrons", () => {
+  test("Next patron frees the desk even when the last request never settled", async () => {
+    fakeServer(base);
+    await beginSession();
+    vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {})));
+    await scan("Copy barcode", "C-000412");
+    await userEvent.click(screen.getByRole("button", { name: "Next patron" }));
+    fakeServer(base);
+    await scan("Library card", "L2041187");
+    expect(await screen.findByRole("heading", { name: "Maya Okafor" })).toBeInTheDocument();
+    expect(screen.queryByText("Looking up the card…")).toBeNull();
+  });
+
+  test("two cards scanned before the first answers: the first patron stays, with nothing of the second", async () => {
+    const other = { ...patron, id: 8, display_name: "Sam Lee", card: "L9999999" };
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => (release = r));
+    fakeServer(base);
+    const real = globalThis.fetch;
+    let first = true;
+    vi.stubGlobal("fetch", (path: string, init?: RequestInit) => {
+      if (path === "/api/desk/resolve" && first) {
+        first = false;
+        return gate.then(() => real(path, init));
+      }
+      if (path === "/api/desk/resolve") {
+        return Promise.resolve(new Response(JSON.stringify({ kind: "patron", patron: other }), { status: 200 }));
+      }
+      return real(path, init);
+    });
+    await renderApp("/desk/checkout");
+    await scan("Library card", "L2041187");
+    await scan("Library card", "L9999999");
+    release();
+    expect(await screen.findByRole("heading", { name: "Maya Okafor" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("heading", { name: "Sam Lee" })).toBeNull());
   });
 });
 

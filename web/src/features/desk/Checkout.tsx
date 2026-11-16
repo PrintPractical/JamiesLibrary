@@ -10,9 +10,6 @@ import "./Checkout.css";
 
 type Refusal = { message: string; checkIn: boolean };
 
-// A refusal that sends the librarian to check-in: the copy is out, or the patron is at their limit.
-const CHECK_IN_HINT = /already out|check (it|one) in/i;
-
 function Cover({ id, title }: { id: number; title: string }) {
   return <span className={`mini-cover c${(id % 8) + 1}`} role="img" aria-label={`Cover of ${title}`} />;
 }
@@ -91,6 +88,9 @@ export function Checkout() {
   const end = useCallback(
     (summary: string | null) => {
       session.current++;
+      // A request of the ended session that never settles must not hold up the next patron.
+      queue.current = Promise.resolve();
+      setBusy(false);
       setPatron(null);
       setLoans([]);
       setBefore(null);
@@ -102,8 +102,8 @@ export function Checkout() {
 
   const refuse = (err: unknown) => {
     const message = errorMessage(err);
-    const known = err instanceof ApiError && err.status !== 401 && err.status !== 403;
-    setRefusal({ message, checkIn: known && CHECK_IN_HINT.test(message) });
+    // A conflict (copy already out, none available, limit reached) is cleared at check-in.
+    setRefusal({ message, checkIn: err instanceof ApiError && err.status === 409 });
   };
 
   function scanCard(code: string) {
@@ -114,11 +114,18 @@ export function Checkout() {
     queue.current = queue.current.then(async () => {
       try {
         const p = await resolvePatron(code);
-        if (mine === session.current) setPatron(p);
-      } catch (err) {
-        if (mine === session.current) refuse(err);
-      } finally {
+        if (mine !== session.current) return;
+        // The first card read wins: a second one still waiting belongs to no session now.
+        session.current++;
+        setLoans([]);
+        setBefore(null);
+        setRefusal(null);
         setBusy(false);
+        setPatron(p);
+      } catch (err) {
+        if (mine !== session.current) return;
+        setBusy(false);
+        refuse(err);
       }
     });
   }

@@ -156,6 +156,18 @@
 .checkout .desk-only {
   display: none;
 }
+@media (max-width: 899px) {
+  /* On a phone the copy and due line goes under the title, so the title gets the row's width. */
+  .checkout .loans li {
+    flex-wrap: wrap;
+    row-gap: 2px;
+  }
+  .checkout .loans li > .small {
+    flex-basis: 100%;
+    text-align: left;
+    padding-left: 86px; /* past the tick and the cover */
+  }
+}
 @media (min-width: 900px) {
   .checkout .layout {
     grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
