@@ -155,14 +155,15 @@ func (s *Service) FindPatrons(ctx context.Context, query string) ([]PatronMatch,
 			return nil, apperr.OnField(apperr.Invalid, "q", "The search has a character that is not allowed.")
 		}
 	}
+	like := "%" + likeEscape(store.Fold(query)) + "%"
 	rows, err := s.st.DB().QueryContext(ctx, `
 		SELECT u.id, u.username, u.display_name, COALESCE(i.code, ''), u.active,
 			(SELECT count(*) FROM loans WHERE patron_id = u.id AND returned_at IS NULL),
 			(SELECT count(*) FROM loans WHERE patron_id = u.id AND returned_at IS NULL AND due_date < ?)
 		FROM users u LEFT JOIN identifiers i ON i.user_id = u.id AND i.kind = ?
-		WHERE i.code = ? OR u.display_name LIKE ? ESCAPE '\' OR u.username LIKE ? ESCAPE '\'
+		WHERE i.code = ? OR fold(u.display_name) LIKE ? ESCAPE '\' OR fold(u.username) LIKE ? ESCAPE '\'
 		ORDER BY u.display_name COLLATE NOCASE, u.id LIMIT ?`,
-		s.settings.Today(), catalog.KindCard, strings.ToUpper(query), "%"+likeEscape(query)+"%", "%"+likeEscape(query)+"%", MaxPatronResults)
+		s.settings.Today(), catalog.KindCard, strings.ToUpper(query), like, like, MaxPatronResults)
 	if err != nil {
 		return nil, err
 	}
