@@ -158,10 +158,10 @@ func TestEveryScreenFitsAPhoneAndADesktop(t *testing.T) {
 		{Path: "/desk", Redirect: "/"}, {Path: "/more", Redirect: "/"},
 	}
 	staff := []screen{
-		{Path: "/desk"}, {Path: "/desk/checkout"}, {Path: "/desk/checkin"}, {Path: "/desk/patrons"},
+		{Path: "/desk", Redirect: "/desk/checkout"}, {Path: "/desk/checkout"}, {Path: "/desk/checkin"}, {Path: "/desk/patrons"},
 		{Path: fmt.Sprintf("/desk/patrons/%d", w.pa.ID)}, {Path: "/desk/overdue"},
 		{Path: "/catalog"}, {Path: "/catalog/new"}, {Path: "/catalog/books/" + bk}, {Path: "/catalog/locations"},
-		{Path: "/catalog/labels?book=" + bk}, {Path: "/more", WideTo: "/desk"}, {Path: "/account"},
+		{Path: "/catalog/labels?book=" + bk}, {Path: "/more", WideTo: "/desk/checkout"}, {Path: "/account"},
 		{Path: "/browse"}, {Path: "/books/" + bk}, {Path: "/books/" + cover}, {Path: "/loans"}, {Path: "/card"}, {Path: "/"},
 	}
 	admin := append(append([]screen{}, staff...),

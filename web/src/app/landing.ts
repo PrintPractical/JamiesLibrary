@@ -1,6 +1,6 @@
-import { isStaff } from "./navigation";
+import { firstScreen } from "./navigation";
 
-/** Where a signed-in user starts: staff at the desk, patrons at home. */
+/** Where a signed-in user starts: staff at their first screen, patrons at home. */
 export function homeFor(canAny: (permissions: readonly string[]) => boolean): string {
-  return isStaff(canAny) ? "/desk" : "/";
+  return firstScreen(canAny) ?? "/";
 }
