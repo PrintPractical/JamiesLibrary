@@ -221,7 +221,7 @@ The PDF has a fixed creation date, so the same labels produce the same file.
   - `settings/`: library settings (branding, loan rules, copy-ID mode, patron switches, sessions, HTTPS).
   - `setup/`: the first-run wizard, and `SetupGate`, which wraps `/signin` and `/register`: while `GET /api/setup/status` says setup is open it redirects to `/setup`; once closed (404) it shows the page as before, and on any other error it also shows the page.
   - `admin/`: the statistics and activity-log screens, and the wording and time-zone helpers they share.
-  - `placeholder/`: the not-found page, and a placeholder for routes whose screen isn't built yet (patron home, My card, My books, the desk home and the catalog management page).
+  - `placeholder/`: the not-found page, shown for any address no route matches. (The directory also holds an unused `Placeholder.tsx`.)
 - `styles/`: `tokens.css` (design tokens as CSS custom properties), `fonts.css`, `base.css`. There is no CSS framework.
 
 Fonts (Fraunces, Nunito Sans) are bundled from `@fontsource` packages. The app makes no request to any other host, so it works with no internet connection; `web/src/build.test.ts` fails if the build refers to an external host.
