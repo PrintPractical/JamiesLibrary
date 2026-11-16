@@ -9,7 +9,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-const admin = () => meOf("administrator", { settings: { time_zone: "America/New_York" } });
+const admin = () => meOf("administrator", { settings: { time_zone: "America/New_York", loan_period_days: 14, max_renewals: 2, self_checkout: false } });
 const stats = { books: 1200, copies: 1500, patrons: 340, current_loans: 88, overdue_loans: 7 };
 
 describe("ADMIN-3 Statistics and circulation reports", () => {
