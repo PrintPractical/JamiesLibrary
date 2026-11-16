@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"net/http"
 	"time"
+
+	"jamieslibrary/internal/ratelimit"
 )
 
 type (
@@ -51,8 +53,8 @@ func (s *statusWriter) Unwrap() http.ResponseWriter { return s.ResponseWriter }
 
 // withRequest gives every request a fresh ID (also sent as X-Request-ID),
 // recovers from panics with the API's 500, and logs one line per request.
-// It logs the method, path, status and duration, and never the query or body.
-func withRequest(log *slog.Logger, next http.Handler) http.Handler {
+// It logs the method, path, status, duration and the client's address (as the proxy setting finds it), and never the query or body.
+func withRequest(log *slog.Logger, clients *ratelimit.Clients, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := newRequestID()
 		w.Header().Set("X-Request-ID", id)
@@ -69,7 +71,7 @@ func withRequest(log *slog.Logger, next http.Handler) http.Handler {
 					WriteError(sw, r, errPanic)
 				}
 			}
-			rl.Info("request", "method", r.Method, "path", r.URL.Path, "status", sw.status, "remote", remoteHost(r),
+			rl.Info("request", "method", r.Method, "path", r.URL.Path, "status", sw.status, "remote", clientHost(clients, r),
 				"duration_ms", time.Since(start).Milliseconds())
 		}()
 		next.ServeHTTP(sw, r)
