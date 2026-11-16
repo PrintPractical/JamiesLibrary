@@ -69,6 +69,7 @@ What Jamie's Library does today, by area. Each entry names the requirements it c
 
 - The Settings screen, for administrators (`/admin/settings`): library name, logo (JPEG, PNG or WebP up to 2 MB; refusals are shown) and colour scheme with a custom accent, a live preview and the server's verdict on readability (ADMIN-1); loan period, items out at once, renewals and time zone (CIRC-4); the sign-out time for unused sessions; switches for self-checkout and the public catalog, each saying what it does (CIRC-7, ACCESS-4); how copies are identified, where switching asks first and explains what it does (CAT-9); and, with the library's own certificate authority, its root fingerprint to check a device's own display against (DEPLOY-T7). See the [administrator's guide](docs/guide-admin.md).
 - Patron and staff layouts that work at phone width and on a desktop (UX-1, UX-2).
+- Staff on the patron side see a single **Desk** link back to `/desk`, in the phone's top bar and at the foot of the desktop side bar; patrons and visitors never see it (UX-2). See [Working the desk](docs/guide-desk.md#the-desk).
 - One scan field for every screen that reads a code: a hand scanner or typing, and the phone's camera where the page is served securely, with a link to the trust guide where it isn't (SCAN-1, SCAN-T2).
 
 ## Printing
