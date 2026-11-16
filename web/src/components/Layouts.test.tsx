@@ -72,7 +72,7 @@ test("StaffLayout's tab bar keeps four items and a More tab for the rest", () =>
 test("the /more page lists what the tab bar left out", async () => {
   await renderApp("/more");
   const more = screen.getByRole("navigation", { name: "More" });
-  expect(labels(more)).toEqual(["Patrons", "Overdue", "Settings", "People & invites", "Statistics", "My library"]);
+  expect(labels(more)).toEqual(["Patrons", "Overdue", "Settings", "People & invites", "Statistics", "Activity log", "My library"]);
 });
 
 test.each([
