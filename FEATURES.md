@@ -23,7 +23,7 @@ What Jamie's Library does today, by area. Each entry names the requirements it c
 - A copy or book on loan can't be removed from the catalog.
 - Renew a loan, for a patron or for oneself, up to the renewals the library allows; refused when it is overdue or at the limit, and the reason is given (CIRC-5).
 - A loan is overdue once today, in the library's time zone, is after its due date; staff have a list of overdue loans (CIRC-6). Patrons see their own loans and history through the API (PATRON-1).
-- Self-checkout: when an administrator switches it on, a patron with the permission can check an available copy out to themselves (CIRC-7). API only so far.
+- Self-checkout: when an administrator switches it on, a patron with the permission can check an available copy out to themselves by scanning or typing its barcode on the Check out a book screen (CIRC-7). See the [administrator's guide](docs/guide-admin.md#what-patrons-can-do-self-checkout-and-the-public-catalog).
 - Staff look up a patron by name or card number, see their loans and history, renew for them and re-issue a lost card, on the Patrons screen (`/desk/patrons`) and the Overdue screen (`/desk/overdue`) (CIRC-3, CIRC-6, CARD-1).
 
 ## Accounts and permissions
