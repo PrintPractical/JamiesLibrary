@@ -26,6 +26,7 @@ import (
 	"jamieslibrary/internal/media"
 	"jamieslibrary/internal/metadata"
 	"jamieslibrary/internal/ratelimit"
+	"jamieslibrary/internal/reports"
 	"jamieslibrary/internal/reviews"
 	"jamieslibrary/internal/settings"
 	"jamieslibrary/internal/setup"
@@ -159,7 +160,7 @@ func Run(ctx context.Context, o Options) error {
 	h, err := httpapi.NewHandler(httpapi.Options{
 		Clients: ratelimit.NewClients(cfg.TrustedProxies), Limiter: limiter,
 		TrustPort: trustPort, Version: o.Version, Logger: log, Static: webui.Handler(),
-		Setup: setupSvc, Auth: authSvc, Users: usersSvc, Settings: set, Activity: activity.New(st), Store: st, Media: images,
+		Setup: setupSvc, Auth: authSvc, Users: usersSvc, Settings: set, Activity: activity.New(st), Reports: reports.New(st, set.Location, set.Today), Store: st, Media: images,
 		Catalog: catalogSvc, Metadata: lookup, Reviews: reviews.New(st, catalogSvc),
 		Circ:            circ.New(st, circ.Options{Settings: set, Catalog: catalogSvc, Users: usersSvc}),
 		UserAdmin:       useradmin.New(st, usersSvc, authSvc),
