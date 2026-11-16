@@ -6,6 +6,9 @@ import { Account } from "../features/account/Account";
 import { ForcedChange } from "../features/account/ForcedChange";
 import { Register } from "../features/account/Register";
 import { SignIn } from "../features/account/SignIn";
+import { Overdue } from "../features/patrons/Overdue";
+import { PatronPage } from "../features/patrons/PatronPage";
+import { Patrons } from "../features/patrons/Patrons";
 import { Setup } from "../features/setup/Setup";
 import { NotFound } from "../features/placeholder/NotFound";
 import { Placeholder } from "../features/placeholder/Placeholder";
@@ -117,8 +120,9 @@ export function AppRoutes() {
           <Route path="desk" element={page("Desk")} />
           <Route path="desk/checkout" element={gated(["circ.desk"], "Check out")} />
           <Route path="desk/checkin" element={gated(["circ.desk"], "Check in")} />
-          <Route path="desk/patrons" element={gated(["patrons.lookup"], "Patrons")} />
-          <Route path="desk/overdue" element={gated(["circ.desk"], "Overdue")} />
+          <Route path="desk/patrons" element={<Allow any={["patrons.lookup"]}><Patrons /></Allow>} />
+          <Route path="desk/patrons/:id" element={<Allow any={["patrons.lookup"]}><PatronPage /></Allow>} />
+          <Route path="desk/overdue" element={<Allow any={["circ.desk"]}><Overdue /></Allow>} />
           <Route path="catalog" element={gated(["catalog.manage"], "Catalog")} />
           <Route path="catalog/new" element={gated(["catalog.manage"], "Add a book")} />
           <Route path="admin/settings" element={gated(["settings.manage"], "Settings")} />
