@@ -2,7 +2,7 @@
 
 This guide is for the person who runs the library: setting it up the first time, choosing how it looks and how borrowing works, and reading its statistics and activity log. To install the program, start with [a home or office network](install-lan.md) or [the public internet](install-public.md).
 
-Settings, statistics and the activity log are done in the web app, signed in as an administrator. Some other screens named below (browsing the catalog, patrons' own pages, People & invites) are not built yet; where that matters, the guide says so. Each part of the Settings screen, and each of the Statistics and Activity log screens, is also open to anyone given the matching permission (`settings.manage`, `reports.view`, `activity.view`); an administrator has them all. Anyone without the permission doesn't see the entry in the side bar.
+Settings, statistics and the activity log are done in the web app, signed in as an administrator. Browsing the library is described in [Finding books](guide-browsing.md); a screen named below that isn't described there or here may not exist yet, and where that matters the guide says so. Each part of the Settings screen, and each of the Statistics and Activity log screens, is also open to anyone given the matching permission (`settings.manage`, `reports.view`, `activity.view`); an administrator has them all. Anyone without the permission doesn't see the entry in the side bar.
 
 - [First-run setup](#first-run-setup)
 - [Settings](#settings)
@@ -99,10 +99,8 @@ A change to the rules applies to loans made from then on; the due dates of loans
 
 Each of these switches saves as soon as you flip it, and says in a line what it does.
 
-The screens patrons would use for these (browsing, the book page, My books, checking out) are not built yet, so today the switches change what the server allows through its API:
-
-- **Self-checkout** lets a patron who has the self-checkout permission check an available copy out to themselves, by its code. While it is off, self-checkout is refused. Patrons return books only through a librarian at the desk, and the desk is unaffected either way.
-- **Public catalog** lets anyone, signed in or not, search the books through the server's public catalog routes and see each book's title, authors, ISBN, description, cover, how many copies are available and the average rating. They never see patrons, who has a book, or loan history; reviews and their writers' names are for signed-in users only. While it is off those routes answer "not found" and the library is private: a visitor who isn't signed in is sent to the sign-in page.
+- **Self-checkout** lets a patron who has the self-checkout permission check an available copy out to themselves, by its code. While it is off, self-checkout is refused. Patrons return books only through a librarian at the desk, and the desk is unaffected either way. The patron-facing screen for it is not built yet; today the switch changes what the server allows through its API.
+- **Public catalog** lets anyone, signed in or not, open **Browse** (`/browse`) and a book's page (`/books/ID`) without an account. A visitor can search by title, author or ISBN and see each book's title, authors, ISBN, description, cover, how many copies are on the shelf and the average rating. They never see patrons, who has a book, where each copy is, or loan history, and a book's reviews and their writers' names are for signed-in users: the book page offers a **Sign in** link in their place. While it is off the library is private: a visitor who isn't signed in is sent to the sign-in page, and the public routes of the server's API answer "not found". See [Finding books](guide-browsing.md#without-an-account-the-public-catalog).
 
 ### How copies are identified
 
