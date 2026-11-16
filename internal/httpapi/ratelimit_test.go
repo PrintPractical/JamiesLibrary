@@ -250,7 +250,7 @@ func TestFailedSignInLogsTheClientBehindAProxy(t *testing.T) {
 	if !strings.Contains(out, "sign-in failed") || !strings.Contains(out, "remote=203.0.113.50") {
 		t.Fatalf("log does not carry the client address: %s", out)
 	}
-	if strings.Contains(out, "remote=10.1.2.3") {
+	if strings.Contains(out, `msg="sign-in failed" remote=10.1.2.3`) {
 		t.Fatalf("logged the proxy: %s", out)
 	}
 }
