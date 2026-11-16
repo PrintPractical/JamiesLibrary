@@ -265,7 +265,14 @@ describe("Book page", () => {
     });
     await renderApp("/books/5");
     await userEvent.click(await screen.findByRole("button", { name: "Remove review by Sam L." }));
+    expect(calls.some((c) => c.method === "DELETE")).toBe(false); // one click only asks
+    expect(screen.getByText(/'s review\? They can't get it back\./)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Keep it" }));
+    expect(calls.some((c) => c.method === "DELETE")).toBe(false);
+    await userEvent.click(screen.getByRole("button", { name: "Remove review by Sam L." }));
+    await userEvent.click(screen.getByRole("button", { name: "Yes, remove it" }));
     await waitFor(() => expect(screen.queryByText("Sam L.")).toBeNull());
+    expect(screen.getByRole("status")).toHaveTextContent("Review removed.");
     expect(calls.some((c) => c.method === "DELETE" && c.path === "/api/reviews/11")).toBe(true);
   });
 

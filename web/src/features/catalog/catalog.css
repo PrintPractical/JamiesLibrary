@@ -356,3 +356,9 @@ textarea.input {
     align-items: start;
   }
 }
+.review-confirm {
+  margin-top: 8px;
+}
+.review-confirm p {
+  overflow-wrap: anywhere;
+}

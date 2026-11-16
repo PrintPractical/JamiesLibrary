@@ -129,6 +129,7 @@ function MyReview({ book, onChanged }: { book: MemberBook; onChanged: () => void
 
 /** One review. Its text and name are shown as plain text, each in its own direction, so markup or a bidi override in one can't reach the other (sec §8). */
 function ReviewItem({ review, onRemove, removing }: { review: Review; onRemove?: () => void; removing: boolean }) {
+  const [confirming, setConfirming] = useState(false);
   return (
     <article className="review">
       <div className="row">
@@ -152,10 +153,25 @@ function ReviewItem({ review, onRemove, removing }: { review: Review; onRemove?:
           {review.text}
         </p>
       )}
-      {onRemove && (
-        <button type="button" className="btn btn-quiet remove" disabled={removing} aria-label={`Remove review by ${review.display_name}`} onClick={onRemove}>
+      {onRemove && !confirming && (
+        <button type="button" className="btn btn-quiet remove" disabled={removing} aria-label={`Remove review by ${review.display_name}`} onClick={() => setConfirming(true)}>
           Remove
         </button>
+      )}
+      {onRemove && confirming && (
+        <div className="review-confirm">
+          <p>
+            Remove <bdi>{review.display_name}</bdi>'s review? They can't get it back.
+          </p>
+          <div className="review-actions">
+            <button type="button" className="btn btn-secondary" disabled={removing} onClick={onRemove}>
+              {removing ? "Removing…" : "Yes, remove it"}
+            </button>
+            <button type="button" className="btn btn-quiet" disabled={removing} onClick={() => setConfirming(false)}>
+              Keep it
+            </button>
+          </div>
+        </div>
       )}
     </article>
   );
@@ -169,6 +185,7 @@ export function Reviews({ book, canWrite, canRemove, onChanged }: { book: Member
   const more = fetched.base === book.reviews ? fetched : { base: book.reviews, list: [], next: 2 };
   const [loadingMore, setLoadingMore] = useState(false);
   const [removing, setRemoving] = useState<number | null>(null);
+  const [notice, setNotice] = useState("");
   const [error, setError] = useState<unknown>(null);
 
   const shown = [...book.reviews, ...more.list];
@@ -192,8 +209,11 @@ export function Reviews({ book, canWrite, canRemove, onChanged }: { book: Member
   async function remove(id: number) {
     setRemoving(id);
     setError(null);
+    setNotice("");
     try {
       await removeReview(id);
+      setNotice("Review removed.");
+      setRemoving(null);
       onChanged();
     } catch (err) {
       setError(err);
@@ -206,6 +226,12 @@ export function Reviews({ book, canWrite, canRemove, onChanged }: { book: Member
       <h2 id="rv">Ratings &amp; reviews</h2>
       {canWrite && <MyReview book={book} onChanged={onChanged} />}
       <InlineError error={error} />
+      {notice && (
+        <p className="alert alert-ok" role="status">
+          <Icon name="check" />
+          {notice}
+        </p>
+      )}
       {others.length === 0 ? (
         <p className="muted">{book.myReview?.text ? "No one else has reviewed this book yet." : "No reviews yet."}</p>
       ) : (
