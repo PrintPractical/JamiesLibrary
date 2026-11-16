@@ -561,3 +561,40 @@ func TestExecContextQueuesBehindWriters(t *testing.T) {
 		}
 	}
 }
+
+func TestBackupNeverOverwritesAndLeavesNoTemporaryCopy(t *testing.T) {
+	dir := t.TempDir()
+	s, err := Open(context.Background(), dir, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if _, err := s.DB().Exec("CREATE TABLE a (x)"); err != nil {
+		t.Fatal(err)
+	}
+	backups := filepath.Join(dir, "backups")
+	if err := os.MkdirAll(backups, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	stale := filepath.Join(backups, ".pre-1-to-2-20200101T000000Z.tmp")
+	if err := os.WriteFile(stale, []byte("half"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	p1, err := s.backup(context.Background(), 1, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p2, err := s.backup(context.Background(), 1, 2)
+	if err != nil {
+		t.Fatalf("a second copy in the same second must not fail: %v", err)
+	}
+	if p1 == p2 {
+		t.Fatalf("both copies got the name %s", p1)
+	}
+	if _, err := os.Stat(stale); err == nil {
+		t.Error("a leftover temporary copy was not removed")
+	}
+	if tmp, _ := filepath.Glob(filepath.Join(backups, ".*")); len(tmp) != 0 {
+		t.Errorf("temporary files remain: %v", tmp)
+	}
+}

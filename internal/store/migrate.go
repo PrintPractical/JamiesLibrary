@@ -173,26 +173,87 @@ func (s *Store) migrate(ctx context.Context, all []migration) error {
 }
 
 // backup writes a consistent copy of the database to
-// backups/pre-<from>-to-<to>-<UTC time>.db and returns its path.
+// backups/pre-<from>-to-<to>-<UTC time>.db and returns its path. The copy is
+// written under a temporary name that is not *.db and given its final name
+// only once it is whole and synced, so a killed upgrade leaves no copy or a
+// whole one. A name already taken by a finished copy is never overwritten: a
+// counter is added to the new name instead.
 func (s *Store) backup(ctx context.Context, from, to int) (string, error) {
 	dir := filepath.Join(s.dir, "backups")
 	if err := mkdirPrivate(dir); err != nil {
 		return "", err
 	}
-	name := fmt.Sprintf("pre-%d-to-%d-%s.db", from, to, s.now().UTC().Format("20060102T150405Z"))
-	path := filepath.Join(dir, name)
-	if _, err := os.Lstat(path); err == nil {
-		return "", fmt.Errorf("%q already exists", path)
-	}
+	removeLeftoverCopies(dir)
+	stem := fmt.Sprintf("pre-%d-to-%d-%s", from, to, s.now().UTC().Format("20060102T150405Z"))
+	tmp := filepath.Join(dir, "."+stem+".tmp")
 	// VACUUM INTO takes the file name as an SQL string, so it is quoted here.
-	if _, err := s.db.ExecContext(ctx, "VACUUM INTO "+quoteSQL(path)); err != nil {
-		_ = os.Remove(path)
-		return "", fmt.Errorf("writing %q: %w", path, err)
+	if _, err := s.db.ExecContext(ctx, "VACUUM INTO "+quoteSQL(tmp)); err != nil {
+		removeCopy(tmp)
+		return "", fmt.Errorf("writing %q: %w", tmp, err)
 	}
-	if err := os.Chmod(path, fileMode); err != nil {
-		return "", fmt.Errorf("restricting %q to its owner (0600): %w", path, err)
+	if err := os.Chmod(tmp, fileMode); err != nil {
+		removeCopy(tmp)
+		return "", fmt.Errorf("restricting %q to its owner (0600): %w", tmp, err)
 	}
-	return path, nil
+	if err := syncFile(tmp); err != nil {
+		removeCopy(tmp)
+		return "", fmt.Errorf("syncing %q: %w", tmp, err)
+	}
+	for n := 1; n <= 1000; n++ {
+		name := stem + ".db"
+		if n > 1 {
+			name = fmt.Sprintf("%s-%d.db", stem, n)
+		}
+		path := filepath.Join(dir, name)
+		// A hard link fails when the name exists, so a finished copy is never replaced.
+		err := os.Link(tmp, path)
+		if err == nil {
+			removeCopy(tmp)
+			_ = syncDir(dir)
+			return path, nil
+		}
+		if _, statErr := os.Lstat(path); statErr != nil {
+			removeCopy(tmp)
+			return "", fmt.Errorf("naming %q: %w", path, err)
+		}
+	}
+	removeCopy(tmp)
+	return "", fmt.Errorf("no free name for a backup in %q", dir)
+}
+
+// removeLeftoverCopies deletes temporary copies a killed upgrade left behind.
+func removeLeftoverCopies(dir string) {
+	tmps, _ := filepath.Glob(filepath.Join(dir, ".pre-*.tmp"))
+	for _, t := range tmps {
+		removeCopy(t)
+	}
+}
+
+// removeCopy deletes a temporary copy and the journal SQLite may keep beside it.
+func removeCopy(path string) {
+	_ = os.Remove(path)
+	_ = os.Remove(path + "-journal")
+}
+
+func syncFile(path string) error {
+	f, err := os.OpenFile(path, os.O_RDWR, 0)
+	if err != nil {
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		_ = f.Close()
+		return err
+	}
+	return f.Close()
+}
+
+func syncDir(path string) error {
+	d, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	return d.Sync()
 }
 
 func quoteSQL(s string) string {
