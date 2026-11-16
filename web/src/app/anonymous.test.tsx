@@ -19,12 +19,13 @@ const allPaths = paths(routeTable).map((p) => (p === "" ? "/" : p.replace(/:\w+/
 const OPEN_TO_ANYONE = ["/api/me", "/api/library", "/api/setup/status"];
 const SIGN_IN_FREE = ["/signin", "/register", "/setup"];
 
-const freshInstall = (publicCatalog: boolean, more: Parameters<typeof fakeServer>[0] = {}) =>
+/** A signed-out visitor; setup is closed (an administrator exists) unless `setupOpen`. */
+const freshInstall = (publicCatalog: boolean, more: Parameters<typeof fakeServer>[0] = {}, setupOpen = false) =>
   fakeServer({
     ...more,
     "GET /api/me": signedOut(),
     "GET /api/library": { body: { ...library, public_catalog: publicCatalog } },
-    "GET /api/setup/status": { body: { open: true } },
+    "GET /api/setup/status": setupOpen ? { body: { open: true } } : apiError(404, "not_found", "Not found."),
   });
 
 /** Renders `path`, checks it ended at sign in, and clears the page for the next one. */
@@ -67,7 +68,7 @@ describe("ACCESS-1 Anonymous visitor", () => {
   });
 
   test("/setup shows step 1 while setup is open, and goes to sign in once it is closed", async () => {
-    freshInstall(false);
+    freshInstall(false, {}, true);
     const open = await renderApp("/setup");
     expect(await screen.findByLabelText("Setup code")).toBeInTheDocument();
     open.unmount();
@@ -77,6 +78,36 @@ describe("ACCESS-1 Anonymous visitor", () => {
     });
     await renderApp("/setup");
     await expectSignIn();
+  });
+
+  test.each(["/", "/signin", "/register", "/desk", "/browse"])(
+    "while setup is open, %s sends the visitor to /setup and asks for nothing private",
+    async (path) => {
+      const calls = freshInstall(false, {}, true);
+      await renderApp(path);
+      expect(await screen.findByLabelText("Setup code")).toBeInTheDocument();
+      expect(screen.queryByLabelText("Invitation code")).toBeNull();
+      expect(screen.queryByRole("navigation")).toBeNull();
+      for (const c of calls) {
+        expect(c.method).toBe("GET");
+        expect(OPEN_TO_ANYONE).toContain(c.path);
+      }
+    },
+  );
+
+  test("once setup is closed, /register and /signin stay where they are", async () => {
+    freshInstall(false);
+    const register = await renderApp("/register");
+    expect(await screen.findByLabelText("Invitation code")).toBeInTheDocument();
+    register.unmount();
+    await renderApp("/signin");
+    expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+  });
+
+  test("when setup's state can't be had, /register still shows its form", async () => {
+    fakeServer({ "GET /api/me": signedOut(), "GET /api/setup/status": apiError(500, "internal", "Something went wrong.") });
+    await renderApp("/register");
+    expect(await screen.findByLabelText("Invitation code")).toBeInTheDocument();
   });
 
   test("the page asked for is kept for after sign-in, and only a path of this app is followed", () => {

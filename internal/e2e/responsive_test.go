@@ -125,6 +125,10 @@ func sweep(t *testing.T, w *world, role, user string, screens []screen) {
 				if strings.Contains(c, "401 (Unauthorized)") && strings.HasSuffix(c, "/api/me") && user == "" {
 					continue
 				}
+				// Sign in and register ask whether setup is open: once an administrator exists the server answers 404.
+				if strings.Contains(c, "404 (Not Found)") && strings.HasSuffix(c, "/api/setup/status") && user == "" {
+					continue
+				}
 				t.Errorf("%s: the page reported: %s", who, c)
 			}
 		}

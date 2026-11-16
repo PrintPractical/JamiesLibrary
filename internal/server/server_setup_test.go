@@ -261,6 +261,9 @@ func TestConsolePrintsTheTrustGuideWithTheCode(t *testing.T) {
 	if !strings.Contains(out, "/trust/") || !strings.Contains(out, "SETUP CODE: ") {
 		t.Fatalf("console:\n%s", out)
 	}
+	if !strings.Contains(out, "/setup\n") {
+		t.Fatalf("the console should name the setup page:\n%s", out)
+	}
 	if strings.Index(out, "/trust/") > strings.Index(out, "SETUP CODE: ") {
 		t.Fatal("the trust guide should come before the code")
 	}

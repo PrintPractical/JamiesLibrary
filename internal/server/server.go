@@ -262,11 +262,30 @@ func announceSetup(ctx context.Context, out io.Writer, s *setup.Service, cfg con
 	if err != nil || code == "" {
 		return err
 	}
-	fmt.Fprintln(out, "No administrator exists yet. To create the first one, open the app in a browser and enter this one-time code.")
+	fmt.Fprintln(out, "No administrator exists yet. To create the first one, open the setup page in a browser and enter this one-time code.")
+	printSetupPage(out, cfg, trustHosts(cfg, interfaceIPs))
 	if trustPort != 0 {
 		printTrustGuide(out, trustHosts(cfg, interfaceIPs), trustPort)
 	}
 	return setupcode.Print(out, code)
+}
+
+// printSetupPage names the page where the code is entered. Behind a reverse
+// proxy the app doesn't know the address visitors use, so it says what to add
+// to it; otherwise it lists the https address of each host it would print for
+// the trust guide.
+func printSetupPage(out io.Writer, cfg config.Config, hosts []string) {
+	if cfg.HTTPOnly {
+		fmt.Fprintln(out, "Setup page: the address this library is served at, followed by /setup (for example https://library.example.org/setup).")
+		return
+	}
+	for _, h := range hosts {
+		addr := h
+		if cfg.HTTPSPort != 443 {
+			addr = net.JoinHostPort(h, strconv.Itoa(cfg.HTTPSPort))
+		}
+		fmt.Fprintf(out, "Setup page: https://%s/setup\n", addr)
+	}
 }
 
 // printTrustGuide says where the trust guide is: one line for one address, a

@@ -22,12 +22,13 @@ The log ends with the fingerprint of the local certificate and a one-time setup 
 
 ```
 Local CA root SHA-256 fingerprint: FF:F0:19:F1:4F:61:28:05:46:D3:32:B8:F6:EA:1F:A6:BF:CC:5D:77:4F:95:56:A7:B4:5E:DF:2D:C5:E1:59:D5
-No administrator exists yet. To create the first one, open the app in a browser and enter this one-time code.
+No administrator exists yet. To create the first one, open the setup page in a browser and enter this one-time code.
+Setup page: https://192.168.1.20:8443/setup
 On a phone or another computer, first follow the trust guide: http://192.168.1.20:8080/trust/
 SETUP CODE: VD0Y-CKSB-WK71-0NZM
 ```
 
-Open `https://THIS-MACHINE:8443` (the machine's address or name, see [Network access](#network-access)) and enter the code to create the first administrator. The code is new at every start until an administrator exists, is never stored, and 10 wrong tries block an address for 15 minutes. After a restart, the newest `SETUP CODE` in the log is the one that works.
+Open the setup page the console names, `https://THIS-MACHINE:8443/setup` (the machine's address or name, see [Network access](#network-access)), and enter the code. While no administrator exists, the sign-in page and `/register` send visitors there too to create the first administrator. The code is new at every start until an administrator exists, is never stored, and 10 wrong tries block an address for 15 minutes. After a restart, the newest `SETUP CODE` in the log is the one that works.
 
 Use `-p jamieslibrary` on every compose command in this guide. Compose names the data volume after the project, which would otherwise be the folder name (`deploy`); with `-p jamieslibrary` it is `jamieslibrary_jamieslibrary-data`, which is the name the backup commands below use.
 
