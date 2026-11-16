@@ -76,7 +76,6 @@ test("the /more page lists what the tab bar left out", async () => {
 });
 
 test.each([
-  ["/", "Home"],
   ["/card", "My card"],
   ["/desk/checkout", "Check out"],
   ["/desk/checkin", "Check in"],

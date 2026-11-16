@@ -51,7 +51,7 @@ function MemberSide({ book, onChanged }: { book: MemberBook; onChanged: () => vo
 /** A book's page: copies and where they are, the average rating, and reviews (CAT-4, CAT-6, CAT-8). A visitor gets counts and the average only (ACCESS-4). */
 export function BookPage() {
   const { id = "" } = useParams();
-  const { me } = useSession();
+  const { me, can } = useSession();
   const { state, reload } = useLoad<BookPageData>((signal) => (me ? getBook(id, signal) : getPublicBook(id, signal)), `${me ? "m" : "v"}|${id}`);
   const back = (
     <Link className="back" to="/browse">
@@ -82,6 +82,13 @@ export function BookPage() {
           <h1>{book.title}</h1>
           {book.authors.length > 0 && <p className="byline">{book.authors.join(", ")}</p>}
           <AverageRating average={book.ratingAverage} count={book.ratingCount} />
+          {book.kind === "member" && can("catalog.manage") && (
+            <p>
+              <Link className="btn btn-secondary" to={`/catalog/books/${book.id}`}>
+                Change this book
+              </Link>
+            </p>
+          )}
         </div>
         <div className="avail card">
           <Availability available={book.available} total={book.total} size="big" />

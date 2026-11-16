@@ -1,6 +1,6 @@
 # Finding books: browsing, search and book pages
 
-This guide is for anyone who looks through the library's catalog: patrons, librarians, and, if the administrator has turned the public catalog on, visitors without an account. Librarians add books on the Add a book screen (`/catalog/new`); there is no guide for it yet.
+This guide is for anyone who looks through the library's catalog: patrons, librarians, and, if the administrator has turned the public catalog on, visitors without an account. Librarians add and change books in [Looking after the catalog](guide-catalog.md).
 
 You need the **Browse** permission (`catalog.browse`) to browse while signed in. Patrons, librarians and administrators have it by default.
 
@@ -33,7 +33,7 @@ Select a row to open the book's page (`/books/ID`). It shows:
 
 - the cover (a coloured block with the title when there's none), title and authors;
 - the average rating, or **No ratings yet**;
-- how many copies are on the shelf, and, signed in, each copy with its location and either **On the shelf** or **Out · due Nov 30** (the date is written the way your browser writes dates, so it may read `30 Nov` elsewhere);
+- how many copies are on the shelf, and, signed in, each copy with its location and either **On the shelf** or **Out · due Nov 30** (the date is written the way your browser writes dates, so it may read `30 Nov` elsewhere; the year is added when the date isn't in this year);
 - **About this book**: the description and the ISBN;
 - **Ratings & reviews** (see below).
 

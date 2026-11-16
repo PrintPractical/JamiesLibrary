@@ -202,7 +202,7 @@ func (s *Service) RemoveBook(ctx context.Context, actor, id int64) error {
 			return err
 		}
 		if n > 0 {
-			return apperr.New(apperr.Conflict, fmt.Sprintf("This book cannot be removed while %s on loan: check %s in first.", plural(n, "copy is", "copies are"), plural(n, "it", "them")))
+			return apperr.New(apperr.Conflict, fmt.Sprintf("This book cannot be removed while %s on loan: check %s in first.", plural(n, "copy is", "copies are"), plural1(n)))
 		}
 		at := s.stamp()
 		if _, err := tx.ExecContext(ctx, `DELETE FROM identifiers WHERE copy_id IN (SELECT id FROM copies WHERE book_id = ? AND removed_at IS NULL)`, id); err != nil {
