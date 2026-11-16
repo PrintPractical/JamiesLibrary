@@ -215,11 +215,23 @@ func announceSetup(ctx context.Context, out io.Writer, s *setup.Service, cfg con
 	}
 	fmt.Fprintln(out, "No administrator exists yet. To create the first one, open the app in a browser and enter this one-time code.")
 	if trustPort != 0 {
-		for _, host := range trustHosts(cfg, interfaceIPs) {
-			fmt.Fprintf(out, "On a phone or another computer, first follow the trust guide: http://%s/trust/\n", net.JoinHostPort(host, strconv.Itoa(trustPort)))
-		}
+		printTrustGuide(out, trustHosts(cfg, interfaceIPs), trustPort)
 	}
 	return setupcode.Print(out, code)
+}
+
+// printTrustGuide says where the trust guide is: one line for one address, a
+// list when the machine has several, since only one is on the phone's network.
+func printTrustGuide(out io.Writer, hosts []string, port int) {
+	url := func(h string) string { return "http://" + net.JoinHostPort(h, strconv.Itoa(port)) + "/trust/" }
+	if len(hosts) == 1 {
+		fmt.Fprintf(out, "On a phone or another computer, first follow the trust guide: %s\n", url(hosts[0]))
+		return
+	}
+	fmt.Fprintln(out, "On a phone or another computer, first follow the trust guide at whichever of these addresses is on the phone's network:")
+	for _, h := range hosts {
+		fmt.Fprintf(out, "- %s\n", url(h))
+	}
 }
 
 // maxTrustHosts bounds how many addresses the console lists for the guide.

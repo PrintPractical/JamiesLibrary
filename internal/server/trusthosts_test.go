@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net"
 	"reflect"
+	"strings"
 	"testing"
 
 	"jamieslibrary/internal/config"
@@ -39,5 +40,18 @@ func TestTrustHosts(t *testing.T) {
 		if got := trustHosts(c.cfg, c.ifs); !reflect.DeepEqual(got, c.want) {
 			t.Errorf("%s: %v, want %v", c.name, got, c.want)
 		}
+	}
+}
+
+func TestPrintTrustGuide(t *testing.T) {
+	var one, many strings.Builder
+	printTrustGuide(&one, []string{"192.168.1.20"}, 8080)
+	if want := "On a phone or another computer, first follow the trust guide: http://192.168.1.20:8080/trust/\n"; one.String() != want {
+		t.Errorf("one address:\n%s", one.String())
+	}
+	printTrustGuide(&many, []string{"192.168.1.20", "10.0.0.5"}, 8080)
+	want := "On a phone or another computer, first follow the trust guide at whichever of these addresses is on the phone's network:\n- http://192.168.1.20:8080/trust/\n- http://10.0.0.5:8080/trust/\n"
+	if many.String() != want {
+		t.Errorf("several addresses:\n%s", many.String())
 	}
 }
