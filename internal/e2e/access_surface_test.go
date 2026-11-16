@@ -139,12 +139,19 @@ func TestAnonymousCrawlOfEveryRouteFindsNothingOnAFilledLibrary(t *testing.T) {
 		t.Errorf("setup status after the first administrator: %d, want 404", r.Status)
 	}
 
+	var pageSecrets []string
+	for _, sec := range secrets {
+		if !strings.EqualFold(sec, "root") {
+			pageSecrets = append(pageSecrets, sec)
+		}
+	}
 	// The web app is the same page for everyone and carries no data; nothing else is served from the machine.
 	for _, p := range []string{"/", "/browse", "/desk", "/library.db", "/library.db-wal", "/../library.db", "/%2e%2e/library.db", "/.env",
 		"/data/library.db", "/tls/ca.key", "/backups/", "/api", "/api/", "/api/%2e%2e/library.db"} {
 		for _, m := range []string{"GET", "HEAD"} {
 			r := anon.raw(rawReq{Method: m, Path: p})
-			assertNone(t, m+" "+p, r.Raw, secrets)
+			// the built web app has an element called "root", so the account name is no test here
+			assertNone(t, m+" "+p, r.Raw, pageSecrets)
 			if strings.Contains(r.Raw, "SQLite format") || strings.Contains(r.Raw, "PRIVATE KEY") {
 				t.Errorf("%s %s returned a data file", m, p)
 			}
