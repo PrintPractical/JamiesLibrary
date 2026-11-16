@@ -6,6 +6,7 @@ import { Account } from "../features/account/Account";
 import { ForcedChange } from "../features/account/ForcedChange";
 import { Register } from "../features/account/Register";
 import { SignIn } from "../features/account/SignIn";
+import { Setup } from "../features/setup/Setup";
 import { NotFound } from "../features/placeholder/NotFound";
 import { Placeholder } from "../features/placeholder/Placeholder";
 import { allowed, adminItems, isStaff, patronItems, staffFooterItems, staffItems } from "./navigation";
@@ -129,7 +130,7 @@ export function AppRoutes() {
           <Route path="more" element={<More />} />
         </Route>
       </Route>
-      <Route path="setup" element={page("Set up the library")} />
+      <Route path="setup" element={<Setup />} />
       <Route path="signin" element={<SignIn />} />
       <Route path="register" element={<Register />} />
     </Routes>
