@@ -172,8 +172,8 @@ func validSearch(query string) (string, error) {
 // the (validated) query, ignoring case, and with exactCard also the holder of a
 // card with that number. Shared by CIRC-3's look-up and CIRC-8's.
 func (s *Service) matchPatrons(ctx context.Context, query string, exactCard bool, limit int) ([]PatronMatch, error) {
-	like := "%" + likeEscape(query) + "%"
-	where, args := `u.display_name LIKE ? ESCAPE '\' OR u.username LIKE ? ESCAPE '\'`, []any{like, like}
+	like := "%" + likeEscape(store.Fold(query)) + "%"
+	where, args := `fold(u.display_name) LIKE ? ESCAPE '\' OR fold(u.username) LIKE ? ESCAPE '\'`, []any{like, like}
 	if exactCard {
 		where, args = `i.code = ? OR `+where, append([]any{strings.ToUpper(query)}, args...)
 	}

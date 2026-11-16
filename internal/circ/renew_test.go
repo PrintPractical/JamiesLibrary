@@ -10,6 +10,7 @@ import (
 	"jamieslibrary/internal/apperr"
 	"jamieslibrary/internal/perm"
 	"jamieslibrary/internal/store"
+	"jamieslibrary/internal/users"
 )
 
 // lend checks isbn out to a card and fails the test if it can't.
@@ -424,4 +425,25 @@ func TestSelfCheckoutDeactivated(t *testing.T) {
 	}
 	_, err := r.svc.SelfCheckout(ctx, pat.ID, isbnA)
 	wantErr(t, err, apperr.Conflict, "deactivated")
+}
+
+// CIRC-3, CIRC-8: the name search ignores case for every script, not only ASCII.
+func TestFindPatronsIgnoresCaseOfNonASCII(t *testing.T) {
+	r := newRig(t)
+	for _, c := range []struct{ user, display string }{
+		{"zoe", "Zoë 📚 Reader"}, {"sofia", "Σοφία"}, {"ivan", "Иван"}, {"other", "Other"},
+	} {
+		if _, err := r.us.Create(ctx, users.NewUser{Username: c.user, DisplayName: c.display, PasswordHash: "x", Role: perm.Patron}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for q, want := range map[string]string{"ZOË": "Zoë 📚 Reader", "zoë": "Zoë 📚 Reader", "ΣΟΦΊΑ": "Σοφία", "σοφία": "Σοφία", "ИВАН": "Иван", "иван": "Иван"} {
+		found, err := r.svc.FindPatrons(ctx, q)
+		if err != nil || len(found) != 1 || found[0].DisplayName != want {
+			t.Errorf("%q: %+v %v", q, found, err)
+		}
+	}
+	if found, _ := r.svc.FindPatrons(ctx, "Ë%"); len(found) != 0 {
+		t.Errorf("a wildcard matched %+v", found)
+	}
 }

@@ -211,3 +211,17 @@ func TestFindAtDeskSixtyMatches(t *testing.T) {
 		t.Fatalf("%d more=%v %v", len(got.Matches), got.More, err)
 	}
 }
+
+// CIRC-8: the name look-up ignores case for every script, not only ASCII.
+func TestFindAtDeskIgnoresCaseOfNonASCII(t *testing.T) {
+	r := newRig(t)
+	if _, err := r.us.Create(ctx, users.NewUser{Username: "zoe", DisplayName: "Zoë 📚 Reader", PasswordHash: "x", Role: perm.Patron}); err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []string{"ZOË", "zoë", "ZOË 📚"} {
+		got, err := r.svc.FindAtDesk(ctx, q)
+		if err != nil || len(got.Matches) != 1 || got.Matches[0].DisplayName != "Zoë 📚 Reader" {
+			t.Errorf("%q: %+v %v", q, got, err)
+		}
+	}
+}
