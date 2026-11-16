@@ -8,7 +8,8 @@ package e2e
 // the numbers are the container's. It is skipped unless JL_LOAD_URL is set; the
 // script scripts/loadtest.sh starts the container, runs this test, and removes
 // the container. Timings are those of the machine running the container, not of
-// a Raspberry Pi.
+// a Raspberry Pi. Memory is sampled about twice a second, so a shorter spike can be
+// missed; the check that the container was not killed for memory covers that.
 //
 //	JL_LOAD_URL        base URL of the library (plain HTTP, JL_HTTP_ONLY=1)
 //	JL_LOAD_SETUP_CODE the first-run code the container printed
@@ -148,10 +149,11 @@ func parallel(n, workers int, fn func(i int) error) error {
 // containerMemory samples the container's memory use (what the kernel charges
 // the container, page cache included) until stop is closed, and keeps the peak.
 type memWatch struct {
-	name string
-	peak atomic.Int64 // bytes
-	stop chan struct{}
-	done chan struct{}
+	name     string
+	peak     atomic.Int64 // bytes
+	stop     chan struct{}
+	stopOnce sync.Once
+	done     chan struct{}
 }
 
 var memUse = regexp.MustCompile(`^([0-9.]+)\s*([KMG]i?B|B)`)
@@ -193,7 +195,7 @@ func startMemWatch(name string) *memWatch {
 }
 
 func (w *memWatch) finish() int64 {
-	close(w.stop)
+	w.stopOnce.Do(func() { close(w.stop) })
 	<-w.done
 	return w.peak.Load()
 }
@@ -239,6 +241,7 @@ func TestTwentyThousandCopiesFiveHundredPatronsHundredSearches(t *testing.T) {
 	var watch *memWatch
 	if container != "" {
 		watch = startMemWatch(container)
+		t.Cleanup(func() { watch.stopOnce.Do(func() { close(watch.stop) }) }) // a test that fails early still ends the sampler
 	}
 
 	admin := newLoadClient(t, base)
@@ -450,8 +453,8 @@ func TestTwentyThousandCopiesFiveHundredPatronsHundredSearches(t *testing.T) {
 			t.Fatal("could not read the container's memory with docker stats")
 		}
 		t.Logf("container memory peak (docker stats, page cache included) %.1f MiB of the %d MiB limit", float64(peak)/(1<<20), limitMB)
-		if peak >= 512<<20 {
-			t.Errorf("memory peak %.1f MiB is not under 512 MB", float64(peak)/(1<<20))
+		if peak >= limitMB<<20 {
+			t.Errorf("memory peak %.1f MiB is not under the %d MB limit", float64(peak)/(1<<20), limitMB)
 		}
 		if oom := dockerInspect(container, "{{.State.OOMKilled}} {{.RestartCount}} {{.State.Running}}"); oom != "false 0 true" {
 			t.Errorf("the container was killed or restarted during the run (OOMKilled, restarts, running): %s", oom)

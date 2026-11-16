@@ -253,6 +253,10 @@ func (tr *transcript) call(step, method, path string, body any, wantStatus int) 
 	_ = json.Unmarshal(raw, &cp)
 	norm, _ := json.Marshal(tr.scrub(cp)) // map keys come out sorted
 	tr.lines = append(tr.lines, fmt.Sprintf("%s: %d %s", step, resp.StatusCode, norm))
+	for _, ck := range resp.Cookies() { // the cookie's name and flags, never its value
+		tr.lines = append(tr.lines, fmt.Sprintf("%s: cookie %s secure=%t httponly=%t samesite=%d path=%s",
+			step, ck.Name, ck.Secure, ck.HttpOnly, ck.SameSite, ck.Path))
+	}
 	return resp.StatusCode, m
 }
 
@@ -392,7 +396,6 @@ func script(t *testing.T, st *site, ol *testutil.FakeOL) []string {
 	anon := &transcript{t: t, site: &site{name: st.name, base: st.base, client: cloneClient(st.client)}, ids: tr.ids}
 	anon.call("anonymous search", "GET", "/api/books?q=fox", nil, 401)
 
-	// The same plain-HTTP-versus-HTTPS facts the user relies on: the session cookie is Secure.
 	tr.lines = append(tr.lines, patron.lines...)
 	tr.lines = append(tr.lines, anon.lines...)
 	_ = ol
@@ -427,6 +430,9 @@ func TestLANAndPublicRunTheSameLibraryTheSameWay(t *testing.T) {
 				}
 			}
 		})
+	}
+	if len(runs) == 0 {
+		return // every run skipped (no testhooks tag): nothing to compare
 	}
 	lan := runs["lan"]
 	if len(lan) < 30 {
