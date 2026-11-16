@@ -7,7 +7,7 @@ import {
   getBook,
   getLocations,
   lookupIsbn,
-  type Book,
+  type MemberBook,
   type Location,
 } from "../../api/catalog";
 import { getMe } from "../../api/auth";
@@ -24,7 +24,7 @@ import "./addbook.css";
 
 type Note = "found" | "not_found" | "unavailable" | "manual";
 // start: only the ISBN bar. details: the form for a new book. exists: the ISBN is already in the catalog.
-type Stage = { kind: "start" } | { kind: "details"; note: Note } | { kind: "exists"; book: Book };
+type Stage = { kind: "start" } | { kind: "details"; note: Note } | { kind: "exists"; book: MemberBook };
 
 let nextKey = 1;
 const newCopy = (from?: CopyDraft): CopyDraft => ({
@@ -137,7 +137,7 @@ function Flow({ mode, initialLocations, detectorFactory }: FlowProps) {
       const clean = found.isbn ?? code;
       setIsbn(clean);
       if (found.status === "exists" && found.book_id) {
-        resetForm({ kind: "exists", book: await getBook(found.book_id, ctl.signal) });
+        resetForm({ kind: "exists", book: await getBook(String(found.book_id), ctl.signal) });
       } else if (found.status === "found") {
         resetForm(
           { kind: "details", note: "found" },
@@ -229,7 +229,7 @@ function Flow({ mode, initialLocations, detectorFactory }: FlowProps) {
         } catch (err) {
           if (err instanceof ApiError && err.bookId) {
             // Someone added this ISBN meanwhile: show that book instead of making a second.
-            resetForm({ kind: "exists", book: await getBook(err.bookId) });
+            resetForm({ kind: "exists", book: await getBook(String(err.bookId)) });
             return;
           }
           if (err instanceof ApiError && err.field && ["title", "authors", "description", "cover", "cover_token", "isbn"].includes(err.field)) {
@@ -366,8 +366,8 @@ function Flow({ mode, initialLocations, detectorFactory }: FlowProps) {
               <p className="t">This book is already in the catalog</p>
               <p className="small">
                 <Link to={`/books/${existing.id}`}>{existing.title}</Link>
-                {existing.authors.length > 0 && ` by ${existing.authors.join(", ")}`} has {existing.copy_count}{" "}
-                {existing.copy_count === 1 ? "copy" : "copies"}. No second book is made: add a copy of it below.
+                {existing.authors.length > 0 && ` by ${existing.authors.join(", ")}`} has {existing.total}{" "}
+                {existing.total === 1 ? "copy" : "copies"}. No second book is made: add a copy of it below.
               </p>
             </div>
           </div>

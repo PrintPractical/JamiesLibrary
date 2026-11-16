@@ -2,7 +2,9 @@ package httpapi
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/json"
+	"hash/crc32"
 	"image"
 	"image/png"
 	"mime/multipart"
@@ -76,6 +78,27 @@ func pngBytes(t *testing.T) []byte {
 		t.Fatal(err)
 	}
 	return b.Bytes()
+}
+
+// pngOfSize is a valid PNG of exactly size bytes: a small picture with a text
+// chunk after its header that holds the padding.
+func pngOfSize(t *testing.T, size int) []byte {
+	t.Helper()
+	small := pngBytes(t)
+	const header = 8 + 25 // the signature and the IHDR chunk
+	pad := size - len(small) - 12 - len("Comment\x00")
+	if pad < 0 {
+		t.Fatalf("%d bytes is too small for a PNG with a text chunk", size)
+	}
+	data := append([]byte("tEXtComment\x00"), bytes.Repeat([]byte{'x'}, pad)...)
+	chunk := binary.BigEndian.AppendUint32(nil, uint32(len(data)-4))
+	chunk = append(chunk, data...)
+	chunk = binary.BigEndian.AppendUint32(chunk, crc32.ChecksumIEEE(data))
+	out := append(append(append([]byte{}, small[:header]...), chunk...), small[header:]...)
+	if len(out) != size {
+		t.Fatalf("built %d bytes, want %d", len(out), size)
+	}
+	return out
 }
 
 func (s settingsSite) images() int {
@@ -243,6 +266,28 @@ func TestBrandingCheck(t *testing.T) {
 }
 
 // ADMIN-1 "Bad logo": 10 MB, a non-image and an SVG are refused with a message and the branding and files are unchanged; a PNG works and can be removed.
+// ADMIN-1 "Logo": a picture over 2 MB is refused as too large and changes
+// nothing, one just under 2 MB is accepted. The sizes are written out, not
+// taken from the server's constant, so changing the limit fails this.
+func TestLogoLimitIsTwoMegabytes(t *testing.T) {
+	s := newSettingsSite(t)
+	const twoMB = 2 * 1024 * 1024
+	rec := s.upload(s.admin, pngOfSize(t, twoMB+1024))
+	code, field, msg := errField(t, rec)
+	if code != 413 || field != "logo" || msg == "" {
+		t.Fatalf("just over 2 MB: %d %q %q", code, field, msg)
+	}
+	if b := s.library(); b.LogoURL != "" || s.logTotal() != 0 || s.images() != 0 {
+		t.Fatalf("a refused logo changed something: %+v, %d entries, %d files", b, s.logTotal(), s.images())
+	}
+	if rec := s.upload(s.admin, pngOfSize(t, twoMB-1024)); rec.Code != 200 {
+		t.Fatalf("just under 2 MB: %d %s", rec.Code, rec.Body)
+	}
+	if !strings.HasPrefix(s.library().LogoURL, "/media/") {
+		t.Errorf("logo %q", s.library().LogoURL)
+	}
+}
+
 func TestBadLogoThenGoodLogo(t *testing.T) {
 	s := newSettingsSite(t)
 	for name, data := range map[string][]byte{

@@ -4,7 +4,8 @@ export type Me = {
   user: { id: number; username: string; display_name: string; role: string };
   permissions: string[];
   must_change_password: boolean;
-  settings?: { copy_id_mode: "isbn" | "own" };
+  /** The library's rules: the time zone, and how copies are identified (CAT-9). */
+  settings?: { time_zone: string; copy_id_mode?: "isbn" | "own" };
 };
 
 /** What anyone may see: the sign-in page draws itself from it. */

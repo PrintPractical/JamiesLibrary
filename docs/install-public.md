@@ -95,7 +95,7 @@ sudo install -m 0644 /etc/letsencrypt/live/library.example.org/fullchain.pem /et
 sudo install -o 65532 -m 0400 /etc/letsencrypt/live/library.example.org/privkey.pem /etc/ssl/library/privkey.pem
 ```
 
-(or leave the key as it is and give that user read access to it with `setfacl -m u:65532:r privkey.pem`; the directories above it need execute access for that user too). Don't `chmod 644` the key. If the library can't read it, `docker logs` shows `open /certs/privkey.pem: permission denied` and the container stops.
+Keep a copy for the library, as above: giving the user access to certbot's own key with `setfacl` doesn't last, because each renewal writes a new key file without that access, and the library would then keep serving the old certificate until it expired. Don't `chmod 644` the key. If the library can't read it, `docker logs` shows `open /certs/privkey.pem: permission denied` and the container stops.
 
 ```sh
 docker run -d --name jamieslibrary --restart unless-stopped \
@@ -107,7 +107,7 @@ docker run -d --name jamieslibrary --restart unless-stopped \
 
 (Build the image first: `docker build -f deploy/Dockerfile -t jamieslibrary .`)
 
-**Renewal.** Certificates from Let's Encrypt last 90 days, and certbot renews them in the background. The library does not renew anything itself. When the files change on disk (a changed modification time or size, checked at most once a second when someone connects), it loads the new certificate for the next connection with no restart, and logs `reloaded the certificate`. After certbot renews, copy the files again if you use copies as above, for example in a certbot deploy hook (`--deploy-hook` or a script in `/etc/letsencrypt/renewal-hooks/deploy/`). Replace the certificate and the key together. If the new files can't be read, or the key doesn't belong to the certificate, the old certificate stays in use and a warning is logged (`the certificate files changed but can't be used; still serving the previous certificate`). A certificate that has expired is served anyway, with a warning in the log, and browsers will refuse it, so check that renewal works before the date.
+**Renewal.** Certificates from Let's Encrypt last 90 days, and certbot renews them in the background. The library does not renew anything itself. When the files change on disk (a changed modification time or size, checked at most once a second when someone connects), it loads the new certificate for the next connection with no restart, and logs `reloaded the certificate`. After certbot renews, copy the files again if you use copies as above, for example in a certbot deploy hook (`--deploy-hook` or a script in `/etc/letsencrypt/renewal-hooks/deploy/`). Replace the certificate and the key together. If the new files exist but can't be read, or the key doesn't belong to the certificate, the old certificate stays in use and a warning is logged (`the certificate files changed but can't be used; still serving the previous certificate`). If a file is missing or has been renamed away at that moment, nothing is logged and the old certificate stays in use. A certificate that has expired is served anyway, with a warning in the log, and browsers will refuse it, so check that renewal works before the date.
 
 With your own certificate the server needs no trust step, and the plain-HTTP port (8080) only redirects to HTTPS and shows a page saying no step is needed. You don't have to open it. The library also sends `Strict-Transport-Security` for a year.
 
