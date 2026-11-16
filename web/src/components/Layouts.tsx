@@ -2,11 +2,15 @@ import { useEffect, useState } from "react";
 import { Navigate } from "react-router";
 import { MoreList, Shell, type NavItem, type ShellProps } from "./Shell";
 
-export type PatronLayoutProps = Pick<ShellProps, "libraryName" | "logoUrl" | "user"> & { items: NavItem[] };
+export type PatronLayoutProps = Pick<ShellProps, "libraryName" | "logoUrl" | "user"> & {
+  items: NavItem[];
+  /** Staff only: the single link to the Desk, in the side bar's foot and the phone's top bar. */
+  deskLink?: NavItem;
+};
 
 /** Bottom tab bar on phones, side bar on desktop, the same items in the same order. */
-export function PatronLayout({ items, ...rest }: PatronLayoutProps) {
-  return <Shell items={items} {...rest} />;
+export function PatronLayout({ items, deskLink, ...rest }: PatronLayoutProps) {
+  return <Shell items={items} crossLink={deskLink} {...rest} />;
 }
 
 export type StaffLayoutProps = Pick<ShellProps, "libraryName" | "logoUrl" | "user"> & {

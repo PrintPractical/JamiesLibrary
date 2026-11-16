@@ -42,6 +42,9 @@ export const adminItems: GatedItem[] = [
   { to: "/admin/activity", label: "Activity log", icon: "log", any: ["activity.view"] },
 ];
 
+/** Staff's one way back to the Desk from the patron side. */
+export const deskLink: NavItem = { to: "/desk", label: "Desk", icon: "switch" };
+
 export const staffFooterItems: NavItem[] = [{ to: "/", label: "My library", icon: "switch", end: true }];
 
 /** Whether a user holding `canAny`'s permissions may see an item. */

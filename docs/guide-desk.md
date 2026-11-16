@@ -47,6 +47,8 @@ Someone with only some of these permissions sees only those cards, and the other
 
 **If no card applies to you.** A person who has staff permissions but none of `circ.desk`, `patrons.lookup` or `catalog.manage` (for example, an administrator who may only manage settings) sees `There's nothing for you at the desk. Your administrator decides what you can do here.` with links to whichever Admin pages they may use (Settings, People & invites, Statistics, Activity log).
 
+**Getting back to the Desk.** When you are on the patron side (your own Home, Browse, My card, My books or Account), staff see one **Desk** link: in the pill at the right of the top bar on a phone, and at the foot of the side bar on a desktop. It opens `/desk`. Patrons and visitors never see it, and it adds no tab to the phone's bottom bar. From the Desk, **My library** in the staff menu takes you back to the patron side.
+
 ## Scanning, typing and the camera
 
 Every code field on these screens takes a handheld scanner that works like a keyboard, typing, or the phone's camera, exactly as described in [Scanning: camera, hand scanner or typing](guide-catalog.md#scanning-camera-hand-scanner-or-typing). Press Enter (a scanner sends it for you) to submit. After each scan the field empties and stays selected, so you can scan one book after another. The camera needs the page served over HTTPS; where it isn't, type or use a hand scanner.
