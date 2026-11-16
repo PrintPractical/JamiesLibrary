@@ -50,7 +50,14 @@ interface Props {
   onScan: (code: string) => void;
   placeholder?: string;
   help?: ReactNode;
-  submitLabel?: string;
+  /** The submit button's words; null leaves it out (Enter and the camera still submit). */
+  submitLabel?: string | null;
+  /** Keep the code in the field after it is submitted or read, instead of clearing it for the next. */
+  keep?: boolean;
+  /** Where the field starts. */
+  defaultValue?: string;
+  /** Called with what the field holds each time it changes, for a form that reads it without Enter. */
+  onInput?: (value: string) => void;
   /** Said over the camera view. */
   hint?: string;
   autoFocus?: boolean;
@@ -69,6 +76,9 @@ export function ScanField({
   placeholder = "Scan, or type then Enter",
   help,
   submitLabel = "Add",
+  keep = false,
+  defaultValue,
+  onInput,
   hint = "Point at a barcode",
   autoFocus = false,
   detectorFactory = loadDetector,
@@ -86,9 +96,24 @@ export function ScanField({
   const [trustPort, setTrustPort] = useState<number | null>(null);
   const [torch, setTorch] = useState<boolean | null>(null); // null: this camera has none
 
+  const onInputRef = useRef(onInput);
   useEffect(() => {
     onScanRef.current = onScan;
+    onInputRef.current = onInput;
   });
+
+  // A code the camera read goes through here: a field that keeps its code shows it.
+  const keepRef = useRef(keep);
+  useEffect(() => {
+    keepRef.current = keep;
+  });
+  const deliver = useCallback((code: string) => {
+    if (keepRef.current && input.current) {
+      input.current.value = code;
+      onInputRef.current?.(code);
+    }
+    onScanRef.current(code);
+  }, []);
 
   const stopCamera = useCallback(() => {
     attempt.current++;
@@ -160,7 +185,7 @@ export function ScanField({
       const now = Date.now();
       const last = seen.get(code);
       seen.set(code, now); // still in view: stays the same scan
-      if (last === undefined || now - last >= REPEAT_MS) onScanRef.current(code);
+      if (last === undefined || now - last >= REPEAT_MS) deliver(code);
     };
 
     void (async () => {
@@ -201,7 +226,7 @@ export function ScanField({
       clearTimeout(timer);
       el.srcObject = null;
     };
-  }, [camera, detectorFactory, stopCamera]);
+  }, [camera, detectorFactory, stopCamera, deliver]);
 
   // Opened from the button's click: iOS only starts a camera from a user's gesture.
   async function openCamera() {
@@ -249,7 +274,7 @@ export function ScanField({
     const field = input.current;
     if (!field) return;
     const code = field.value.trim();
-    field.value = "";
+    if (!keep) field.value = "";
     field.focus();
     if (code) onScan(code);
   }
@@ -283,6 +308,8 @@ export function ScanField({
             className="input"
             placeholder={placeholder}
             autoFocus={autoFocus}
+            defaultValue={defaultValue}
+            onChange={onInput ? (e) => onInput(e.target.value) : undefined}
             autoComplete="off"
             autoCapitalize="off"
             autoCorrect="off"
@@ -294,9 +321,11 @@ export function ScanField({
               <span className="sr">Scan with the camera</span>
             </button>
           )}
-          <button type="submit" className="btn btn-secondary">
-            {submitLabel}
-          </button>
+          {submitLabel !== null && (
+            <button type="submit" className="btn btn-secondary">
+              {submitLabel}
+            </button>
+          )}
         </div>
         {help && <span className="help">{help}</span>}
         {problem !== null && (

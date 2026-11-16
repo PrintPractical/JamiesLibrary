@@ -11,6 +11,7 @@ import { BookPage } from "../features/catalog/BookPage";
 import { Browse } from "../features/catalog/Browse";
 import { Activity } from "../features/admin/Activity";
 import { Statistics } from "../features/admin/Statistics";
+import { AddBook } from "../features/catalog/AddBook";
 import { Overdue } from "../features/patrons/Overdue";
 import { PatronPage } from "../features/patrons/PatronPage";
 import { Patrons } from "../features/patrons/Patrons";
@@ -137,7 +138,7 @@ export const routeTable: RouteObject[] = [
           { path: "desk/patrons/:id", element: <Allow any={["patrons.lookup"]}><PatronPage /></Allow> },
           { path: "desk/overdue", element: <Allow any={["circ.desk"]}><Overdue /></Allow> },
           { path: "catalog", element: gated(["catalog.manage"], "Catalog") },
-          { path: "catalog/new", element: gated(["catalog.manage"], "Add a book") },
+          { path: "catalog/new", element: <Allow any={["catalog.manage"]}><AddBook /></Allow> },
           { path: "admin/settings", element: <Allow any={["settings.manage"]}><Settings /></Allow> },
           {
             path: "admin/people",
