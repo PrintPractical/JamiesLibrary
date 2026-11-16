@@ -36,12 +36,13 @@ You need a 64-bit x86 or ARM Linux server with Docker and the Compose plugin; a 
    The log shows a one-time code:
 
    ```
-   No administrator exists yet. To create the first one, open the app in a browser and enter this one-time code.
+   No administrator exists yet. To create the first one, open the setup page in a browser and enter this one-time code.
+   Setup page: the address this library is served at, followed by /setup (for example https://library.example.org/setup).
    SETUP CODE: 2B9G-QXQ3-05ZE-W76P
    listening addr=172.30.0.10:8080 tls=false ...
    ```
 
-3. Open `https://library.example.org`, enter the code and create the first administrator. The code is new at every start until an administrator exists, is never stored, and ten wrong tries block an address for 15 minutes.
+3. Open `https://library.example.org/setup`, enter the code and create the first administrator. The code is new at every start until an administrator exists, is never stored, and ten wrong tries block an address for 15 minutes.
 
 `deploy/compose.public.yml` runs two containers on a private network: the library (plain HTTP, port 8080, reachable only from that network) and Caddy (ports 80 and 443). It sets `JL_HTTP_ONLY`, `JL_BIND_ADDRESS` and `JL_TRUSTED_PROXIES` for you. Use `-p jamieslibrary` on every compose command, so the volumes are named `jamieslibrary_jamieslibrary-data` (the library's data), and `jamieslibrary_caddy-data` and `jamieslibrary_caddy-config` (Caddy's certificates).
 

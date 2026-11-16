@@ -22,14 +22,15 @@ A new library has no accounts. The server makes the first administrator only for
 1. Start the server. While no administrator exists it prints, among its first lines, the code on a line of its own:
 
    ```
-   No administrator exists yet. To create the first one, open the app in a browser and enter this one-time code.
+   No administrator exists yet. To create the first one, open the setup page in a browser and enter this one-time code.
+   Setup page: https://192.168.1.20:8443/setup
    On a phone or another computer, first follow the trust guide: http://localhost:8080/trust/
    SETUP CODE: R0C8-G5GT-X0Z4-NPJY
    ```
 
    With Docker, read it from the container's log: `docker compose -p jamieslibrary -f deploy/compose.lan.yml logs | grep "SETUP CODE"`. The code is new at every start, is kept only in memory and is never written to a file. After a restart, use the newest one.
 
-2. Open the library in a browser (for example `https://THIS-MACHINE:8443`; on a phone or another computer do [the trust step](install-lan.md#the-trust-step-once-per-phone-or-computer) first). Anyone who opens `/setup` sees step 1 until an administrator exists; after that `/setup` sends visitors to the sign-in page.
+2. Open the setup page in a browser (the console names it, for example `https://THIS-MACHINE:8443/setup`; on a phone or another computer do [the trust step](install-lan.md#the-trust-step-once-per-phone-or-computer) first). While no administrator exists, the sign-in page and `/register` send a visitor to `/setup`, which shows step 1; once one exists, `/setup` sends visitors to the sign-in page.
 
 3. **Step 1, Create the administrator.** Enter the setup code, your name (as the library will show it), a username, and a password of at least 10 characters. Choose **Create account and continue**. You're signed in at once. A wrong code is refused; ten wrong codes from one address block it for 15 minutes.
 

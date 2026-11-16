@@ -33,7 +33,7 @@ docker compose -p jamieslibrary -f deploy/compose.lan.yml up -d --build
 docker compose -p jamieslibrary -f deploy/compose.lan.yml logs | grep "SETUP CODE"
 ```
 
-The last command prints the one-time `SETUP CODE: XXXX-XXXX-XXXX-XXXX`. Open `https://THIS-MACHINE:8443` in a browser and enter the code to create the first administrator. Phones and other computers should first follow the trust guide at `http://THIS-MACHINE:8080/trust/`, which is also where the local certificate is downloaded; the guide says what a device trusts by doing the step.
+The last command prints the one-time `SETUP CODE: XXXX-XXXX-XXXX-XXXX`. Open `https://THIS-MACHINE:8443/setup` in a browser and enter the code to create the first administrator. Phones and other computers should first follow the trust guide at `http://THIS-MACHINE:8080/trust/`, which is also where the local certificate is downloaded; the guide says what a device trusts by doing the step.
 
 Everything the library keeps is in one Docker volume, `jamieslibrary_jamieslibrary-data` (the project name `-p jamieslibrary` is part of it), mounted at `/data` in the container. To back it up, stop the container, copy the volume's contents, and start it again; the guides give the commands. The backup holds password hashes, every patron's history and the certificate key: keep it private. To recover a locked-out administrator: `docker compose -p jamieslibrary -f deploy/compose.lan.yml exec jamieslibrary /usr/local/bin/jamieslibrary admin reset-password USERNAME`.
 
