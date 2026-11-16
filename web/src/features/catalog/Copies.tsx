@@ -87,7 +87,7 @@ type CardProps = {
   detectorFactory?: DetectorFactory;
 };
 
-function CopyCard({ copy, number, errors, locations, ownBarcodes, busy, onChange, detectorFactory }: CardProps) {
+export function CopyCard({ copy, number, errors, locations, ownBarcodes, busy, onChange, detectorFactory }: CardProps) {
   const id = useId();
   const locked = busy || !!copy.saved;
   return (

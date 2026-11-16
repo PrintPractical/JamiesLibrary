@@ -126,7 +126,7 @@ describe("SCAN-2 Metadata lookup", () => {
     });
     await lookupWith(ISBN);
     expect(await screen.findByText("Check the details below. Nothing is saved until you press Add.")).toBeInTheDocument();
-    expect(screen.getByLabelText("Authors")).toHaveValue("C. S. Lewis");
+    expect(screen.getByLabelText("Authors (required)")).toHaveValue("C. S. Lewis");
     expect(screen.getByLabelText("Description")).toHaveValue(found.description);
     expect(document.querySelector(".ab-cover img")).toHaveAttribute("src", "/media-tmp/tok1");
     expect(calls.filter((c) => c.method !== "GET" && c.path !== "/api/catalog/lookup")).toEqual([]);
@@ -225,7 +225,7 @@ describe("Entering a book without an ISBN", () => {
     await open();
     await userEvent.click(screen.getByRole("button", { name: "Enter without an ISBN" }));
     await userEvent.type(screen.getByLabelText("Title (required)"), "Old Book");
-    await userEvent.type(screen.getByLabelText("Authors"), "A. Writer, B. Writer");
+    await userEvent.type(screen.getByLabelText("Authors (required)"), "A. Writer, B. Writer");
     expect(within(copyCard(1)).getByRole("radio", { name: "New label" })).toBeChecked();
     await userEvent.selectOptions(within(copyCard(1)).getByLabelText("Location"), "2");
     await userEvent.click(screen.getByRole("button", { name: "Add book & 1 copy" }));
@@ -246,6 +246,7 @@ test("Enter without an ISBN after a lookup empties the ISBN field and the book i
   await userEvent.click(screen.getByRole("button", { name: "Enter without an ISBN" }));
   expect(screen.getByLabelText("ISBN")).toHaveValue("");
   await userEvent.type(screen.getByLabelText("Title (required)"), "Old Book");
+  await userEvent.type(screen.getByLabelText("Authors (required)"), "A. Writer");
   await userEvent.selectOptions(within(copyCard(1)).getByLabelText("Location"), "1");
   await userEvent.click(screen.getByRole("button", { name: "Add book & 1 copy" }));
   await screen.findByText(/C000080/);
@@ -376,6 +377,33 @@ describe("CAT-3 Multiple copies", () => {
     expect(posted(calls, "/api/locations")).toHaveLength(1);
     expect(posted(calls, "/api/books/31/copies").map((c) => (c.body as { location_id: number }).location_id)).toEqual([3, 3]);
   });
+});
+
+test("a copy in a location made in the same save shows that location on the saved screen", async () => {
+  server({
+    "POST /api/catalog/lookup": { body: found },
+    "POST /api/books": { status: 201, body: bookOf(31, { copies: [] }) },
+    "POST /api/locations": { status: 201, body: { id: 3, name: "Attic", copies: 0 } },
+    "POST /api/books/31/copies": { status: 201, body: { id: 70, book_id: 31, number: 1, condition: "good", barcode: "" } },
+  });
+  await lookupWith(ISBN);
+  await screen.findByText("Found on Open Library");
+  await userEvent.selectOptions(within(copyCard(1)).getByLabelText("Location"), "new");
+  await userEvent.type(within(copyCard(1)).getByLabelText("New location's name"), "Attic");
+  await userEvent.click(screen.getByRole("button", { name: "Add book & 1 copy" }));
+  await screen.findByText(/is in the catalog/);
+  expect(screen.getByText(/Attic/)).toBeInTheDocument();
+});
+
+test("a book without an author is refused before anything is sent", async () => {
+  const calls = server({ "POST /api/catalog/lookup": { body: { status: "not_found", isbn: ISBN } } });
+  await lookupWith(ISBN);
+  await userEvent.type(await screen.findByLabelText("Title (required)"), "X");
+  await userEvent.type(screen.getByLabelText("Authors (required)"), " , ");
+  await userEvent.selectOptions(within(copyCard(1)).getByLabelText("Location"), "1");
+  await userEvent.click(screen.getByRole("button", { name: "Add book & 1 copy" }));
+  expect(screen.getByLabelText("Authors (required)")).toHaveAccessibleDescription(/A book needs at least one author\./);
+  expect(posted(calls, "/api/books")).toHaveLength(0);
 });
 
 describe("Printing labels after saving", () => {

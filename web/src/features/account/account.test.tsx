@@ -78,7 +78,7 @@ describe("ACCESS-5 Sign in", () => {
     await type("Username", "patron");
     await type("Password", "correct horse battery");
     await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
-    expect(await screen.findByRole("heading", { name: "Home" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /^Good (morning|afternoon|evening), / })).toBeInTheDocument();
   });
 
   test("signing out ends the session, empties the app's caches and returns to sign in", async () => {
@@ -206,7 +206,7 @@ describe("ACCESS-2 Registration by invitation code", () => {
     await renderApp("/register");
     await fill();
     await userEvent.click(screen.getByRole("button", { name: "Create account" }));
-    expect(await screen.findByRole("heading", { name: "Home" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /^Good (morning|afternoon|evening), / })).toBeInTheDocument();
     expect(calls.find((c) => c.path === "/api/register")?.body).toEqual({
       code: "ABCD-EFGH-JKMN-PQRS",
       display_name: "Sam Reader",

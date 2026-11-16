@@ -76,7 +76,7 @@ export function Details({ value, errors, locked, onChange }: Props) {
       )}
       <Field label="Title (required)" value={value.title} disabled={locked} error={errors.title} maxLength={500} onChange={(title) => onChange({ title })} />
       <Field
-        label="Authors"
+        label="Authors (required)"
         value={value.authors}
         disabled={locked}
         error={errors.authors}
