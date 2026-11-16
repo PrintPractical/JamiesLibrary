@@ -43,7 +43,14 @@ The container runs as user 65532 with a read-only root filesystem; only `/data` 
 
 ## Phones and computers
 
-Every screen works on a phone and on a computer's browser. The layout fits a phone as narrow as 360 pixels without sideways scrolling, and widens for a computer. Librarians can scan with a phone's camera, a handheld scanner or the keyboard (see [Working the desk](docs/guide-desk.md#scanning-typing-and-the-camera)); the camera needs the page served over HTTPS, which the library does itself (see the install guides). A library on a home network and one on the internet offer the same functions: the install guides differ only in how the program is reached and secured.
+The library is a web app: nothing is installed on a phone or computer, you open its address in a browser.
+
+- **On a phone.** Every screen is laid out for a phone first and fits a screen as narrow as 360 pixels wide without sideways scrolling. Navigation is a tab bar at the bottom, and a librarian can scan barcodes with the phone's camera.
+- **On a computer.** The same screens widen on a desktop browser (from about 900 pixels wide), with a side bar in place of the tab bar. A USB or Bluetooth barcode scanner works like a keyboard, so it needs nothing set up.
+- **The camera needs HTTPS.** Browsers allow the camera only on a secure page. Both setups in [Install with Docker](#install-with-docker) provide HTTPS: on a home network each phone or computer does a one-time trust step first (see the [home install guide](docs/install-lan.md#the-trust-step-once-per-phone-or-computer)), and on the internet the proxy gets a certificate for you. Without it, typing codes and a hand scanner still work. See [Scanning](docs/guide-catalog.md#scanning-camera-hand-scanner-or-typing).
+- **Installing it as an app.** There is no installable app: it has no app manifest and doesn't work offline, so a browser's "Install" option isn't offered by the library. To get an icon on a phone's home screen, use your browser's "Add to Home Screen" (or a bookmark), which opens the library in the browser.
+- **Browsers.** Use a current Chrome, Edge, Firefox or Safari. The screens at 360 and 1280 pixels are checked automatically in Chromium; other browsers are not tested by the project. The camera uses the browser's own barcode reader where it has one and a bundled one otherwise, so it needs no internet.
+- **Same functions everywhere.** A library on a home network and one on the internet offer the same functions: the guides differ only in how the program is reached and secured ([home or office network](docs/install-lan.md), [public internet](docs/install-public.md)).
 
 ## Release binaries
 
