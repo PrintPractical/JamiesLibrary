@@ -1,0 +1,6 @@
+# Reverse proxy for compose.public.yml. Replace the first line with your domain name.
+library.example.org {
+	encode zstd gzip
+	# Caddy sets X-Forwarded-For for the app; the app believes it only from the proxy network.
+	reverse_proxy jamieslibrary:8080
+}

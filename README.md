@@ -21,6 +21,30 @@ By default the server keeps its data in `./data`, created on first start (see [D
 Then open <http://localhost:8080>. `GET /api/health` answers `{"status":"ok",...}`.
 Without the web build step the binary still builds and runs, but serves a page saying the web app is missing.
 
+## Install with Docker
+
+You need Docker with the Compose plugin, on a 64-bit x86 or ARM (Raspberry Pi 4 or newer) Linux machine. Host networking, used below, is a Linux feature.
+
+```sh
+git clone <this repository> jamieslibrary && cd jamieslibrary
+docker compose -f deploy/compose.lan.yml up -d --build
+docker compose -f deploy/compose.lan.yml logs | grep "SETUP CODE"
+```
+
+The last command prints the one-time `SETUP CODE: XXXX-XXXX-XXXX-XXXX`. Open `https://THIS-MACHINE:8443` in a browser and enter the code to create the first administrator. Phones and other computers should first follow the trust guide at `http://THIS-MACHINE:8080/trust/`, which is also where the local certificate is downloaded.
+
+Everything the library keeps is in one Docker volume, `jamieslibrary-data`, mounted at `/data` in the container. To back it up, stop the container (`docker compose -f deploy/compose.lan.yml stop`), copy the volume's contents, and start it again. The backup holds passwords' hashes, every patron's history and the certificate key: keep it private. To recover a locked-out administrator: `docker compose -f deploy/compose.lan.yml exec jamieslibrary /usr/local/bin/jamieslibrary admin reset-password USERNAME`.
+
+The container runs as user 65532 with a read-only root filesystem; only `/data` is writable. If you replace the volume with a folder on the host, the folder must be owned by user 65532. The image is built for `linux/amd64` and `linux/arm64`: `docker buildx build -f deploy/Dockerfile --platform linux/amd64,linux/arm64 -t jamieslibrary .` (add `--build-arg VERSION=1.0.0` to stamp the version).
+
+**On the internet, behind a reverse proxy:** `deploy/compose.public.yml` runs the app over plain HTTP on a private network, with Caddy in front getting the HTTPS certificate. Put your domain name in `deploy/Caddyfile`, open ports 80 and 443, and run `docker compose -f deploy/compose.public.yml up -d --build`. It sets `JL_HTTP_ONLY=1`, `JL_BIND_ADDRESS` and `JL_TRUSTED_PROXIES` for you; `JL_TRUSTED_PROXIES` lists only the proxy's own fixed address (`172.30.0.2/32`), never the whole network, whose gateway is the host itself: if you use another proxy, list only that proxy's address (see the settings table). The app offers the same functions in both setups.
+
+## Release binaries
+
+`scripts/release.sh VERSION [DIR]` builds the web app once, then the program for `linux/amd64`, `linux/arm64` and `darwin/arm64` into `DIR` (default `dist/`), with a `SHA256SUMS` file to check them with (`sha256sum -c SHA256SUMS`). Windows isn't built: the data directory lock needs a Unix system call.
+
+A binary doesn't set a memory limit by itself. On a small machine (a Raspberry Pi 4 with a library of 20,000 copies should stay under 512 MB) start it with `GOMEMLIMIT=400MiB`, which makes Go's memory manager work harder before the program grows past that. The Docker image sets it already.
+
 ## Settings
 
 Each setting is a flag or a `JL_*` environment variable. A flag wins over the variable.
@@ -30,6 +54,7 @@ Each setting is a flag or a `JL_*` environment variable. A flag wins over the va
 | `--data` | `JL_DATA_DIR` | `./data` | Where all state is kept |
 | `--port` | `JL_HTTP_PORT` | `8080` | HTTP port |
 | `--bind` | `JL_BIND_ADDRESS` | empty (every interface) | IP address both listeners bind to. Use `127.0.0.1` when a reverse proxy runs on the same host, so only the proxy can reach the app |
+| `--https-port` | `JL_HTTPS_PORT` | `8443` | HTTPS port |
 | `--log-level` | `JL_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error` |
 
 A bad value stops the server with a message naming it. SIGTERM or SIGINT shuts the server down, letting running requests finish for up to 10 seconds.

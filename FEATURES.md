@@ -4,6 +4,8 @@ What Jamie's Library does today, by area. Each entry names the requirements it c
 
 ## Running and keeping data
 
+- Installs with one Docker Compose command on 64-bit x86 or ARM Linux (a Raspberry Pi 4 is enough), or as a single downloaded program; one volume or folder holds everything (DEPLOY-T1, DEPLOY-T6).
+- The same functions on a home network or on the internet behind a reverse proxy (DEPLOY-1).
 - Runs as one program with the web app built in; settings by flag or `JL_*` variable.
 - All state is in one data directory, private to its owner; a copy of it taken while the server is stopped is a complete backup (DEPLOY-T3).
 - An upgrade first saves a copy of the database in `backups/`, applies all changes or none, and says what to do if it can't; a program older than its data refuses to start (DEPLOY-T4).

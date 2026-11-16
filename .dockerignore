@@ -1,0 +1,9 @@
+.git
+data
+deploy
+docs
+web/node_modules
+internal/webui/dist/*
+!internal/webui/dist/.gitkeep
+jamieslibrary
+dist
