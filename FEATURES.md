@@ -27,6 +27,7 @@ What Jamie's Library does today, by area. Each entry names the requirements it c
 
 ## Web app
 
+- The Settings screen, for administrators (`/admin/settings`): library name, logo (JPEG, PNG or WebP up to 2 MB; refusals are shown) and colour scheme with a custom accent, a live preview and the server's verdict on readability (ADMIN-1); loan period, items out at once, renewals and time zone (CIRC-4); the sign-out time for unused sessions; switches for self-checkout and the public catalog, each saying what it does (CIRC-7, ACCESS-4); how copies are identified, where switching asks first and explains what it does (CAT-9); and, with the library's own certificate authority, its root fingerprint to check a device's own display against.
 - Patron and staff layouts that work at phone width and on a desktop, with placeholder pages until each feature is built (UX-1, UX-2).
 
 ## Printing

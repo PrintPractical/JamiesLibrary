@@ -315,7 +315,13 @@ func pngCover(seed int) []byte {
 // firstAdmin sets up the first administrator from the setup code on the console.
 func firstAdmin(t *testing.T, p *proc) *pc {
 	t.Helper()
+	// The console is copied from the process by a goroutine, so the line can
+	// arrive a moment after the server answers its health check.
 	code, ok := testutil.ParseSetupCode(p.Stdout.String())
+	for deadline := time.Now().Add(5 * time.Second); !ok && time.Now().Before(deadline); {
+		time.Sleep(20 * time.Millisecond)
+		code, ok = testutil.ParseSetupCode(p.Stdout.String())
+	}
 	if !ok {
 		t.Fatalf("no setup code on the console:\n%s", p.Stdout.String())
 	}
