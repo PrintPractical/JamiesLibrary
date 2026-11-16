@@ -5,6 +5,7 @@ import { Field } from "../../components/Field";
 import { Icon } from "../../components/Icon";
 import { useSubmit } from "../account/forms";
 import { SetupFrame } from "./SetupFrame";
+import "./setup.css";
 
 const FIELDS = ["loan_period_days", "max_loans", "max_renewals", "time_zone"] as const;
 
@@ -27,19 +28,32 @@ function knownZones(): string[] {
 
 const whole = (s: string) => (/^\d{1,4}$/.test(s.trim()) ? Number(s) : NaN);
 
-export function RulesStep({
+/**
+ * Loan period, limits and time zone, used by the setup wizard and by the settings
+ * screen. `onDone` runs after a save. `onBack` and `onSkip`, where given, add the
+ * wizard's buttons. `guessZone` fills in this browser's zone for a library still
+ * at the installation's UTC; without it the saved zone is shown as it is.
+ */
+export function RulesForm({
   settings,
   onSaved,
+  onDone,
   onBack,
-  onNext,
+  onSkip,
+  submitLabel,
+  arrow,
+  guessZone,
 }: {
   settings: AdminSettings;
   onSaved: (s: AdminSettings) => void;
-  onBack: () => void;
-  onNext: () => void;
+  onDone: () => void;
+  onBack?: () => void;
+  onSkip?: () => void;
+  submitLabel: string;
+  arrow?: boolean;
+  guessZone?: boolean;
 }) {
-  // A library still at the installation's UTC takes the zone this browser is in; one already set keeps it.
-  const [zone, setZone] = useState(settings.time_zone === "UTC" ? browserZone() || "UTC" : settings.time_zone);
+  const [zone, setZone] = useState(guessZone && settings.time_zone === "UTC" ? browserZone() || "UTC" : settings.time_zone);
   const [days, setDays] = useState(String(settings.loan_period_days));
   const [loans, setLoans] = useState(String(settings.max_loans));
   const [renewals, setRenewals] = useState(String(settings.max_renewals));
@@ -58,70 +72,93 @@ export function RulesStep({
     if (Object.keys(bad).length > 0) return;
     await run(async () => {
       onSaved(await putRules({ time_zone: zone.trim(), ...nums }));
-      onNext();
+      onDone();
     });
   }
 
   const err = (f: string) => numberErrors[f] ?? fieldErrors[f];
   return (
-    <SetupFrame step={3} title="How borrowing works" intro="Start with these. You can change all of this later in Settings.">
-      <form className="card setup-card stack" onSubmit={submit} noValidate>
-        <InlineError error={formError} />
-        <Field
-          label="Loan period (days)"
-          help="How long a book can be kept before it is due."
-          inputMode="numeric"
-          value={days}
-          onChange={setDays}
-          error={err("loan_period_days")}
-        />
-        <Field
-          label="Books out at once"
-          help="The most one person can have checked out."
-          inputMode="numeric"
-          value={loans}
-          onChange={setLoans}
-          error={err("max_loans")}
-        />
-        <Field
-          label="Renewals"
-          help="How many times a loan can be renewed. 0 means never."
-          inputMode="numeric"
-          value={renewals}
-          onChange={setRenewals}
-          error={err("max_renewals")}
-        />
-        <Field
-          label="Time zone"
-          help="Due dates are calendar days in this zone. We've filled in the one this browser is in."
-          list="setup-zones"
-          value={zone}
-          onChange={setZone}
-          error={fieldErrors.time_zone}
-          autoCapitalize="none"
-          spellCheck={false}
-        />
-        <datalist id="setup-zones">
-          {zones.map((z) => (
-            <option key={z} value={z} />
-          ))}
-        </datalist>
-        <div className="foot">
+    <form className="card setup-card stack" onSubmit={submit} noValidate>
+      <InlineError error={formError} />
+      <Field
+        label="Loan period (days)"
+        help="How long a book can be kept before it is due."
+        inputMode="numeric"
+        value={days}
+        onChange={setDays}
+        error={err("loan_period_days")}
+      />
+      <Field
+        label="Books out at once"
+        help="The most one person can have checked out."
+        inputMode="numeric"
+        value={loans}
+        onChange={setLoans}
+        error={err("max_loans")}
+      />
+      <Field
+        label="Renewals"
+        help="How many times a loan can be renewed. 0 means never."
+        inputMode="numeric"
+        value={renewals}
+        onChange={setRenewals}
+        error={err("max_renewals")}
+      />
+      <Field
+        label="Time zone"
+        help={guessZone ? "Due dates are calendar days in this zone. We've filled in the one this browser is in." : "Due dates are calendar days in this zone."}
+        list="setup-zones"
+        value={zone}
+        onChange={setZone}
+        error={fieldErrors.time_zone}
+        autoCapitalize="none"
+        spellCheck={false}
+      />
+      <datalist id="setup-zones">
+        {zones.map((z) => (
+          <option key={z} value={z} />
+        ))}
+      </datalist>
+      <div className="foot">
+        {onBack ? (
           <button type="button" className="btn btn-quiet" onClick={onBack}>
             <Icon name="left" />
             Back
           </button>
-          <div className="row">
-            <button type="button" className="btn btn-quiet" onClick={onNext}>
+        ) : (
+          <span />
+        )}
+        <div className="row">
+          {onSkip && (
+            <button type="button" className="btn btn-quiet" onClick={onSkip}>
               Skip
             </button>
-            <button type="submit" className="btn btn-primary" disabled={busy}>
-              {busy ? "Saving…" : "Continue to invitations"}
-              <Icon name="right" />
-            </button>
-          </div>
+          )}
+          <button type="submit" className="btn btn-primary" disabled={busy}>
+            {busy ? "Saving…" : submitLabel}
+            {arrow && <Icon name="right" />}
+          </button>
         </div>
-      </form>
+      </div>
+    </form>
+  );
+}
+
+/** Step 3 of the wizard. */
+export function RulesStep({
+  settings,
+  onSaved,
+  onBack,
+  onNext,
+}: {
+  settings: AdminSettings;
+  onSaved: (s: AdminSettings) => void;
+  onBack: () => void;
+  onNext: () => void;
+}) {
+  return (
+    <SetupFrame step={3} title="How borrowing works" intro="Start with these. You can change all of this later in Settings.">
+      <RulesForm settings={settings} onSaved={onSaved} onDone={onNext} onBack={onBack} onSkip={onNext} submitLabel="Continue to invitations" arrow guessZone />
     </SetupFrame>
   );
 }
