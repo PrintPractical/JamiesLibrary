@@ -2,6 +2,7 @@
 
 This guide is for everyone who has an account (signing in, registering, changing your password) and for the people who look after the others' accounts (invitations, roles, permissions, deactivation, password resets), and it ends with what the person who runs the server does when the only administrator can't get in. The library has no email: passwords and codes are handed over in person or through a channel you trust.
 
+- [Private until you sign in](#private-until-you-sign-in)
 - [Signing in and out](#signing-in-and-out)
 - [Registering with an invitation code](#registering-with-an-invitation-code)
 - [Changing your password](#changing-your-password)
@@ -12,6 +13,14 @@ This guide is for everyone who has an account (signing in, registering, changing
 - [Resetting someone's password](#resetting-someones-password)
 - [Locked out: recovering the only administrator](#locked-out-recovering-the-only-administrator)
 - [Messages and what to do](#messages-and-what-to-do)
+
+## Private until you sign in
+
+A new library shows nothing of its books or its people to anyone who hasn't signed in.
+
+- **Opening any page.** A visitor who isn't signed in is taken to **Sign in** (`/signin`), and after signing in goes on to the page they were heading for. The server answers any request for library data with "not signed in" (HTTP 401) or "not found" (404), never with a title or a name.
+- **What a visitor can still reach.** The sign-in page, registering with an invitation code (`/register`), the first-run setup page (until an administrator exists), and the library's name and logo. None of these show a book or a person.
+- **The one exception: the public catalog.** An administrator can turn on **Public catalog** in Settings. It is off in a new library. Then anyone can search the catalog and open a book's page, seeing only what [the public catalog shows](guide-browsing.md#without-an-account-the-public-catalog); every other page still sends them to sign in. Turning it off takes effect at once.
 
 ## Signing in and out
 

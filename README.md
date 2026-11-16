@@ -41,6 +41,17 @@ The container runs as user 65532 with a read-only root filesystem; only `/data` 
 
 **On the internet, behind a reverse proxy:** `deploy/compose.public.yml` runs the app over plain HTTP on a private network, with Caddy in front getting the HTTPS certificate. Put your domain name in `deploy/Caddyfile`, open ports 80 and 443, and run `docker compose -p jamieslibrary -f deploy/compose.public.yml up -d --build`. It sets `JL_HTTP_ONLY=1`, `JL_BIND_ADDRESS` and `JL_TRUSTED_PROXIES` for you; `JL_TRUSTED_PROXIES` lists only the proxy's own fixed address (`172.30.0.2/32`), never the whole network, whose gateway is the host itself: if you use another proxy, list only that proxy's address (see the settings table and the [public guide](docs/install-public.md#behind-a-reverse-proxy)). The app offers the same functions in both setups.
 
+## Phones and computers
+
+The library is a web app: nothing is installed on a phone or computer, you open its address in a browser.
+
+- **On a phone.** Every screen is laid out for a phone first and fits a screen as narrow as 360 pixels wide without sideways scrolling. Navigation is a tab bar at the bottom, and a librarian can scan barcodes with the phone's camera.
+- **On a computer.** The same screens widen on a desktop browser (from about 900 pixels wide), with a side bar in place of the tab bar. A USB or Bluetooth barcode scanner works like a keyboard, so it needs nothing set up.
+- **The camera needs HTTPS.** Browsers allow the camera only on a secure page. Both setups in [Install with Docker](#install-with-docker) provide HTTPS: on a home network each phone or computer does a one-time trust step first (see the [home install guide](docs/install-lan.md#the-trust-step-once-per-phone-or-computer)), and on the internet the proxy gets a certificate for you. Without it, typing codes and a hand scanner still work. See [Scanning](docs/guide-catalog.md#scanning-camera-hand-scanner-or-typing).
+- **Installing it as an app.** There is no installable app: it has no app manifest and doesn't work offline, so a browser's "Install" option isn't offered by the library. To get an icon on a phone's home screen, use your browser's "Add to Home Screen" (or a bookmark), which opens the library in the browser.
+- **Browsers.** Use a current Chrome, Edge, Firefox or Safari. The screens at 360 and 1280 pixels are checked automatically in Chromium; other browsers are not tested by the project. The camera uses the browser's own barcode reader where it has one and a bundled one otherwise, so it needs no internet.
+- **Same functions everywhere.** A library on a home network and one on the internet offer the same functions: the guides differ only in how the program is reached and secured ([home or office network](docs/install-lan.md), [public internet](docs/install-public.md)).
+
 ## Release binaries
 
 `scripts/release.sh VERSION [DIR]` builds the web app once, then the program for `linux/amd64`, `linux/arm64` and `darwin/arm64` into `DIR` (default `dist/`), with a `SHA256SUMS` file to check them with (`sha256sum -c SHA256SUMS`). Windows isn't built: the data directory lock needs a Unix system call.
