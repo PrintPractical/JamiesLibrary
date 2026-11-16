@@ -219,12 +219,27 @@ func setPermissions(ctx context.Context, tx store.Tx, userID int64, set perm.Set
 
 // Get returns the user with their permissions.
 func (s *Service) Get(ctx context.Context, id int64) (User, error) {
+	return getFrom(ctx, s.st.DB(), id)
+}
+
+// GetTx is Get inside the caller's transaction.
+func (s *Service) GetTx(ctx context.Context, tx store.Tx, id int64) (User, error) {
+	return getFrom(ctx, tx, id)
+}
+
+// querier is what *sql.DB and *sql.Tx share.
+type querier interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
+func getFrom(ctx context.Context, q querier, id int64) (User, error) {
 	var (
 		u       User
 		role    string
 		created string
 	)
-	err := s.st.DB().QueryRowContext(ctx,
+	err := q.QueryRowContext(ctx,
 		`SELECT id, username, display_name, must_change_password, role, active, created_at FROM users WHERE id = ?`, id).
 		Scan(&u.ID, &u.Username, &u.DisplayName, &u.MustChangePassword, &role, &u.Active, &created)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -235,7 +250,7 @@ func (s *Service) Get(ctx context.Context, id int64) (User, error) {
 	}
 	u.Role = perm.Role(role)
 	u.CreatedAt, _ = time.Parse(time.RFC3339, created)
-	rows, err := s.st.DB().QueryContext(ctx, `SELECT permission FROM user_permissions WHERE user_id = ?`, id)
+	rows, err := q.QueryContext(ctx, `SELECT permission FROM user_permissions WHERE user_id = ?`, id)
 	if err != nil {
 		return User{}, err
 	}
