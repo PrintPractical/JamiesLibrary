@@ -118,11 +118,15 @@ func Run(ctx context.Context, o Options) error {
 	if err != nil {
 		return err
 	}
+	trustPort := 0
+	if plainLn != nil {
+		trustPort = plainLn.Addr().(*net.TCPAddr).Port
+	}
 	usersSvc := users.New(st)
 	authSvc := auth.NewService(st, usersSvc,
 		func() time.Duration { return time.Duration(set.Get().SessionIdleMinutes) * time.Minute }, log)
 	h, err := httpapi.NewHandler(httpapi.Options{
-		Version: o.Version, Logger: log, Static: webui.Handler(),
+		TrustPort: trustPort, Version: o.Version, Logger: log, Static: webui.Handler(),
 		Auth: authSvc, Users: usersSvc, Settings: set, Activity: activity.New(st), Store: st,
 		PublicCatalogOn: func() bool { return set.Get().PublicCatalog },
 	})
