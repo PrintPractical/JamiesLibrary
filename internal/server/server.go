@@ -216,6 +216,12 @@ func Run(ctx context.Context, o Options) error {
 // images no book (removed ones included) or logo names. It runs before the
 // listeners serve, so no save can be in flight.
 func sweepImages(ctx context.Context, st *store.Store, images *media.Images, log *slog.Logger) error {
+	// After a kill -9 another process may still hold the database open (a backup
+	// tool, a shell), so SQLite does not rebuild the wal-index and a plain read
+	// can miss the last commits. Checkpointing first makes the read see them.
+	if _, err := st.DB().ExecContext(ctx, `PRAGMA wal_checkpoint(TRUNCATE)`); err != nil {
+		return fmt.Errorf("checkpointing before the sweep: %w", err)
+	}
 	rows, err := st.DB().QueryContext(ctx,
 		`SELECT cover FROM books WHERE cover IS NOT NULL UNION SELECT logo_file FROM settings`)
 	if err != nil {

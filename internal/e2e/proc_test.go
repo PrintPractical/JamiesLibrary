@@ -343,11 +343,6 @@ func openRO(t testing.TB, dir string) *sql.DB {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// A connection kept open between queries holds SQLite's shared-memory lock on the
-	// library. A server that is then killed (kill -9) is not recovered from by the next one,
-	// which trusts a wal-index that lacks the last commits and serves a stale picture of the
-	// data. Releasing each connection when its query is done keeps the test from being the
-	// other process that holds the file.
 	t.Cleanup(func() { db.Close() })
 	return db
 }
