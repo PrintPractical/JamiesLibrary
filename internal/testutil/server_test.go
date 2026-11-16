@@ -238,5 +238,10 @@ func withSettings(t *testing.T, sql string) []byte {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return append([]byte(sql+";\n"), settings...)
+	// start-up asks whether an administrator exists, so the users tables are needed too
+	users, err := os.ReadFile("../store/migrations/0004_users.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return append(append([]byte(sql+";\n"), settings...), users...)
 }

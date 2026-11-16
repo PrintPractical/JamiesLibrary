@@ -109,6 +109,13 @@ func (s *Service) rehash(ctx context.Context, cred users.Credentials, password s
 	}
 }
 
+// StartSession starts a session for a user who has just been let in by other
+// means than a password check, such as the first administrator's setup, and
+// returns its token.
+func (s *Service) StartSession(ctx context.Context, userID int64) (string, error) {
+	return s.create(ctx, userID)
+}
+
 func (s *Service) create(ctx context.Context, userID int64) (string, error) {
 	b := make([]byte, tokenBytes)
 	if _, err := rand.Read(b); err != nil {

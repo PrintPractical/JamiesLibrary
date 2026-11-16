@@ -14,6 +14,7 @@ import (
 	"jamieslibrary/internal/media"
 	"jamieslibrary/internal/ratelimit"
 	"jamieslibrary/internal/settings"
+	"jamieslibrary/internal/setup"
 	"jamieslibrary/internal/store"
 	"jamieslibrary/internal/useradmin"
 	"jamieslibrary/internal/users"
@@ -55,6 +56,8 @@ type Options struct {
 	// Limiter holds the failed-attempt counts. The default is a fresh one,
 	// which a server replaces with the one it shares with the other routes.
 	Limiter *ratelimit.Limiter
+	// Setup is the first administrator's set-up; when set its routes are registered.
+	Setup *setup.Service
 	// Routes registers the API's routes, each with its access.
 	Routes func(*Router)
 }
@@ -116,6 +119,9 @@ func buildRouter(o Options) (*Router, error) {
 func registerAPI(rt *Router, o Options) {
 	if o.Auth != nil {
 		registerAuthRoutes(rt, o)
+	}
+	if o.Setup != nil && o.Auth != nil && o.Users != nil && o.Settings != nil {
+		registerSetupRoutes(rt, o)
 	}
 	if o.Media != nil && o.Settings != nil {
 		registerMedia(rt, o)

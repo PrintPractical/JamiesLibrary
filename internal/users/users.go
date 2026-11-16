@@ -116,37 +116,10 @@ func invalid(field, msg string) error { return apperr.OnField(apperr.Invalid, fi
 
 // Create adds an account with exactly the permissions of its role's preset.
 func (s *Service) Create(ctx context.Context, n NewUser) (User, error) {
-	var err error
-	if n.Username, err = checkUsername(n.Username); err != nil {
-		return User{}, err
-	}
-	if n.DisplayName, err = checkDisplayName(n.DisplayName); err != nil {
-		return User{}, err
-	}
-	if !perm.ValidRole(n.Role) {
-		return User{}, invalid("role", "Choose patron, librarian or administrator.")
-	}
 	var id int64
-	err = s.st.WithTx(ctx, func(tx store.Tx) error {
-		res, err := tx.ExecContext(ctx,
-			`INSERT INTO users (username, display_name, password_hash, must_change_password, role, active, created_at)
-			 VALUES (?, ?, ?, ?, ?, 1, ?)`,
-			n.Username, n.DisplayName, n.PasswordHash, n.MustChangePassword, string(n.Role),
-			s.now().UTC().Format(time.RFC3339))
-		if err != nil {
-			if strings.Contains(err.Error(), "UNIQUE") {
-				return apperr.OnField(apperr.Conflict, "username", "That username is taken.")
-			}
-			return err
-		}
-		if id, err = res.LastInsertId(); err != nil {
-			return err
-		}
-		if err := setPermissions(ctx, tx, id, perm.Preset(n.Role)); err != nil {
-			return err
-		}
-		// every account gets its library card when it is made (CARD-1)
-		_, err = s.IssueCard(ctx, tx, id)
+	err := s.st.WithTx(ctx, func(tx store.Tx) error {
+		var err error
+		id, err = s.CreateTx(ctx, tx, n)
 		return err
 	})
 	if err != nil {
@@ -155,25 +128,66 @@ func (s *Service) Create(ctx context.Context, n NewUser) (User, error) {
 	return s.Get(ctx, id)
 }
 
+// CreateTx is Create inside the caller's transaction, returning the new ID, so
+// the account and what must happen with it (a closed setup) commit together.
+func (s *Service) CreateTx(ctx context.Context, tx store.Tx, n NewUser) (int64, error) {
+	var err error
+	if n.Username, err = checkUsername(n.Username); err != nil {
+		return 0, err
+	}
+	if n.DisplayName, err = checkDisplayName(n.DisplayName); err != nil {
+		return 0, err
+	}
+	if !perm.ValidRole(n.Role) {
+		return 0, invalid("role", "Choose patron, librarian or administrator.")
+	}
+	res, err := tx.ExecContext(ctx,
+		`INSERT INTO users (username, display_name, password_hash, must_change_password, role, active, created_at)
+		 VALUES (?, ?, ?, ?, ?, 1, ?)`,
+		n.Username, n.DisplayName, n.PasswordHash, n.MustChangePassword, string(n.Role),
+		s.now().UTC().Format(time.RFC3339))
+	if err != nil {
+		if strings.Contains(err.Error(), "UNIQUE") {
+			return 0, apperr.OnField(apperr.Conflict, "username", "That username is taken.")
+		}
+		return 0, err
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+	if err := setPermissions(ctx, tx, id, perm.Preset(n.Role)); err != nil {
+		return 0, err
+	}
+	// every account gets its library card when it is made (CARD-1)
+	if _, err = s.IssueCard(ctx, tx, id); err != nil {
+		return 0, err
+	}
+	return id, nil
+}
+
 // AssignRole gives the user the role and replaces their permissions with its preset.
 func (s *Service) AssignRole(ctx context.Context, userID int64, role perm.Role) (User, error) {
-	if !perm.ValidRole(role) {
-		return User{}, invalid("role", "Choose patron, librarian or administrator.")
-	}
-	err := s.st.WithTx(ctx, func(tx store.Tx) error {
-		res, err := tx.ExecContext(ctx, `UPDATE users SET role = ? WHERE id = ?`, string(role), userID)
-		if err != nil {
-			return err
-		}
-		if n, _ := res.RowsAffected(); n == 0 {
-			return errNotFound
-		}
-		return setPermissions(ctx, tx, userID, perm.Preset(role))
-	})
+	err := s.st.WithTx(ctx, func(tx store.Tx) error { return s.AssignRoleTx(ctx, tx, userID, role) })
 	if err != nil {
 		return User{}, err
 	}
 	return s.Get(ctx, userID)
+}
+
+// AssignRoleTx is AssignRole inside the caller's transaction.
+func (s *Service) AssignRoleTx(ctx context.Context, tx store.Tx, userID int64, role perm.Role) error {
+	if !perm.ValidRole(role) {
+		return invalid("role", "Choose patron, librarian or administrator.")
+	}
+	res, err := tx.ExecContext(ctx, `UPDATE users SET role = ? WHERE id = ?`, string(role), userID)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return errNotFound
+	}
+	return setPermissions(ctx, tx, userID, perm.Preset(role))
 }
 
 // SetPermission switches one permission on or off. The role stays as it was.

@@ -182,3 +182,26 @@ func TestTheDummyHashParsesWithTodaysParameters(t *testing.T) {
 		t.Fatalf("dummy hash: %+v, %v", h, err)
 	}
 }
+
+func TestTemporaryPasswordIsLongEnoughDistinctAndAcceptable(t *testing.T) {
+	seen := map[string]bool{}
+	for i := 0; i < 50; i++ {
+		p, err := TemporaryPassword()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(p) != TemporaryPasswordLength || TemporaryPasswordLength != 16 {
+			t.Fatalf("length %d", len(p))
+		}
+		if err := CheckPassword("password", p); err != nil {
+			t.Fatalf("%q: %v", p, err)
+		}
+		if strings.ContainsAny(p, "01lIO") {
+			t.Fatalf("%q has a look-alike character", p)
+		}
+		if seen[p] {
+			t.Fatal("drawn twice")
+		}
+		seen[p] = true
+	}
+}
