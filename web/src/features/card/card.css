@@ -1,0 +1,112 @@
+/* The library card (CARD-1). The codes stay black on white at every theme so a scanner reads them. */
+.card-wrap {
+  display: grid;
+  gap: 22px;
+  justify-items: center;
+}
+.lcard {
+  width: 100%;
+  max-width: 420px;
+  border-radius: 20px;
+  overflow: hidden;
+  background: #fffbf3;
+  border: 1px solid var(--line);
+  box-shadow: 0 2px 4px rgba(59, 42, 31, 0.1), 0 14px 36px rgba(59, 42, 31, 0.16);
+}
+.lcard-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px;
+  background: linear-gradient(135deg, #7a2e22, #5a2118);
+  color: var(--on-primary);
+}
+.lcard-top .logo {
+  width: 38px;
+  height: 38px;
+}
+.lcard-top b {
+  font-family: var(--serif);
+  font-size: 19px;
+  font-weight: 600;
+  display: block;
+  line-height: 1.1;
+}
+.lcard-top span {
+  font-size: 13px;
+  opacity: 0.9;
+}
+.lcard-body {
+  padding: 20px 22px 22px;
+  text-align: center;
+  color: #2a1f17;
+}
+.lcard-name {
+  font-family: var(--serif);
+  font-size: 26px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.lcard-bc {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px 16px 8px;
+  margin-top: 16px;
+}
+.lcard-bc img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.lcard-num {
+  font-weight: 700;
+  font-size: 20px;
+  line-height: 1;
+  letter-spacing: 0.14em;
+  margin-top: 8px;
+  color: #000;
+}
+.lcard-qr {
+  width: 168px;
+  margin: 18px auto 0;
+  padding: 8px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.lcard-qr img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.card-info {
+  width: 100%;
+  max-width: 420px;
+}
+.card-info .row {
+  align-items: flex-start;
+}
+.card-info svg {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  color: var(--ink-2);
+  margin-top: 2px;
+}
+@media (min-width: 900px) {
+  .card-wrap {
+    grid-template-columns: auto 340px;
+    justify-content: center;
+    align-items: start;
+    gap: 40px;
+    justify-items: stretch;
+  }
+  .lcard {
+    width: 440px;
+    max-width: none;
+  }
+  .card-info {
+    margin-top: 8px;
+  }
+}

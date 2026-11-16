@@ -6,6 +6,7 @@ import { Account } from "../features/account/Account";
 import { ForcedChange } from "../features/account/ForcedChange";
 import { Register } from "../features/account/Register";
 import { SignIn } from "../features/account/SignIn";
+import { Card } from "../features/card/Card";
 import { Overdue } from "../features/patrons/Overdue";
 import { PatronPage } from "../features/patrons/PatronPage";
 import { Patrons } from "../features/patrons/Patrons";
@@ -110,7 +111,7 @@ export function AppRoutes() {
         <Route element={<PatronArea />}>
           <Route index element={page("Home")} />
           <Route path="browse" element={gated(["catalog.browse"], "Browse")} />
-          <Route path="card" element={page("My card")} />
+          <Route path="card" element={<Card />} />
           <Route path="loans" element={gated(["loans.own.view"], "My books")} />
           <Route path="account" element={<Account />} />
           <Route path="books/:id" element={gated(["catalog.browse"], "Book")} />
