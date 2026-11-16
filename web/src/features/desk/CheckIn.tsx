@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError } from "../../api/client";
 import { checkin, type CheckinResult, type DeskLoan } from "../../api/desk";
 import { InlineError } from "../../components/Errors";
@@ -179,7 +179,7 @@ export function CheckIn() {
   }, []);
 
   const run = useCallback(
-    async (code: string, which: { loanId?: number; card?: string }) => {
+    async (code: string, which: { loanId?: number; card?: string }): Promise<boolean> => {
       setProblem(null);
       try {
         const r = await checkin(code, which);
@@ -195,7 +195,10 @@ export function CheckIn() {
         } else {
           setProblem(new Error("unexpected reply"));
         }
+        return true;
       } catch (err) {
+        // No patron has that card: the caller decides what the code was instead.
+        if (which.card && err instanceof ApiError && err.status === 404) return false;
         // A code nothing has is an outcome of its own. Anything else (a card that isn't this
         // loan's, the library being unreachable) is said where the scan was and changes nothing.
         if (!which.card && !which.loanId && err instanceof ApiError && err.status === 404) {
@@ -203,6 +206,7 @@ export function CheckIn() {
         } else {
           setProblem(err);
         }
+        return true;
       }
     },
     [record, show],
@@ -212,18 +216,24 @@ export function CheckIn() {
     (code: string) => {
       queue.current = queue.current.then(() => {
         const open = pending.current;
-        // With a choice open, a scan is the patron's card; a new book code starts over.
-        return open ? run(open.code, { card: code }) : run(code, {});
+        if (!open) return run(code, {});
+        // With a choice open, a scan is taken for the patron's card. A code that is no patron's
+        // card is the next book: the choice is dropped and that code is checked in.
+        return run(open.code, { card: code }).then(async (ok) => {
+          if (ok) return;
+          show(null);
+          await run(code, {});
+        });
       });
     },
-    [run],
+    [run, show],
   );
 
   const pick = useCallback(
     (loan: DeskLoan) => {
       queue.current = queue.current.then(() => {
         const open = pending.current;
-        return open ? run(open.code, { loanId: loan.id }) : undefined;
+        return open ? run(open.code, { loanId: loan.id }).then(() => undefined) : undefined;
       });
     },
     [run],
@@ -231,8 +241,17 @@ export function CheckIn() {
 
   const latest = entries[0];
 
+  // The button that settled a choice goes with it, and focus would fall to the page: give it back
+  // to the scan field so the next scan isn't lost.
+  const page = useRef<HTMLDivElement>(null);
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (wasOpen.current && !choice) page.current?.querySelector("input")?.focus({ preventScroll: true });
+    wasOpen.current = choice !== null;
+  }, [choice]);
+
   return (
-    <div>
+    <div ref={page}>
       <h1>Check in</h1>
       <p className="muted ci-lead">Scan each returned book. No need to pick a patron first.</p>
       <div className="ci-layout">
@@ -247,7 +266,7 @@ export function CheckIn() {
           />
           <InlineError error={problem} />
           {choice && <ChoosePanel choice={choice} onPick={pick} onCancel={() => show(null)} />}
-          {latest && <Latest entry={latest} />}
+          {latest && !choice && <Latest entry={latest} />}
         </div>
         <section className="card ci-session" aria-labelledby="ci-log-title">
           <div className="ci-card-head">

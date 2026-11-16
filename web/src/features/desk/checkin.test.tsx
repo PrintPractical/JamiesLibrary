@@ -131,6 +131,54 @@ describe("CIRC-2 Check in", () => {
       expect(screen.getByText("Sam Lee · Copy 3")).toBeInTheDocument();
     });
 
+    test("the scan field has focus again after Return, after Cancel and after a card scan", async () => {
+      const handler = (body: unknown) => {
+        const b = body as { loan_id?: number; card?: string };
+        return b.loan_id || b.card ? returned(loan({ id: 3 })) : choose;
+      };
+      await open(handler);
+      const field = () => screen.getByRole("textbox");
+      await scan("9780141439518");
+      await userEvent.click(await screen.findByRole("button", { name: "Return copy 3 from Sam Lee" }));
+      await screen.findByRole("status", { name: "Latest scan" });
+      expect(field()).toHaveFocus();
+      await scan("9780141439518");
+      await userEvent.click(await screen.findByRole("button", { name: "Cancel" }));
+      expect(field()).toHaveFocus();
+      await scan("9780141439518");
+      await screen.findByText("Sam Lee · Copy 3");
+      await scan("123456789012");
+      await screen.findByText("This session · 2 scans");
+      expect(field()).toHaveFocus();
+    });
+
+    test("the earlier result is not shown while a choice is open, and returns when it is settled", async () => {
+      await open((body) => ((body as { code: string }).code === "NOPE" ? apiError(404, "not_found", "Nothing matches that code.") : choose));
+      await scan("NOPE");
+      expect(await screen.findByRole("status", { name: "Latest scan" })).toHaveTextContent("Nothing matches that code");
+      await scan("9780141439518");
+      await screen.findByText("Sam Lee · Copy 3");
+      expect(screen.queryByRole("status", { name: "Latest scan" })).toBeNull();
+      await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+      expect(screen.getByRole("status", { name: "Latest scan" })).toHaveTextContent("Nothing matches that code");
+    });
+
+    test("scanning another book while a choice is open checks that book in, never 'no such patron'", async () => {
+      const calls = await open((body) => {
+        const b = body as { code: string; card?: string };
+        if (b.card) return apiError(404, "not_found", "No such patron: no library card has that number.");
+        return b.code === "9781635575637" ? returned(loan({ title: "Piranesi", patron_name: "Sam Lee" })) : choose;
+      });
+      await scan("9780141439518");
+      await screen.findByText("Sam Lee · Copy 3");
+      await scan("9781635575637");
+      expect(await screen.findByRole("status", { name: "Latest scan" })).toHaveTextContent("Piranesi");
+      expect(screen.queryByText("Sam Lee · Copy 3")).toBeNull();
+      expect(screen.queryByRole("alert")).toBeNull();
+      expect(calls.filter((c) => c.method === "POST").at(-1)?.body).toEqual({ code: "9781635575637" });
+      expect(screen.getByRole("textbox")).toHaveFocus();
+    });
+
     test("Cancel closes the choice and returns nothing", async () => {
       const calls = await open(() => choose);
       await scan("9780141439518");
