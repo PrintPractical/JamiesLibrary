@@ -2,6 +2,7 @@ package circ
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -143,27 +144,47 @@ type PatronMatch struct {
 // FindPatrons looks up patrons by part of a name (display name or username,
 // ignoring case) or by a card number (CIRC-3). At most MaxPatronResults come back.
 func (s *Service) FindPatrons(ctx context.Context, query string) ([]PatronMatch, error) {
+	query, err := validSearch(query)
+	if err != nil {
+		return nil, err
+	}
+	return s.matchPatrons(ctx, query, true, MaxPatronResults)
+}
+
+// validSearch trims a look-up and refuses an empty, over-long or control-character one.
+func validSearch(query string) (string, error) {
 	query = strings.TrimSpace(query)
 	if query == "" {
-		return nil, apperr.OnField(apperr.Invalid, "q", "Type a name or a card number to look for.")
+		return "", apperr.OnField(apperr.Invalid, "q", "Type a name or a card number to look for.")
 	}
 	if utf8.RuneCountInString(query) > catalog.MaxSearchTerm {
-		return nil, apperr.OnField(apperr.Invalid, "q", "The search is too long: at most 200 characters.")
+		return "", apperr.OnField(apperr.Invalid, "q", "The search is too long: at most 200 characters.")
 	}
 	for _, r := range query {
 		if r < 0x20 || r == 0x7f {
-			return nil, apperr.OnField(apperr.Invalid, "q", "The search has a character that is not allowed.")
+			return "", apperr.OnField(apperr.Invalid, "q", "The search has a character that is not allowed.")
 		}
 	}
+	return query, nil
+}
+
+// matchPatrons lists up to limit users whose display name or username contains
+// the (validated) query, ignoring case, and with exactCard also the holder of a
+// card with that number. Shared by CIRC-3's look-up and CIRC-8's.
+func (s *Service) matchPatrons(ctx context.Context, query string, exactCard bool, limit int) ([]PatronMatch, error) {
 	like := "%" + likeEscape(store.Fold(query)) + "%"
+	where, args := `fold(u.display_name) LIKE ? ESCAPE '\' OR fold(u.username) LIKE ? ESCAPE '\'`, []any{like, like}
+	if exactCard {
+		where, args = `i.code = ? OR `+where, append([]any{strings.ToUpper(query)}, args...)
+	}
+	args = append([]any{s.settings.Today(), catalog.KindCard}, append(args, limit)...)
 	rows, err := s.st.DB().QueryContext(ctx, `
 		SELECT u.id, u.username, u.display_name, COALESCE(i.code, ''), u.active,
 			(SELECT count(*) FROM loans WHERE patron_id = u.id AND returned_at IS NULL),
 			(SELECT count(*) FROM loans WHERE patron_id = u.id AND returned_at IS NULL AND due_date < ?)
 		FROM users u LEFT JOIN identifiers i ON i.user_id = u.id AND i.kind = ?
-		WHERE i.code = ? OR fold(u.display_name) LIKE ? ESCAPE '\' OR fold(u.username) LIKE ? ESCAPE '\'
-		ORDER BY u.display_name COLLATE NOCASE, u.id LIMIT ?`,
-		s.settings.Today(), catalog.KindCard, strings.ToUpper(query), like, like, MaxPatronResults)
+		WHERE `+where+`
+		ORDER BY u.display_name COLLATE NOCASE, u.id LIMIT ?`, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -177,6 +198,43 @@ func (s *Service) FindPatrons(ctx context.Context, query string) ([]PatronMatch,
 		out = append(out, p)
 	}
 	return out, rows.Err()
+}
+
+// DeskFind is the answer to the one patron field at checkout (CIRC-8): the
+// patron a card number names, or else the matches for part of a name.
+type DeskFind struct {
+	Patron  *Patron
+	Matches []PatronMatch
+	More    bool // more than MaxPatronResults matched; Matches holds the first MaxPatronResults
+}
+
+// FindAtDesk answers what was typed or scanned in the patron field. A card
+// number selects its holder; anything else lists users whose display name or
+// username contains it. Card numbers are not matched by part, and every user
+// is a candidate: the caller tells them apart by Active and Card.
+func (s *Service) FindAtDesk(ctx context.Context, query string) (DeskFind, error) {
+	query, err := validSearch(query)
+	if err != nil {
+		return DeskFind{}, err
+	}
+	if _, err := catalog.NormaliseCode(query); err == nil {
+		p, err := s.patronByCard(ctx, s.st.DB(), query)
+		if err == nil {
+			return DeskFind{Patron: &p}, nil
+		}
+		if !errors.Is(err, errNoSuchPatron) {
+			return DeskFind{}, err
+		}
+	}
+	found, err := s.matchPatrons(ctx, query, false, MaxPatronResults+1)
+	if err != nil {
+		return DeskFind{}, err
+	}
+	more := len(found) > MaxPatronResults
+	if more {
+		found = found[:MaxPatronResults]
+	}
+	return DeskFind{Matches: found, More: more}, nil
 }
 
 func likeEscape(s string) string {

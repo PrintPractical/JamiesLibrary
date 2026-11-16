@@ -14,6 +14,7 @@ import (
 func registerDeskRoutes(rt *Router, o Options) {
 	d := &deskRoutes{circ: o.Circ}
 	rt.HandleFunc("POST /api/desk/resolve", Require(perm.CircDesk), d.resolve)
+	rt.HandleFunc("POST /api/desk/find", Require(perm.CircDesk), d.find)
 	rt.HandleFunc("POST /api/desk/checkout", Require(perm.CircDesk), d.checkout)
 	rt.HandleFunc("POST /api/desk/checkin", Require(perm.CircDesk), d.checkin)
 }
@@ -92,6 +93,10 @@ func bookBody(b *circ.BookInfo) *deskBookBody {
 	return &deskBookBody{ID: b.ID, Title: b.Title, Authors: b.Authors, ISBN: b.ISBN, Copies: b.Copies, Available: b.Available}
 }
 
+func toDeskPatron(p circ.Patron) deskPatronBody {
+	return deskPatronBody{ID: p.ID, DisplayName: p.DisplayName, Card: p.Card, Active: p.Active, Out: p.Out, Overdue: p.Overdue, Limit: p.Limit}
+}
+
 type resolveRequest struct {
 	Code string `json:"code"`
 	Step string `json:"step"`
@@ -120,13 +125,44 @@ func (d *deskRoutes) resolve(w http.ResponseWriter, r *http.Request) {
 	case got.Patron != nil:
 		p := got.Patron
 		out.Kind = "patron"
-		out.Patron = &deskPatronBody{ID: p.ID, DisplayName: p.DisplayName, Card: p.Card, Active: p.Active, Out: p.Out, Overdue: p.Overdue, Limit: p.Limit}
+		b := toDeskPatron(*p)
+		out.Patron = &b
 	case got.Copy != nil:
 		out.Kind = "copy"
 	default:
 		out.Kind = "book"
 	}
 	WriteJSON(w, http.StatusOK, out)
+}
+
+type findRequest struct {
+	Q string `json:"q"`
+}
+
+// find answers the patron field at checkout (CIRC-8): a card selects its holder,
+// anything else lists the users whose name or username contains it. It needs
+// circ.desk only, so a librarian without patrons.lookup can use it.
+func (d *deskRoutes) find(w http.ResponseWriter, r *http.Request) {
+	var req findRequest
+	if err := DecodeJSON(w, r, &req); err != nil {
+		WriteError(w, r, err)
+		return
+	}
+	got, err := d.circ.FindAtDesk(r.Context(), req.Q)
+	if err != nil {
+		WriteError(w, r, err)
+		return
+	}
+	if p := got.Patron; p != nil {
+		WriteJSON(w, http.StatusOK, map[string]any{"kind": "patron",
+			"patron": toDeskPatron(*p)})
+		return
+	}
+	matches := make([]patronMatchBody, 0, len(got.Matches))
+	for _, m := range got.Matches {
+		matches = append(matches, toPatronMatch(m))
+	}
+	WriteJSON(w, http.StatusOK, map[string]any{"kind": "matches", "patrons": matches, "more": got.More})
 }
 
 type checkoutRequest struct {
