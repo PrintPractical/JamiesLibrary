@@ -42,8 +42,10 @@ func run(args []string, getenv func(string) string, stdout, stderr io.Writer) in
 			return 1
 		}
 		return 0
+	case "admin":
+		return runAdmin(args, getenv, stdout, stderr)
 	default:
-		fmt.Fprintf(stderr, "jamieslibrary: unknown command %q (use serve or version)\n", cmd)
+		fmt.Fprintf(stderr, "jamieslibrary: unknown command %q (use serve, admin or version)\n", cmd)
 		return 2
 	}
 }
