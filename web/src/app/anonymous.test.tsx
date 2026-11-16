@@ -19,8 +19,9 @@ const allPaths = paths(routeTable).map((p) => (p === "" ? "/" : p.replace(/:\w+/
 const OPEN_TO_ANYONE = ["/api/me", "/api/library", "/api/setup/status"];
 const SIGN_IN_FREE = ["/signin", "/register", "/setup"];
 
-const freshInstall = (publicCatalog: boolean) =>
+const freshInstall = (publicCatalog: boolean, more: Parameters<typeof fakeServer>[0] = {}) =>
   fakeServer({
+    ...more,
     "GET /api/me": signedOut(),
     "GET /api/library": { body: { ...library, public_catalog: publicCatalog } },
     "GET /api/setup/status": { body: { open: true } },
@@ -95,12 +96,18 @@ describe("ACCESS-4 Optional public catalog", () => {
   });
 
   test("Enabled: a visitor sees the catalog pages, asking only /api/public/, and staff routes still go to sign in", async () => {
-    const calls = freshInstall(true);
+    const calls = freshInstall(true, {
+      "GET /api/public/books": { body: { books: [], total: 0, page: 1, page_size: 50 } },
+      "GET /api/public/books/7": {
+        body: { id: 7, title: "Piranesi", authors: [], isbn: "", description: "", cover_url: "", available_copies: 1, total_copies: 1, rating_average: 0, rating_count: 0 },
+      },
+    });
     const browse = await renderApp("/browse");
     expect(await screen.findByRole("heading", { name: "Browse" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Nothing found" })).toBeInTheDocument();
     browse.unmount();
     const book = await renderApp("/books/7");
-    expect(await screen.findByRole("heading", { name: "Book" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Piranesi" })).toBeInTheDocument();
     book.unmount();
     expect(calls.every((c) => OPEN_TO_ANYONE.includes(c.path) || c.path.startsWith("/api/public/"))).toBe(true);
 

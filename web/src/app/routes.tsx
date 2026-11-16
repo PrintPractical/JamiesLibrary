@@ -6,6 +6,8 @@ import { Account } from "../features/account/Account";
 import { ForcedChange } from "../features/account/ForcedChange";
 import { Register } from "../features/account/Register";
 import { SignIn } from "../features/account/SignIn";
+import { BookPage } from "../features/catalog/BookPage";
+import { Browse } from "../features/catalog/Browse";
 import { Activity } from "../features/admin/Activity";
 import { Statistics } from "../features/admin/Statistics";
 import { Overdue } from "../features/patrons/Overdue";
@@ -114,11 +116,11 @@ export const routeTable: RouteObject[] = [
         element: <PatronArea />,
         children: [
           { index: true, element: page("Home") },
-          { path: "browse", element: gated(["catalog.browse"], "Browse") },
+          { path: "browse", element: <Allow any={["catalog.browse"]}><Browse /></Allow> },
           { path: "card", element: page("My card") },
           { path: "loans", element: gated(["loans.own.view"], "My books") },
           { path: "account", element: <Account /> },
-          { path: "books/:id", element: gated(["catalog.browse"], "Book") },
+          { path: "books/:id", element: <Allow any={["catalog.browse"]}><BookPage /></Allow> },
           { path: "*", element: <NotFound /> },
         ],
       },
