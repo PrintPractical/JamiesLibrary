@@ -161,6 +161,7 @@ func registerAPI(rt *Router, o Options) {
 	if o.Catalog != nil && o.Media != nil {
 		registerCatalogRoutes(rt, o)
 		registerCopyRoutes(rt, o)
+		registerPublicRoutes(rt, o)
 	}
 }
 

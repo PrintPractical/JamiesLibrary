@@ -71,13 +71,26 @@ func RasterSVG(svg string, scale int) (image.Image, error) {
 	return img, nil
 }
 
-// DecodeSVG is RasterSVG then Decode, at a scale every reader copes with.
+// decodeScales are the pixel sizes DecodeSVG tries, in order.
+var decodeScales = []int{4, 2, 1, 6, 3, 8}
+
+// DecodeSVG is RasterSVG then Decode. The reader's finder-pattern search is
+// sensitive to the pixel scale: about one QR in 300 fails at one scale while
+// the same modules decode at another, so it tries several and fails only when
+// none reads the code. The image's modules are the same at every scale.
 func DecodeSVG(kind, svg string) (string, error) {
-	img, err := RasterSVG(svg, 4)
-	if err != nil {
-		return "", err
+	var text string
+	var err error
+	for _, scale := range decodeScales {
+		img, rerr := RasterSVG(svg, scale)
+		if rerr != nil {
+			return "", rerr
+		}
+		if text, err = Decode(kind, img); err == nil {
+			return text, nil
+		}
 	}
-	return Decode(kind, img)
+	return text, err
 }
 
 // PDFPage is what a PDF made by internal/barcode shows on one page.
