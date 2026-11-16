@@ -14,6 +14,8 @@ import { Statistics } from "../features/admin/Statistics";
 import { Overdue } from "../features/patrons/Overdue";
 import { PatronPage } from "../features/patrons/PatronPage";
 import { Patrons } from "../features/patrons/Patrons";
+import { People } from "../features/people/People";
+import { UserPage } from "../features/people/UserPage";
 import { Settings } from "../features/settings/Settings";
 import { Setup } from "../features/setup/Setup";
 import { NotFound } from "../features/placeholder/NotFound";
@@ -139,8 +141,13 @@ export const routeTable: RouteObject[] = [
           { path: "admin/settings", element: <Allow any={["settings.manage"]}><Settings /></Allow> },
           {
             path: "admin/people",
-            element: gated(["users.manage", "users.permissions", "invitations.manage"], "People & invites"),
+            element: (
+              <Allow any={["users.manage", "users.permissions", "invitations.manage"]}>
+                <People />
+              </Allow>
+            ),
           },
+          { path: "admin/people/:id", element: <Allow any={["users.manage"]}><UserPage /></Allow> },
           { path: "admin/statistics", element: <Allow any={["reports.view"]}><Statistics /></Allow> },
           { path: "admin/activity", element: <Allow any={["activity.view"]}><Activity /></Allow> },
           { path: "more", element: <More /> },
