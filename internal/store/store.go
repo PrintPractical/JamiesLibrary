@@ -122,6 +122,9 @@ func (s *Store) open(ctx context.Context, opts Options) error {
 	q.Add("_pragma", "busy_timeout(5000)")
 	q.Add("_pragma", "journal_mode(WAL)")
 	q.Add("_pragma", "foreign_keys(1)")
+	// Sorts and index builds stay in memory: the container's root is read-only, so SQLite
+	// has nowhere outside the data directory to put temporary files.
+	q.Add("_pragma", "temp_store(MEMORY)")
 	q.Set("_txlock", "immediate") // every transaction starts as BEGIN IMMEDIATE
 	dsn := (&url.URL{Scheme: "file", Path: path, RawQuery: q.Encode()}).String()
 	db, err := sql.Open("sqlite", dsn)
