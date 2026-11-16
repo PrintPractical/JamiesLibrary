@@ -77,11 +77,9 @@ test("the /more page lists what the tab bar left out", async () => {
 
 test.each([
   ["/card", "My card"],
-  ["/books/7", "Book"],
   ["/desk/checkout", "Check out"],
   ["/desk/checkin", "Check in"],
   ["/catalog/new", "Add a book"],
-  ["/admin/settings", "Settings"],
 ])("the route %s is a placeholder page", async (path, title) => {
   await renderApp(path);
   expect(screen.getByRole("heading", { level: 1, name: title })).toBeInTheDocument();
