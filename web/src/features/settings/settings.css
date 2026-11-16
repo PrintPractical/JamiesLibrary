@@ -1,0 +1,38 @@
+/* The settings screen: sections of the setup wizard's own parts, and its switches. */
+.settings {
+  max-width: 1120px;
+}
+.settings .layout .setup-card {
+  max-width: none;
+}
+.settings .saved {
+  min-height: 1.4em;
+  color: var(--ok);
+  font-weight: 700;
+}
+.switch-row {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+.switch-row label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.switch {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin-top: 2px;
+  accent-color: var(--primary);
+}
+.confirm-row {
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.fingerprint {
+  font: 700 15px/1.5 ui-monospace, monospace;
+  overflow-wrap: normal; /* breaks only at <wbr>, after a colon: every line holds whole pairs */
+}
