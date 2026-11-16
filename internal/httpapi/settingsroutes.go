@@ -190,7 +190,7 @@ func (a *settingsRoutes) putLogo(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, r, err)
 		return
 	}
-	name, err := a.img.Store(bytes.NewReader(data), media.LogoLimit, media.Logo)
+	name, err := a.img.Store(r.Context(), bytes.NewReader(data), media.LogoLimit, media.Logo)
 	if err != nil {
 		WriteError(w, r, withField(err, "logo"))
 		return
