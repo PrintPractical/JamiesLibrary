@@ -101,7 +101,7 @@ function Big({ to, icon, title, hint, alt }: { to: string; icon: "checkout" | "c
 
 function Nothing({ children }: { children?: ReactNode }) {
   return (
-    <div className="stack">
+    <div className="stack desk-nothing">
       <div className="alert desk-info">
         <Icon name="info" />
         <div>

@@ -135,13 +135,16 @@
   width: 22px;
   height: 22px;
 }
-.desk-info {
+.alert.desk-info {
   background: var(--card-2);
   border-color: var(--line-2);
   color: var(--ink);
 }
-.desk-info svg {
+.alert.desk-info svg {
   color: var(--ink-2);
+}
+.desk-nothing {
+  margin-top: 18px;
 }
 .desk-admin {
   list-style: none;
