@@ -516,3 +516,27 @@ a:focus-visible {
   background: #efe5d5;
   color: var(--ink-2);
 }
+.b-warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.b-err {
+  background: var(--err-soft);
+  color: var(--err);
+}
+.badge svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+.alert-warn {
+  background: var(--warn-soft);
+  border-color: #e5c175;
+  color: #4a2f00;
+}
+.alert-warn svg {
+  color: var(--warn);
+}
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
