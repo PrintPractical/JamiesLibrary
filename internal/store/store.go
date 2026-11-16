@@ -13,11 +13,13 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"io/fs"
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"jamieslibrary/internal/clock"
@@ -41,6 +43,26 @@ type Options struct {
 	MustExist bool
 }
 
+// MaxWriteWait is how long a writer queues behind others in this process
+// before WithTx gives up with ErrBusy.
+const MaxWriteWait = 30 * time.Second
+
+// ErrBusy means the database stayed locked for too long: the caller should
+// tell the user to try again. The failed write was rolled back or never began.
+var ErrBusy = errors.New("the database is busy")
+
+// IsBusy reports whether err is ErrBusy or SQLite's own "database is locked".
+func IsBusy(err error) bool {
+	if errors.Is(err, ErrBusy) {
+		return true
+	}
+	if err == nil {
+		return false
+	}
+	m := err.Error()
+	return strings.Contains(m, "SQLITE_BUSY") || strings.Contains(m, "database is locked")
+}
+
 // Tx is the transaction a WithTx function works in.
 type Tx = *sql.Tx
 
@@ -50,6 +72,9 @@ type Store struct {
 	db   *sql.DB
 	lock *os.File
 	now  func() time.Time
+	// writer is held by the one transaction that is writing. Waiting on it is
+	// first come, first served, which SQLite's own busy wait is not.
+	writer chan struct{}
 }
 
 // Open makes the data directory ready and opens its database: the directory is
@@ -75,7 +100,7 @@ func Open(ctx context.Context, dir string, opts Options) (*Store, error) {
 			return nil, err
 		}
 	}
-	s := &Store{dir: dir, lock: lock, now: opts.Now}
+	s := &Store{dir: dir, lock: lock, now: opts.Now, writer: make(chan struct{}, 1)}
 	if s.now == nil {
 		s.now = clock.Now
 	}
@@ -171,9 +196,22 @@ func (s *Store) Close() error {
 
 // WithTx runs fn in a transaction that took the write lock when it began
 // (BEGIN IMMEDIATE), so concurrent writers queue instead of failing half way.
+// Writers in this process queue in order for the one write slot, so none waits
+// long enough for SQLite's busy_timeout (kept for other processes) to run out;
+// a wait past ctx or MaxWriteWait ends the call without starting anything.
 // It commits when fn returns nil and rolls back when fn returns an error or
 // panics; a panic goes on up after the rollback.
 func (s *Store) WithTx(ctx context.Context, fn func(Tx) error) (err error) {
+	wait := time.NewTimer(MaxWriteWait)
+	defer wait.Stop()
+	select {
+	case s.writer <- struct{}{}:
+	case <-ctx.Done():
+		return fmt.Errorf("waiting to write: %w", ctx.Err())
+	case <-wait.C:
+		return fmt.Errorf("waiting to write: %w", ErrBusy)
+	}
+	defer func() { <-s.writer }()
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("starting a transaction: %w", err)
