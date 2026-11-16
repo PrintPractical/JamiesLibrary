@@ -24,7 +24,8 @@ import (
 
 	"jamieslibrary/internal/clock"
 
-	_ "modernc.org/sqlite" // the database/sql driver "sqlite"
+	"modernc.org/sqlite" // the database/sql driver "sqlite"
+	sqlite3 "modernc.org/sqlite/lib"
 )
 
 // TmpMaxAge is how old a file in tmp/ gets before it is removed.
@@ -58,6 +59,10 @@ func IsBusy(err error) bool {
 	}
 	if err == nil {
 		return false
+	}
+	var se *sqlite.Error
+	if errors.As(err, &se) && se.Code()&0xff == sqlite3.SQLITE_BUSY {
+		return true
 	}
 	m := err.Error()
 	return strings.Contains(m, "SQLITE_BUSY") || strings.Contains(m, "database is locked")
@@ -174,7 +179,8 @@ func (s *Store) open(ctx context.Context, opts Options) error {
 // Dir is the absolute data directory.
 func (s *Store) Dir() string { return s.dir }
 
-// DB is the database, for reads outside a transaction.
+// DB is the database, for reads outside a transaction. Writes go through
+// WithTx or ExecContext, so they queue for the write slot.
 func (s *Store) DB() *sql.DB { return s.db }
 
 // TmpDir is where short-lived files go.
@@ -232,6 +238,17 @@ func (s *Store) WithTx(ctx context.Context, fn func(Tx) error) (err error) {
 		return fmt.Errorf("committing: %w", err)
 	}
 	return nil
+}
+
+// ExecContext runs one writing statement in its own transaction, queued for the
+// write slot like any WithTx.
+func (s *Store) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
+	var res sql.Result
+	err := s.WithTx(ctx, func(tx Tx) (err error) {
+		res, err = tx.ExecContext(ctx, query, args...)
+		return err
+	})
+	return res, err
 }
 
 // CleanTmp removes files in tmp/ that are over TmpMaxAge old and returns how

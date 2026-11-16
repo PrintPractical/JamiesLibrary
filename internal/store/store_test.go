@@ -527,3 +527,37 @@ func TestIsBusy(t *testing.T) {
 		}
 	}
 }
+
+func TestExecContextQueuesBehindWriters(t *testing.T) {
+	s := open(t, t.TempDir(), Options{Migrations: mig("0001_t.sql", "CREATE TABLE t (x INTEGER)")})
+	stop := make(chan struct{})
+	var wg sync.WaitGroup
+	for w := 0; w < 8; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+				}
+				s.WithTx(ctx, func(tx Tx) error {
+					time.Sleep(2 * time.Millisecond)
+					_, err := tx.Exec("INSERT INTO t VALUES (1)")
+					return err
+				})
+			}
+		}()
+	}
+	defer func() { close(stop); wg.Wait() }()
+	for i := 0; i < 50; i++ {
+		res, err := s.ExecContext(ctx, "DELETE FROM t WHERE x = 2")
+		if err != nil {
+			t.Fatalf("outside write %d failed: %v", i, err)
+		}
+		if _, err := res.RowsAffected(); err != nil {
+			t.Fatal(err)
+		}
+	}
+}

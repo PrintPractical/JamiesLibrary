@@ -341,7 +341,7 @@ func (s *Service) SetPasswordHashTx(ctx context.Context, tx store.Tx, userID int
 // Rehash replaces a stored hash by an equivalent one with newer parameters,
 // only if the stored hash is still old. It reports nothing when it lost a race.
 func (s *Service) Rehash(ctx context.Context, userID int64, oldHash, newHash string) error {
-	_, err := s.st.DB().ExecContext(ctx, `UPDATE users SET password_hash = ? WHERE id = ? AND password_hash = ?`,
+	_, err := s.st.ExecContext(ctx, `UPDATE users SET password_hash = ? WHERE id = ? AND password_hash = ?`,
 		newHash, userID, oldHash)
 	return err
 }
