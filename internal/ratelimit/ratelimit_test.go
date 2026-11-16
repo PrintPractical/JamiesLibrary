@@ -24,7 +24,7 @@ func useClock(t *testing.T) *fakeClock {
 func fail(t *testing.T, l *Limiter, c Counter, key string, n int) {
 	t.Helper()
 	for i := 0; i < n; i++ {
-		if ok, _ := l.Allow(c, key); !ok {
+		if ok, _ := l.Allow(c, key, ""); !ok {
 			t.Fatalf("attempt %d of %s was refused early", i+1, key)
 		}
 	}
@@ -35,22 +35,22 @@ func TestGuessingInvitationCodes(t *testing.T) {
 	f := useClock(t)
 	l := New()
 	fail(t, l, Registration, "198.51.100.7", 10)
-	ok, retry := l.Allow(Registration, "198.51.100.7")
+	ok, retry := l.Allow(Registration, "198.51.100.7", "")
 	if ok || retry != BlockFor {
 		t.Fatalf("11th attempt: ok=%v retry=%v", ok, retry)
 	}
-	if ok, _ := l.Allow(Registration, "203.0.113.9"); !ok {
+	if ok, _ := l.Allow(Registration, "203.0.113.9", ""); !ok {
 		t.Fatal("another address was blocked")
 	}
-	if ok, _ := l.Allow(SignIn, "198.51.100.7"); !ok {
+	if ok, _ := l.Allow(SignIn, "198.51.100.7", ""); !ok {
 		t.Fatal("registration failures blocked sign-in")
 	}
 	f.now = f.now.Add(BlockFor - time.Second)
-	if ok, _ := l.Allow(Registration, "198.51.100.7"); ok {
+	if ok, _ := l.Allow(Registration, "198.51.100.7", ""); ok {
 		t.Fatal("block ended early")
 	}
 	f.now = f.now.Add(time.Second)
-	if ok, _ := l.Allow(Registration, "198.51.100.7"); !ok {
+	if ok, _ := l.Allow(Registration, "198.51.100.7", ""); !ok {
 		t.Fatal("block did not end after 15 minutes")
 	}
 }
@@ -62,11 +62,11 @@ func TestSignInBlocksOnTheFifthFailureFromThatMoment(t *testing.T) {
 	f.now = f.now.Add(10 * time.Minute)
 	fail(t, l, SignIn, "k", 1) // the 5th, 10 minutes after the first
 	f.now = f.now.Add(14 * time.Minute)
-	if ok, _ := l.Allow(SignIn, "k"); ok {
+	if ok, _ := l.Allow(SignIn, "k", ""); ok {
 		t.Fatal("blocked for less than 15 minutes from the 5th failure")
 	}
 	f.now = f.now.Add(2 * time.Minute)
-	if ok, _ := l.Allow(SignIn, "k"); !ok {
+	if ok, _ := l.Allow(SignIn, "k", ""); !ok {
 		t.Fatal("still blocked after 15 minutes")
 	}
 }
@@ -77,28 +77,75 @@ func TestBlockedAttemptsAreNotCountedAndDoNotExtendTheBlock(t *testing.T) {
 	fail(t, l, SignIn, "k", 5)
 	f.now = f.now.Add(10 * time.Minute)
 	for i := 0; i < 20; i++ {
-		l.Allow(SignIn, "k")
+		l.Allow(SignIn, "k", "")
 	}
 	f.now = f.now.Add(5*time.Minute + time.Second)
-	if ok, _ := l.Allow(SignIn, "k"); !ok {
+	if ok, _ := l.Allow(SignIn, "k", ""); !ok {
 		t.Fatal("refused attempts extended the block")
+	}
+}
+
+func failAs(t *testing.T, l *Limiter, c Counter, key, name string, n int) {
+	t.Helper()
+	for i := 0; i < n; i++ {
+		if ok, _ := l.Allow(c, key, name); !ok {
+			t.Fatalf("attempt %d of %s was refused early", i+1, name)
+		}
 	}
 }
 
 func TestSucceedAndForgive(t *testing.T) {
 	useClock(t)
 	l := New()
-	fail(t, l, SignIn, "k", 4)
-	l.Succeed(SignIn, "k")
+	failAs(t, l, SignIn, "k", "Ann", 3)
+	l.Allow(SignIn, "k", "ann") // the right attempt: same account, folded to lower case
+	l.Succeed(SignIn, "k", "ann")
 	fail(t, l, SignIn, "k", 4) // 4 again, not 8
 	l.Forgive(SignIn, "k")     // one of them wasn't a failure: 3 left
 	fail(t, l, SignIn, "k", 2)
-	if ok, _ := l.Allow(SignIn, "k"); ok {
+	if ok, _ := l.Allow(SignIn, "k", ""); ok {
 		t.Fatal("expected 5 failures to block")
 	}
-	l.Forgive(SignIn, "k") // never negative, and an unknown key is fine
+	l.Forgive(SignIn, "k") // an unknown key is fine
 	l.Forgive(SignIn, "nobody")
-	l.Succeed(SignIn, "nobody")
+	l.Succeed(SignIn, "nobody", "ann")
+}
+
+// Signing in as yourself doesn't clear failures that were guesses at someone else.
+func TestMalloryCannotSwitchTheLimitOff(t *testing.T) {
+	useClock(t)
+	l := New()
+	failAs(t, l, SignIn, "k", "admin", 4)
+	l.Allow(SignIn, "k", "mallory")
+	l.Succeed(SignIn, "k", "mallory") // her success takes back its own count and nothing more
+	failAs(t, l, SignIn, "k", "admin", 1)
+	if ok, _ := l.Allow(SignIn, "k", "admin"); ok {
+		t.Fatal("the 5th guess at admin did not start the block")
+	}
+}
+
+func TestOnlyTheNameIsHashedNotKept(t *testing.T) {
+	useClock(t)
+	l := New()
+	l.Allow(SignIn, "k", strings.Repeat("x", 60_000))
+	if nameHash("ADMIN") != nameHash("admin") || nameHash("admin") == nameHash("admin2") || nameHash("É") == nameHash("é") {
+		t.Fatal("names fold as NOCASE does: ASCII only")
+	}
+}
+
+// A valid code only takes back its own attempt: 9 failures, a valid one, and one more failure blocks.
+func TestValidRegistrationCodeNeverResetsTheCount(t *testing.T) {
+	useClock(t)
+	l := New()
+	fail(t, l, Registration, "k", 9)
+	if ok, _ := l.Allow(Registration, "k", ""); !ok {
+		t.Fatal("the valid attempt was refused")
+	}
+	l.Forgive(Registration, "k")
+	fail(t, l, Registration, "k", 1) // the 10th failure
+	if ok, _ := l.Allow(Registration, "k", ""); ok {
+		t.Fatal("a valid code reset the registration count")
+	}
 }
 
 func TestOldFailuresAreForgotten(t *testing.T) {
@@ -125,7 +172,7 @@ func TestConcurrentAttemptsCannotSlipPastTheLimit(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if ok, _ := l.Allow(SignIn, "k"); ok {
+			if ok, _ := l.Allow(SignIn, "k", ""); ok {
 				mu.Lock()
 				allowed++
 				mu.Unlock()
@@ -143,7 +190,7 @@ func TestMapStaysAtItsCap(t *testing.T) {
 	useClock(t)
 	l := New()
 	for i := 0; i < 60_000; i++ {
-		l.Allow(SignIn, fmt.Sprintf("10.%d.%d.%d", i>>16, (i>>8)&255, i&255))
+		l.Allow(SignIn, fmt.Sprintf("10.%d.%d.%d", i>>16, (i>>8)&255, i&255), "")
 		if l.Len() > MaxKeys {
 			t.Fatalf("%d keys after %d addresses", l.Len(), i+1)
 		}
@@ -158,17 +205,17 @@ func TestEvictionKeepsBlockedKeysAndDropsTheOldestOthers(t *testing.T) {
 	l := newWithMax(3)
 	fail(t, l, SignIn, "blocked", 5)
 	f.now = f.now.Add(time.Second)
-	l.Allow(SignIn, "old")
+	l.Allow(SignIn, "old", "")
 	f.now = f.now.Add(time.Second)
-	l.Allow(SignIn, "newer")
-	l.Allow(SignIn, "newest") // full: "blocked" is oldest but blocked, so "old" goes
+	l.Allow(SignIn, "newer", "")
+	l.Allow(SignIn, "newest", "") // full: "blocked" is oldest but blocked, so "old" goes
 	if _, there := l.entries["old"]; there {
 		t.Fatal("the oldest unblocked key was kept")
 	}
 	if _, there := l.entries["blocked"]; !there {
 		t.Fatal("a blocked key was evicted")
 	}
-	if ok, _ := l.Allow(SignIn, "blocked"); ok {
+	if ok, _ := l.Allow(SignIn, "blocked", ""); ok {
 		t.Fatal("eviction lifted a block")
 	}
 }
@@ -183,7 +230,7 @@ func TestWhenEveryKeyIsBlockedANewOneIsUntrackedNotEvicting(t *testing.T) {
 		t.Fatalf("%d keys", l.Len())
 	}
 	for _, k := range []string{"a", "b"} {
-		if ok, _ := l.Allow(SignIn, k); ok {
+		if ok, _ := l.Allow(SignIn, k, ""); ok {
 			t.Fatalf("%s's block was lost", k)
 		}
 	}
@@ -195,7 +242,7 @@ func TestSweepDropsOnlyWhatIsForgotten(t *testing.T) {
 	fail(t, l, SignIn, "blocked", 5)
 	fail(t, l, SignIn, "idle", 2)
 	f.now = f.now.Add(IdleReset - time.Second)
-	l.Allow(SignIn, "recent")
+	l.Allow(SignIn, "recent", "")
 	l.Sweep()
 	if l.Len() != 3 {
 		t.Fatalf("swept too early: %d keys", l.Len())

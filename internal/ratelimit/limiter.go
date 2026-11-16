@@ -3,6 +3,7 @@ package ratelimit
 import (
 	"container/list"
 	"context"
+	"crypto/sha256"
 	"sync"
 	"time"
 
@@ -15,7 +16,10 @@ type Counter int
 const (
 	// SignIn counts failed sign-ins, and wrong current passwords on the change-password route.
 	SignIn Counter = iota
-	// Registration counts failed registrations and first-run setup attempts, which share a counter.
+	// Registration counts failed registrations and first-run setup attempts,
+	// which share a counter. A valid invitation or setup code must only Forgive
+	// its attempt, never Succeed: a reset would give whoever holds one valid
+	// code 9 more guesses each time they use it.
 	Registration
 	numCounters
 )
@@ -37,6 +41,39 @@ type counter struct {
 	fails        int
 	last         time.Time // the latest attempt counted
 	blockedUntil time.Time
+	// who is the SHA-256 of the first account name a failure since the last
+	// reset was attributed to, and mixed says a different one has been seen
+	// (or an attempt named none). The name itself is never kept.
+	who   [sha256.Size]byte
+	named bool
+	mixed bool
+}
+
+// nameHash folds a typed username as SQLite NOCASE does (ASCII lower case) and hashes it.
+func nameHash(name string) [sha256.Size]byte {
+	b := []byte(name)
+	for i, c := range b {
+		if c >= 'A' && c <= 'Z' {
+			b[i] = c + 'a' - 'A'
+		}
+	}
+	return sha256.Sum256(b)
+}
+
+func (ct *counter) attribute(name string) {
+	if name == "" {
+		if ct.named {
+			ct.mixed = true
+		}
+		return
+	}
+	h := nameHash(name)
+	switch {
+	case !ct.named:
+		ct.who, ct.named = h, true
+	case ct.who != h:
+		ct.mixed = true
+	}
 }
 
 type entry struct {
@@ -75,10 +112,12 @@ func newWithMax(n int) *Limiter {
 // counted as a failure straight away, so attempts that run at the same time
 // can't slip past the limit; the caller calls Succeed or Forgive once it knows
 // the attempt wasn't a failure. If it may not, retryAfter is how long the block
-// has left, and nothing is counted. The attempt that reaches the limit is let
+// has left, and nothing is counted. name is the account the attempt is for, as
+// typed (a sign-in's username, or the caller's own for a password change), or
+// "" where there is none: it decides when Succeed may reset the count. The attempt that reaches the limit is let
 // through and starts the block. An empty key, an address that couldn't be read,
 // is never limited.
-func (l *Limiter) Allow(c Counter, key string) (ok bool, retryAfter time.Duration) {
+func (l *Limiter) Allow(c Counter, key, name string) (ok bool, retryAfter time.Duration) {
 	if key == "" {
 		return true, 0
 	}
@@ -103,19 +142,32 @@ func (l *Limiter) Allow(c Counter, key string) (ok bool, retryAfter time.Duratio
 	}
 	ct.fails++
 	ct.last = now
+	ct.attribute(name)
 	if ct.fails >= maxFailures[c] {
 		ct.blockedUntil = now.Add(BlockFor)
 	}
 	return true, 0
 }
 
-// Succeed clears the key's count: its last attempt was right.
-func (l *Limiter) Succeed(c Counter, key string) {
+// Succeed is for an attempt that was right, for the account name that Allow
+// was given. It clears the key's count only when every failure counted since
+// the last reset named that account; otherwise anyone with an account of their
+// own could reset the count by signing in as themselves between guesses at
+// someone else's. When it doesn't clear, it takes back the attempt's own count,
+// as Forgive does.
+func (l *Limiter) Succeed(c Counter, key, name string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if e := l.entries[key]; e != nil {
-		e.c[c] = counter{}
+	e := l.entries[key]
+	if e == nil {
+		return
 	}
+	ct := &e.c[c]
+	if ct.named && !ct.mixed && ct.who == nameHash(name) {
+		*ct = counter{}
+		return
+	}
+	l.forgive(ct, c)
 }
 
 // Forgive takes back the failure Allow counted, for an attempt that turned out
@@ -127,7 +179,10 @@ func (l *Limiter) Forgive(c Counter, key string) {
 	if e == nil {
 		return
 	}
-	ct := &e.c[c]
+	l.forgive(&e.c[c], c)
+}
+
+func (l *Limiter) forgive(ct *counter, c Counter) {
 	if ct.fails > 0 {
 		ct.fails--
 		if ct.fails < maxFailures[c] {

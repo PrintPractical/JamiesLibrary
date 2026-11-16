@@ -48,9 +48,9 @@ type authRoutes struct {
 // the client's address before any password work. When the address is blocked it
 // writes the refusal and returns false. An allowed attempt is already counted
 // as a failure: the caller gives that back (Forgive, Succeed) if it wasn't one.
-func (a *authRoutes) attempt(w http.ResponseWriter, r *http.Request) (key string, ok bool) {
+func (a *authRoutes) attempt(w http.ResponseWriter, r *http.Request, name string) (key string, ok bool) {
 	key = a.clients.Key(r)
-	ok, retry := a.limiter.Allow(ratelimit.SignIn, key)
+	ok, retry := a.limiter.Allow(ratelimit.SignIn, key, name)
 	if !ok {
 		w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(retry.Seconds()))))
 		WriteError(w, r, apperr.New(apperr.Throttled, tooManyAttempts))
@@ -129,7 +129,7 @@ func (a *authRoutes) signIn(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, r, err)
 		return
 	}
-	key, ok := a.attempt(w, r)
+	key, ok := a.attempt(w, r, in.Username)
 	if !ok {
 		return
 	}
@@ -144,7 +144,7 @@ func (a *authRoutes) signIn(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, r, err)
 		return
 	}
-	a.limiter.Succeed(ratelimit.SignIn, key)
+	a.limiter.Succeed(ratelimit.SignIn, key, in.Username)
 	// The browser's old session, if it had one, ends: a token it presents is never adopted.
 	if c := auth.Caller(r.Context()); c != nil {
 		_ = a.auth.SignOut(r.Context(), c.SessionID)
@@ -176,11 +176,16 @@ func (a *authRoutes) changePassword(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, r, err)
 		return
 	}
-	key, ok := a.attempt(w, r)
+	c := auth.Caller(r.Context())
+	caller, err := a.users.Get(r.Context(), c.UserID)
+	if err != nil {
+		WriteError(w, r, err)
+		return
+	}
+	key, ok := a.attempt(w, r, caller.Username)
 	if !ok {
 		return
 	}
-	c := auth.Caller(r.Context())
 	if err := a.auth.ChangePassword(r.Context(), c.UserID, c.SessionID, in.Current, in.New); err != nil {
 		// Only a wrong current password is a failed attempt.
 		if e, ok := apperr.As(err); !ok || e.Field != "current_password" {

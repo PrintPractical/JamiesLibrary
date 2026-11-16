@@ -193,3 +193,45 @@ func TestMalformedSignInIsNotACountedFailure(t *testing.T) {
 	}
 	s.signIn("ann", goodPassword)
 }
+
+// Signing in as yourself between guesses at someone else's password doesn't clear the count.
+func TestOwnSignInDoesNotSwitchTheLimitOff(t *testing.T) {
+	s := newSite(t)
+	s.addUser("admin", goodPassword, perm.Administrator)
+	s.addUser("mallory", goodPassword, perm.Patron)
+	guess := func(n int) {
+		for i := 0; i < n; i++ {
+			if rec := s.req("POST", "/api/auth/signin", "", signInBody("Admin", "guess guess guess")); rec.Code != 401 {
+				t.Fatalf("guess at admin: %d %s", rec.Code, rec.Body)
+			}
+		}
+	}
+	guess(4)
+	s.signIn("mallory", goodPassword)
+	guess(1) // the 5th wrong guess at admin starts the block
+	if rec := s.req("POST", "/api/auth/signin", "", signInBody("admin", "guess guess guess")); rec.Code != 429 {
+		t.Fatalf("after 5 guesses with a sign-in between: %d", rec.Code)
+	}
+}
+
+func TestOwnPasswordChangeFailuresAreResetOnlyByTheirOwnSignIn(t *testing.T) {
+	s := newSite(t)
+	s.addUser("ann", goodPassword, perm.Patron)
+	s.addUser("mallory", goodPassword, perm.Patron)
+	tok := s.signIn("ann", goodPassword)
+	wrong := func() *httptest.ResponseRecorder {
+		return s.req("POST", "/api/me/password", tok, `{"current_password":"not the password","new_password":"twelve chars!"}`)
+	}
+	for i := 0; i < 4; i++ {
+		if rec := wrong(); rec.Code != 422 {
+			t.Fatalf("%d", rec.Code)
+		}
+	}
+	s.signIn("mallory", goodPassword) // another account from the same address doesn't clear it
+	if rec := wrong(); rec.Code != 422 {
+		t.Fatalf("5th wrong current password: %d", rec.Code)
+	}
+	if rec := wrong(); rec.Code != 429 {
+		t.Fatalf("the block did not start: %d", rec.Code)
+	}
+}
