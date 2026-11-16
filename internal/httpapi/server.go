@@ -16,6 +16,7 @@ import (
 	"jamieslibrary/internal/media"
 	"jamieslibrary/internal/metadata"
 	"jamieslibrary/internal/ratelimit"
+	"jamieslibrary/internal/reports"
 	"jamieslibrary/internal/reviews"
 	"jamieslibrary/internal/settings"
 	"jamieslibrary/internal/setup"
@@ -52,6 +53,8 @@ type Options struct {
 	Store *store.Store
 	// Activity is the administrative activity log; when set its route is registered.
 	Activity *activity.Service
+	// Reports is the statistics and circulation report; when set its routes are registered.
+	Reports *reports.Service
 	// UserAdmin makes the changes to other people's accounts; when it and Users are set the user routes are registered.
 	UserAdmin *useradmin.Service
 	// Invitations makes and redeems invitation codes; when set with Auth and Users its routes are registered.
@@ -149,6 +152,9 @@ func registerAPI(rt *Router, o Options) {
 	}
 	if o.Activity != nil {
 		registerActivityRoutes(rt, o)
+	}
+	if o.Reports != nil {
+		registerReportRoutes(rt, o)
 	}
 	if o.UserAdmin != nil && o.Users != nil {
 		registerUserRoutes(rt, o)

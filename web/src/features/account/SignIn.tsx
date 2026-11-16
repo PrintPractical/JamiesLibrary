@@ -11,13 +11,23 @@ import { useSubmit } from "./forms";
 /** Where a visitor was heading before the guard sent them here. */
 export type FromState = { from?: string } | null;
 
+/**
+ * Whether a path is somewhere in this app: one slash then a path, never "//host" or "/\\host"
+ * (which a browser reads as another origin), and no scheme.
+ */
+export function isLocalPath(path: unknown): path is string {
+  if (typeof path !== "string" || !/^\/(?![/\\])/.test(path)) return false;
+  return Array.from(path).every((ch) => ch !== "\\" && ch.charCodeAt(0) > 0x1f);
+}
+
 export function SignIn() {
   const { me, setMe, canAny } = useSession();
   const location = useLocation();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const { busy, formError, run } = useSubmit([]);
-  const from = (location.state as FromState)?.from;
+  const asked = (location.state as FromState)?.from;
+  const from = isLocalPath(asked) ? asked : undefined;
 
   if (me) return <Navigate to={from ?? homeFor(canAny)} replace />;
 

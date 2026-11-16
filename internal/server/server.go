@@ -26,6 +26,7 @@ import (
 	"jamieslibrary/internal/media"
 	"jamieslibrary/internal/metadata"
 	"jamieslibrary/internal/ratelimit"
+	"jamieslibrary/internal/reports"
 	"jamieslibrary/internal/reviews"
 	"jamieslibrary/internal/settings"
 	"jamieslibrary/internal/setup"
@@ -133,6 +134,9 @@ func Run(ctx context.Context, o Options) error {
 	if err != nil {
 		return err
 	}
+	if err := sweepImages(ctx, st, images, log); err != nil {
+		return err
+	}
 	trustPort := 0
 	if plainLn != nil {
 		trustPort = plainLn.Addr().(*net.TCPAddr).Port
@@ -164,7 +168,7 @@ func Run(ctx context.Context, o Options) error {
 		CAFingerprint: caFingerprint,
 		Clients:       ratelimit.NewClients(cfg.TrustedProxies), Limiter: limiter,
 		TrustPort: trustPort, Version: o.Version, Logger: log, Static: webui.Handler(),
-		Setup: setupSvc, Auth: authSvc, Users: usersSvc, Settings: set, Activity: activity.New(st), Store: st, Media: images,
+		Setup: setupSvc, Auth: authSvc, Users: usersSvc, Settings: set, Activity: activity.New(st), Reports: reports.New(st, set.Location, set.Today), Store: st, Media: images,
 		Catalog: catalogSvc, Metadata: lookup, Reviews: reviews.New(st, catalogSvc),
 		Circ:            circ.New(st, circ.Options{Settings: set, Catalog: catalogSvc, Users: usersSvc}),
 		UserAdmin:       useradmin.New(st, usersSvc, authSvc),
@@ -206,6 +210,35 @@ func Run(ctx context.Context, o Options) error {
 		cancel()
 	}
 	return first
+}
+
+// sweepImages removes the images a crash left behind: half-written files and
+// images no book (removed ones included) or logo names. It runs before the
+// listeners serve, so no save can be in flight.
+func sweepImages(ctx context.Context, st *store.Store, images *media.Images, log *slog.Logger) error {
+	rows, err := st.DB().QueryContext(ctx,
+		`SELECT cover FROM books WHERE cover IS NOT NULL UNION SELECT logo_file FROM settings`)
+	if err != nil {
+		return fmt.Errorf("listing the images in use: %w", err)
+	}
+	defer rows.Close()
+	keep := map[string]bool{}
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return fmt.Errorf("listing the images in use: %w", err)
+		}
+		keep[name] = true
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("listing the images in use: %w", err)
+	}
+	rows.Close()
+	n, err := images.Sweep(keep)
+	if n > 0 {
+		log.Info("removed images left by a crash", "count", n)
+	}
+	return err
 }
 
 // announceSetup opens first-run setup when no administrator exists and prints

@@ -243,5 +243,7 @@ func withSettings(t *testing.T, sql string) []byte {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return append(append([]byte(sql+";\n"), settings...), users...)
+	// and so is books, which the start-up sweep of unused images reads
+	books := []byte("CREATE TABLE books (cover TEXT);\n")
+	return append(append(append([]byte(sql+";\n"), books...), settings...), users...)
 }
