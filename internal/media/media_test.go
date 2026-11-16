@@ -3,8 +3,10 @@ package media
 import (
 	"bytes"
 	"compress/zlib"
+	"context"
 	"encoding/base64"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"hash/crc32"
 	"image"
@@ -119,13 +121,13 @@ func filesIn(t *testing.T, dir string) []string {
 func TestBadCoverIsRefusedAndNothingSaved(t *testing.T) {
 	im, dir := newImages(t)
 	big := bytes.Repeat([]byte("not an image "), 20<<20/13+1)[:20<<20]
-	_, err := im.Store(bytes.NewReader(big), CoverLimit, Cover)
+	_, err := im.Store(context.Background(), bytes.NewReader(big), CoverLimit, Cover)
 	e := wantCode(t, err, apperr.TooLarge)
 	if !strings.Contains(e.Message, "5 MB") {
 		t.Errorf("message %q", e.Message)
 	}
 	// Small and not an image.
-	_, err = im.Store(strings.NewReader("just some text"), CoverLimit, Cover)
+	_, err = im.Store(context.Background(), strings.NewReader("just some text"), CoverLimit, Cover)
 	e = wantCode(t, err, apperr.Invalid)
 	if !strings.Contains(e.Message, "JPEG, PNG or WebP") {
 		t.Errorf("message %q", e.Message)
@@ -138,14 +140,14 @@ func TestBadCoverIsRefusedAndNothingSaved(t *testing.T) {
 // CAT-1: a cover of exactly 5 MB is accepted; one byte more is refused.
 func TestCoverSizeBoundary(t *testing.T) {
 	im, dir := newImages(t)
-	name, err := im.Store(bytes.NewReader(padJPEG(t, CoverLimit)), CoverLimit, Cover)
+	name, err := im.Store(context.Background(), bytes.NewReader(padJPEG(t, CoverLimit)), CoverLimit, Cover)
 	if err != nil {
 		t.Fatalf("5 MB exactly: %v", err)
 	}
 	if !ValidName(name) {
 		t.Errorf("name %q", name)
 	}
-	_, err = im.Store(bytes.NewReader(padJPEG(t, CoverLimit+1)), CoverLimit, Cover)
+	_, err = im.Store(context.Background(), bytes.NewReader(padJPEG(t, CoverLimit+1)), CoverLimit, Cover)
 	wantCode(t, err, apperr.TooLarge)
 	if n := filesIn(t, dir); len(n) != 1 {
 		t.Errorf("files = %v, want just the first", n)
@@ -156,7 +158,7 @@ func TestCoverSizeBoundary(t *testing.T) {
 func TestTypeComesFromTheBytes(t *testing.T) {
 	im, dir := newImages(t)
 	// A logo with transparency keeps being a PNG, whatever the upload was called.
-	name, err := im.Store(bytes.NewReader(pngBytes(t, 20, 20, 128)), LogoLimit, Logo)
+	name, err := im.Store(context.Background(), bytes.NewReader(pngBytes(t, 20, 20, 128)), LogoLimit, Logo)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -168,7 +170,7 @@ func TestTypeComesFromTheBytes(t *testing.T) {
 		t.Errorf("stored bytes are not a PNG: %v", err)
 	}
 	// An opaque PNG as a cover becomes a JPEG.
-	name, err = im.Store(bytes.NewReader(pngBytes(t, 20, 20, 255)), CoverLimit, Cover)
+	name, err = im.Store(context.Background(), bytes.NewReader(pngBytes(t, 20, 20, 255)), CoverLimit, Cover)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,7 +184,7 @@ func TestTypeComesFromTheBytes(t *testing.T) {
 func TestWebPIsAccepted(t *testing.T) {
 	im, _ := newImages(t)
 	webp, _ := base64.StdEncoding.DecodeString("UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA==")
-	name, err := im.Store(bytes.NewReader(webp), CoverLimit, Cover)
+	name, err := im.Store(context.Background(), bytes.NewReader(webp), CoverLimit, Cover)
 	if err != nil {
 		t.Fatalf("webp: %v", err)
 	}
@@ -201,7 +203,7 @@ func TestSVGHTMLAndOtherTypesAreRefused(t *testing.T) {
 		"empty": "",
 	}
 	for name, body := range cases {
-		_, err := im.Store(strings.NewReader(body), CoverLimit, Cover)
+		_, err := im.Store(context.Background(), strings.NewReader(body), CoverLimit, Cover)
 		e := wantCode(t, err, apperr.Invalid)
 		if !strings.Contains(e.Message, "JPEG, PNG or WebP") {
 			t.Errorf("%s: message %q", name, e.Message)
@@ -216,7 +218,7 @@ func TestSVGHTMLAndOtherTypesAreRefused(t *testing.T) {
 func TestTruncatedImageIsRefused(t *testing.T) {
 	im, dir := newImages(t)
 	j := jpegBytes(t, 100, 100)
-	_, err := im.Store(bytes.NewReader(j[:len(j)/2]), CoverLimit, Cover)
+	_, err := im.Store(context.Background(), bytes.NewReader(j[:len(j)/2]), CoverLimit, Cover)
 	wantCode(t, err, apperr.Invalid)
 	if n := filesIn(t, dir); len(n) != 0 {
 		t.Errorf("files left behind: %v", n)
@@ -244,7 +246,7 @@ func TestOverFortyMegapixelsRefusedBeforeDecoding(t *testing.T) {
 	binary.BigEndian.PutUint32(ihdr[4:], 5000)
 	ihdr[8], ihdr[9] = 8, 2
 	data := append([]byte("\x89PNG\r\n\x1a\n"), chunk("IHDR", ihdr)...)
-	_, err := im.Store(bytes.NewReader(data), CoverLimit, Cover)
+	_, err := im.Store(context.Background(), bytes.NewReader(data), CoverLimit, Cover)
 	e := wantCode(t, err, apperr.Invalid)
 	if !strings.Contains(e.Message, "40 megapixels") {
 		t.Errorf("message %q", e.Message)
@@ -267,7 +269,7 @@ func TestEXIFGPSIsGoneAfterReencoding(t *testing.T) {
 	if _, err := jpeg.Decode(bytes.NewReader(withEXIF.Bytes())); err != nil {
 		t.Fatalf("test image: %v", err)
 	}
-	name, err := im.Store(&withEXIF, CoverLimit, Cover)
+	name, err := im.Store(context.Background(), &withEXIF, CoverLimit, Cover)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -281,7 +283,7 @@ func TestEXIFGPSIsGoneAfterReencoding(t *testing.T) {
 
 func TestCoverIsScaledToAtMost1200(t *testing.T) {
 	im, dir := newImages(t)
-	name, err := im.Store(bytes.NewReader(jpegBytes(t, 2400, 1800)), CoverLimit, Cover)
+	name, err := im.Store(context.Background(), bytes.NewReader(jpegBytes(t, 2400, 1800)), CoverLimit, Cover)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -292,7 +294,7 @@ func TestCoverIsScaledToAtMost1200(t *testing.T) {
 		t.Errorf("size %dx%d, err %v; want 1200x900", cfg.Width, cfg.Height, err)
 	}
 	// A small one is left at its size.
-	name, _ = im.Store(bytes.NewReader(jpegBytes(t, 300, 200)), CoverLimit, Cover)
+	name, _ = im.Store(context.Background(), bytes.NewReader(jpegBytes(t, 300, 200)), CoverLimit, Cover)
 	f2, _ := os.Open(filepath.Join(dir, "images", name))
 	defer f2.Close()
 	if cfg, _, _ := image.DecodeConfig(f2); cfg.Width != 300 || cfg.Height != 200 {
@@ -302,11 +304,11 @@ func TestCoverIsScaledToAtMost1200(t *testing.T) {
 
 func TestFilesAreRandomPrivateAndLeaveNoTemporaries(t *testing.T) {
 	im, dir := newImages(t)
-	a, err := im.Store(bytes.NewReader(jpegBytes(t, 10, 10)), CoverLimit, Cover)
+	a, err := im.Store(context.Background(), bytes.NewReader(jpegBytes(t, 10, 10)), CoverLimit, Cover)
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, _ := im.Store(bytes.NewReader(jpegBytes(t, 10, 10)), CoverLimit, Cover)
+	b, _ := im.Store(context.Background(), bytes.NewReader(jpegBytes(t, 10, 10)), CoverLimit, Cover)
 	if a == b {
 		t.Error("two stores gave one name")
 	}
@@ -323,7 +325,7 @@ func TestFilesAreRandomPrivateAndLeaveNoTemporaries(t *testing.T) {
 
 func TestDelete(t *testing.T) {
 	im, dir := newImages(t)
-	name, _ := im.Store(bytes.NewReader(jpegBytes(t, 10, 10)), CoverLimit, Cover)
+	name, _ := im.Store(context.Background(), bytes.NewReader(jpegBytes(t, 10, 10)), CoverLimit, Cover)
 	if err := im.Delete(name); err != nil {
 		t.Fatal(err)
 	}
@@ -446,7 +448,7 @@ func TestWorstCaseImageMemoryIsBounded(t *testing.T) {
 				t.Fatalf("test image is %d bytes", len(data))
 			}
 			var err error
-			peak := peakSys(func() { _, err = im.Store(bytes.NewReader(data), LogoLimit, tc.kind) })
+			peak := peakSys(func() { _, err = im.Store(context.Background(), bytes.NewReader(data), LogoLimit, tc.kind) })
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -477,7 +479,7 @@ func TestProgressiveJPEGsOverTheDecodeBudgetAreRefusedFromTheHeader(t *testing.T
 		for name, body := range map[string][]byte{"whole": data, "header only": data[:700]} {
 			var before, after runtime.MemStats
 			runtime.ReadMemStats(&before)
-			_, err := im.Store(bytes.NewReader(body), LogoLimit, Cover)
+			_, err := im.Store(context.Background(), bytes.NewReader(body), LogoLimit, Cover)
 			runtime.ReadMemStats(&after)
 			e := wantCode(t, err, apperr.Invalid)
 			if !strings.Contains(e.Message, "too large to open safely") || !strings.Contains(e.Message, "megapixels") {
@@ -529,7 +531,7 @@ func TestStrayBytesBeforeTheFrameHeaderDoNotHideAProgressiveJPEG(t *testing.T) {
 			t.Fatalf("%s: the decoder itself refuses it (%v): the test proves nothing", name, err)
 		}
 		im, dir := newImages(t)
-		_, err := im.Store(bytes.NewReader(mod), LogoLimit, Logo)
+		_, err := im.Store(context.Background(), bytes.NewReader(mod), LogoLimit, Logo)
 		e := wantCode(t, err, apperr.Invalid)
 		if !strings.Contains(e.Message, "too large to open safely") {
 			t.Errorf("%s: message %q", name, e.Message)
@@ -544,7 +546,7 @@ func TestStrayBytesBeforeTheFrameHeaderDoNotHideAProgressiveJPEG(t *testing.T) {
 	sof = bytes.Index(ok, []byte{0xFF, 0xC2})
 	mod := append(append(append([]byte{}, ok[:sof]...), 0), ok[sof:]...)
 	im, _ := newImages(t)
-	if _, err := im.Store(bytes.NewReader(mod), LogoLimit, Logo); err != nil {
+	if _, err := im.Store(context.Background(), bytes.NewReader(mod), LogoLimit, Logo); err != nil {
 		t.Errorf("8 MP with a stray byte: %v", err)
 	}
 }
@@ -557,7 +559,7 @@ func TestHuge16BitPNGIsRefusedBeforeDecoding(t *testing.T) {
 	var before, after runtime.MemStats
 	runtime.ReadMemStats(&before)
 	func() {
-		_, err := im.Store(bytes.NewReader(data), CoverLimit, Cover)
+		_, err := im.Store(context.Background(), bytes.NewReader(data), CoverLimit, Cover)
 		e := wantCode(t, err, apperr.Invalid)
 		if !strings.Contains(e.Message, "too large to open safely") {
 			t.Errorf("message %q", e.Message)
@@ -573,5 +575,109 @@ func TestHuge16BitPNGIsRefusedBeforeDecoding(t *testing.T) {
 	// The same size at 8 bits is within the 40-megapixel cap and is not refused for its depth.
 	if isPNG16(pngBytes(t, 4, 4, 255)) {
 		t.Error("an 8-bit PNG was taken for 16-bit")
+	}
+}
+
+// webpWithAlpha is a 16x16 lossy WebP (VP8X, ALPH, VP8) whose alpha plane is a
+// everywhere. The VP8 chunk is a solid red picture.
+func webpWithAlpha(t *testing.T, a byte) []byte {
+	t.Helper()
+	vp8, err := base64.StdEncoding.DecodeString("VlA4IC4AAACwAQCdASoQABAAAUAmJaACdLoABDAAAP7x3I/4DdfFtMv/vYL/3YL/3YL/WwAA")
+	if err != nil {
+		t.Fatal(err)
+	}
+	alph := append([]byte("ALPH\x01\x01\x00\x00\x00"), bytes.Repeat([]byte{a}, 256)...) // 1 + 256 bytes, uncompressed
+	alph = append(alph, 0)                                                              // pad to even
+	vp8x := []byte("VP8X\x0a\x00\x00\x00\x10\x00\x00\x00\x0f\x00\x00\x0f\x00\x00")      // alpha flag, 16x16
+	body := append(append(append([]byte("WEBP"), vp8x...), alph...), vp8...)
+	out := append([]byte("RIFF\x00\x00\x00\x00"), body...)
+	binary.LittleEndian.PutUint32(out[4:], uint32(len(body)))
+	return out
+}
+
+// A lossy WebP with alpha decodes to NYCbCrA: a logo that uses it is kept as
+// PNG, and one whose alpha is fully opaque is flattened to JPEG.
+func TestLogoWebPAlpha(t *testing.T) {
+	for _, tc := range []struct {
+		alpha byte
+		ext   string
+	}{{0x80, ".png"}, {0xff, ".jpg"}} {
+		data := webpWithAlpha(t, tc.alpha)
+		img, _, err := image.Decode(bytes.NewReader(data))
+		if err != nil {
+			t.Fatalf("alpha %#x: decode: %v", tc.alpha, err)
+		}
+		if _, ok := img.(*image.NYCbCrA); !ok {
+			t.Fatalf("alpha %#x decodes to %T, want *image.NYCbCrA", tc.alpha, img)
+		}
+		im, _ := newImages(t)
+		name, err := im.Store(context.Background(), bytes.NewReader(data), LogoLimit, Logo)
+		if err != nil {
+			t.Fatalf("alpha %#x: %v", tc.alpha, err)
+		}
+		if !strings.HasSuffix(name, tc.ext) {
+			t.Errorf("alpha %#x stored as %q, want %s", tc.alpha, name, tc.ext)
+		}
+	}
+}
+
+// hasAlpha on NYCbCrA reads the alpha plane without boxing a colour a pixel:
+// the one translucent pixel is the last, so every other pixel is looked at first.
+func TestHasAlphaNYCbCrAAllocatesNothing(t *testing.T) {
+	img := image.NewNYCbCrA(image.Rect(0, 0, 500, 500), image.YCbCrSubsampleRatio420)
+	for i := range img.A {
+		img.A[i] = 0xff
+	}
+	if hasAlpha(img) {
+		t.Fatal("opaque reported as transparent")
+	}
+	img.A[img.AStride*499+499] = 0xfe
+	var found bool
+	if n := testing.AllocsPerRun(3, func() { found = hasAlpha(img) }); n > 0 {
+		t.Errorf("%v allocations", n)
+	}
+	if !found {
+		t.Error("one translucent pixel missed")
+	}
+}
+
+// With the decode slot held, a cancelled Store returns at once, saves nothing
+// and leaves the slot as it found it.
+func TestStoreLeavesTheQueueWhenCancelled(t *testing.T) {
+	im, dir := newImages(t)
+	im.sem <- struct{}{} // the slot is taken
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		_, err := im.Store(ctx, bytes.NewReader(jpegBytes(t, 10, 10)), CoverLimit, Cover)
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		t.Fatalf("returned before cancel: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+	cancel()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Errorf("err = %v, want context.Canceled", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("a cancelled Store is still waiting")
+	}
+	if len(im.sem) != 1 {
+		t.Errorf("slot count %d, want 1 (still the holder's)", len(im.sem))
+	}
+	<-im.sem
+	if ents, _ := os.ReadDir(filepath.Join(dir, "images")); len(ents) != 0 {
+		t.Errorf("%d files saved", len(ents))
+	}
+	// An already-cancelled context never starts, even with a free slot.
+	if _, err := im.Store(ctx, bytes.NewReader(jpegBytes(t, 10, 10)), CoverLimit, Cover); !errors.Is(err, context.Canceled) {
+		t.Errorf("cancelled before start: %v", err)
+	}
+	if ents, _ := os.ReadDir(filepath.Join(dir, "images")); len(ents) != 0 {
+		t.Errorf("%d files saved", len(ents))
 	}
 }
