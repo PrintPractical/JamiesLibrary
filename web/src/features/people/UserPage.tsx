@@ -173,8 +173,8 @@ function Switches({ user, locked, onChanged }: Section) {
           const disabled = locked || !held || busy !== null;
           return (
             <li key={p.id}>
-              <div className="sw">
-              <label className="sw-text" htmlFor={`perm-${p.id}`}>
+              <div className="perm-sw">
+              <label className="perm-sw-text" htmlFor={`perm-${p.id}`}>
                 <b>{p.label}</b>
                 <span className="small muted">{p.help}</span>
                 {!held && <span className="small" id={`why-${p.id}`}>You don't hold this permission, so you can't grant or take it away.</span>}
@@ -190,7 +190,7 @@ function Switches({ user, locked, onChanged }: Section) {
               />
               </div>
               {refused?.permission === p.id && (
-                <div className="sw-err">
+                <div className="perm-sw-err">
                   <InlineError error={refused.error} />
                 </div>
               )}

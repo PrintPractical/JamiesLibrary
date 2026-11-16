@@ -10,21 +10,21 @@
 .switches > li + li {
   border-top: 1px solid var(--line);
 }
-.sw {
+.perm-sw {
   display: flex;
   align-items: center;
   gap: 14px;
   padding: 12px 18px;
   min-height: 44px;
 }
-.sw-text {
+.perm-sw-text {
   flex: 1 1 auto;
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
-.sw input[type="checkbox"] {
+.perm-sw input[type="checkbox"] {
   appearance: none;
   flex: none;
   position: relative;
@@ -36,7 +36,7 @@
   background: var(--card);
   cursor: pointer;
 }
-.sw input[type="checkbox"]::after {
+.perm-sw input[type="checkbox"]::after {
   content: "";
   position: absolute;
   top: 2.5px;
@@ -47,23 +47,23 @@
   background: var(--ink-2);
   transition: left 0.12s;
 }
-.sw input[type="checkbox"]:checked {
+.perm-sw input[type="checkbox"]:checked {
   background: var(--primary);
   border-color: var(--primary);
 }
-.sw input[type="checkbox"]:checked::after {
+.perm-sw input[type="checkbox"]:checked::after {
   left: 22.5px;
   background: var(--card);
 }
-.sw input[type="checkbox"]:disabled {
+.perm-sw input[type="checkbox"]:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
-.sw input[type="checkbox"]:focus-visible {
+.perm-sw input[type="checkbox"]:focus-visible {
   outline: 3px solid var(--ink);
   outline-offset: 2px;
 }
-.sw-err {
+.perm-sw-err {
   padding: 0 18px 12px;
 }
 .temp-pw {
