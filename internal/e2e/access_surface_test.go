@@ -572,8 +572,8 @@ func TestSelfCheckoutNeedsTheOptionAsWellAsThePermission(t *testing.T) {
 	_, code := w.newCopy(w.newBook())
 	before := w.snap()
 	r := w.pa.W.do("POST", "/api/me/checkout", map[string]string{"code": code})
-	if r.Status/100 == 2 || r.Status >= 500 {
-		t.Errorf("self-checkout with the option off: %d %s", r.Status, r.Raw)
+	if r.Status != 403 {
+		t.Errorf("self-checkout with the option off: %d, want 403: %s", r.Status, r.Raw)
 	}
 	if d := before.diff(w.snap()); len(d) > 0 {
 		t.Errorf("the refused self-checkout changed %v", d)
