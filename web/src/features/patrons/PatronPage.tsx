@@ -166,7 +166,7 @@ function Reissue({ patron, onDone }: { patron: Patron; onDone: (number: string) 
         <p className="t">Re-issue {patron.display_name}'s card?</p>
         <p>The old card will stop working straight away: scanning it will find no one. A new number is made.</p>
         <InlineError error={error} />
-        <div className="row actions">
+        <div className="row patron-actions">
           <button type="button" className="btn btn-primary" onClick={() => void confirm()} disabled={busy}>
             {busy ? "Re-issuing…" : "Yes, re-issue the card"}
           </button>

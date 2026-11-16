@@ -4,7 +4,8 @@ import { useSession } from "../../app/session";
 import { PageError } from "../../components/Errors";
 import { Icon } from "../../components/Icon";
 import { useLoad } from "../patrons/useLoad";
-import { Availability, AverageRating, Cover, shortDate } from "./parts";
+import { Cover } from "../../components/Cover";
+import { Availability, AverageRating, shortDate } from "./parts";
 import { Reviews } from "./Reviews";
 import "./catalog.css";
 
@@ -77,7 +78,7 @@ export function BookPage() {
     <div className="bookpage">
       {back}
       <div className="hero">
-        <Cover book={book} />
+        <Cover book={book} size="hero" className="hero-cover" />
         <div className="hero-main">
           <h1>{book.title}</h1>
           {book.authors.length > 0 && <p className="byline">{book.authors.join(", ")}</p>}

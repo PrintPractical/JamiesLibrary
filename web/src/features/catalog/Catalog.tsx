@@ -4,7 +4,8 @@ import { searchBooks } from "../../api/catalog";
 import { PageError } from "../../components/Errors";
 import { Pager } from "../patrons/Pager";
 import { useLoad } from "../patrons/useLoad";
-import { Availability, Cover } from "./parts";
+import { Cover } from "../../components/Cover";
+import { Availability } from "./parts";
 import "./catalog.css";
 import "./manage.css";
 
@@ -44,7 +45,7 @@ export function Catalog() {
           Print labels
         </Link>
       </div>
-      <form className="card search" role="search" onSubmit={submit}>
+      <form className="card catalog-search" role="search" onSubmit={submit}>
         <div className="field grow">
           <label htmlFor="cat-q">Find a book to change</label>
           <input
@@ -79,7 +80,7 @@ export function Catalog() {
               {results.state.data.books.map((b) => (
                 <li key={b.id}>
                   <Link className="book-row" to={`/catalog/books/${b.id}`}>
-                    <Cover book={b} className="mini" />
+                    <Cover book={b} size="mini" />
                     <span className="book-main">
                       <b className="book-title">{b.title}</b>
                       {b.authors.length > 0 && <span className="small muted">{b.authors.join(", ")}</span>}

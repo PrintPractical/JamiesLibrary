@@ -39,8 +39,8 @@ export function Details({ value, errors, locked, onChange }: Props) {
             <img src={shown} alt="" />
           ) : (
             <>
-              <span className="ct">{value.title}</span>
-              <span className="ca">{value.authors}</span>
+              <span className="ab-cover-title">{value.title}</span>
+              <span className="ab-cover-author">{value.authors}</span>
             </>
           )}
         </div>

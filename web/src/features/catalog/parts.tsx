@@ -1,6 +1,5 @@
 import { useId } from "react";
 import { Icon } from "../../components/Icon";
-import type { BookCard } from "../../api/catalog";
 
 const STAR = "m12 2.8 2.8 5.9 6.4.8-4.7 4.4 1.2 6.3L12 17.1l-5.7 3.1 1.2-6.3-4.7-4.4 6.4-.8z";
 
@@ -47,17 +46,6 @@ export function AverageRating({ average, count }: { average: number; count: numb
       <b>{average.toFixed(1)}</b>
       <span className="muted">· {count === 1 ? "1 rating" : `${count} ratings`}</span>
     </p>
-  );
-}
-
-/** A book's cover, or when it has none a coloured block with its title, chosen from its id (design system). */
-export function Cover({ book, className = "" }: { book: Pick<BookCard, "id" | "title" | "authors" | "coverUrl">; className?: string }) {
-  if (book.coverUrl) return <img className={`cover cover-img ${className}`} src={book.coverUrl} alt="" loading="lazy" />;
-  return (
-    <div className={`cover c${(Math.abs(book.id) % 8) + 1} ${className}`} aria-hidden="true">
-      <span className="ct">{book.title}</span>
-      <span className="ca">{book.authors.join(", ")}</span>
-    </div>
   );
 }
 

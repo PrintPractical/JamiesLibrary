@@ -47,7 +47,7 @@ export function History() {
             ))}
           </ul>
           {pages > 1 && (
-            <nav className="pager" aria-label="Pages">
+            <nav className="history-pager" aria-label="Pages">
               <button type="button" className="btn btn-secondary" disabled={page <= 1} onClick={() => setPage(page - 1)}>
                 <Icon name="left" />
                 Newer
