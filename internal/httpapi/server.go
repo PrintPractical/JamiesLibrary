@@ -77,7 +77,7 @@ func NewHandler(o Options) (http.Handler, error) {
 	if o.Authenticate != nil {
 		h = o.Authenticate(h)
 	}
-	return withRequest(o.Logger, withProtections(h)), nil
+	return withRequest(o.Logger, o.Clients, withProtections(h)), nil
 }
 
 // buildRouter registers every route, the API's own first. It is separate from
