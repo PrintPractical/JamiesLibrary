@@ -22,6 +22,9 @@ const settings: AdminSettings = {
   loan_period_days: 14,
   max_loans: 5,
   max_renewals: 2,
+  session_idle_minutes: 43200,
+  self_checkout: false,
+  copy_id_mode: "isbn",
 };
 
 const passes: BrandingCheck = { ok: true, failed: [], on_accent_ratio: 9, as_text_ratio: 9, suggestion: "", colours: hearth };
