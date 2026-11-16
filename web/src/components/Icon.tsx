@@ -19,9 +19,13 @@ const PATHS = {
   stats: ["M4 20V10M10 20V4M16 20v-7M21 20H3"],
   switch: ["M7 4 3 8l4 4M3 8h14M17 12l4 4-4 4M21 16H7"],
   more: ["circle:5,12,1.2", "circle:12,12,1.2", "circle:19,12,1.2"],
+  check: ["M5 12.5l4.5 4.5L19 7.5"],
   alert: ["circle:12,12,9", "M12 7.5v5.5M12 16.5h.01"],
   camera: ["M4 8h3l2-3h6l2 3h3v11H4z", "circle:12,13,3.5"],
   torch: ["M7 3h10v4l-3 4v10h-4V11L7 7z", "M12 14v2"],
+  upload: ["M12 16V4M7 9l5-5 5 5", "M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"],
+  left: ["M15 6l-6 6 6 6"],
+  right: ["m9 6 6 6-6 6"],
   close: ["M6 6l12 12M18 6 6 18"],
 } as const;
 

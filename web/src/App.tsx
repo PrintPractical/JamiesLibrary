@@ -1,13 +1,13 @@
 import { BrowserRouter } from "react-router";
 import { AppRoutes } from "./app/routes";
-import { ThemeProvider } from "./app/ThemeProvider";
+import { SessionProvider } from "./app/session";
 
 export function App() {
   return (
-    <ThemeProvider>
+    <SessionProvider>
       <BrowserRouter>
         <AppRoutes />
       </BrowserRouter>
-    </ThemeProvider>
+    </SessionProvider>
   );
 }

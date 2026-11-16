@@ -33,7 +33,10 @@ type Copy struct {
 // CopyInput is what a librarian saves about a copy.
 type CopyInput struct {
 	LocationID int64
-	Condition  string // "" means DefaultCondition when adding, unchanged when updating
+	// NewLocation names a location to create and put the copy in, instead of
+	// LocationID. A name a location already has is refused.
+	NewLocation string
+	Condition   string // "" means DefaultCondition when adding, unchanged when updating
 	// Sticker is a barcode already on the copy. When adding, "" asks for a
 	// generated code if the copy needs one; when updating, "" leaves the code as it is.
 	Sticker string
@@ -139,6 +142,20 @@ func mustHaveLocation(ctx context.Context, q DB, id int64) error {
 	return err
 }
 
+// resolveLocation is the location a copy is saved into: the one named by ID,
+// or a new one made now, in the caller's transaction, so a refused copy leaves
+// no location behind.
+func resolveLocation(ctx context.Context, tx DB, in CopyInput) (int64, error) {
+	if strings.TrimSpace(in.NewLocation) == "" {
+		return in.LocationID, mustHaveLocation(ctx, tx, in.LocationID)
+	}
+	if in.LocationID != 0 {
+		return 0, apperr.OnField(apperr.Invalid, "new_location", "Choose an existing location or name a new one, not both.")
+	}
+	l, err := insertLocation(ctx, tx, in.NewLocation, "new_location")
+	return l.ID, err
+}
+
 // copyIDMode reads the mode inside the transaction, so a switch and an add
 // can't disagree.
 func copyIDMode(ctx context.Context, q DB) (string, error) {
@@ -182,7 +199,8 @@ func (s *Service) AddCopy(ctx context.Context, actor, bookID int64, in CopyInput
 		if err := mustExist(ctx, tx, bookID); err != nil {
 			return err
 		}
-		if err := mustHaveLocation(ctx, tx, in.LocationID); err != nil {
+		locID, err := resolveLocation(ctx, tx, in)
+		if err != nil {
 			return err
 		}
 		if sticker != "" {
@@ -192,7 +210,7 @@ func (s *Service) AddCopy(ctx context.Context, actor, bookID int64, in CopyInput
 		}
 		res, err := tx.ExecContext(ctx, `INSERT INTO copies (book_id, number, condition, location_id, created_at)
 			VALUES (?, (SELECT COALESCE(MAX(number), 0) + 1 FROM copies WHERE book_id = ?), ?, ?, ?)`,
-			bookID, bookID, cond, in.LocationID, s.stamp())
+			bookID, bookID, cond, locID, s.stamp())
 		if err != nil {
 			return err
 		}
@@ -236,7 +254,8 @@ func (s *Service) UpdateCopy(ctx context.Context, actor, copyID int64, in CopyIn
 		if err != nil {
 			return err
 		}
-		if err := mustHaveLocation(ctx, tx, in.LocationID); err != nil {
+		locID, err := resolveLocation(ctx, tx, in)
+		if err != nil {
 			return err
 		}
 		if sticker != "" {
@@ -244,7 +263,7 @@ func (s *Service) UpdateCopy(ctx context.Context, actor, copyID int64, in CopyIn
 				return err
 			}
 		}
-		if _, err := tx.ExecContext(ctx, `UPDATE copies SET condition = ?, location_id = ? WHERE id = ?`, cond, in.LocationID, copyID); err != nil {
+		if _, err := tx.ExecContext(ctx, `UPDATE copies SET condition = ?, location_id = ? WHERE id = ?`, cond, locID, copyID); err != nil {
 			return err
 		}
 		return s.assignCode(ctx, tx, copyID, cur.BookID, sticker)
@@ -298,48 +317,70 @@ func (s *Service) MoveCopies(ctx context.Context, actor, from, to int64) (int, e
 	return int(n), err
 }
 
+// Audit writes the activity entry for a change, inside the transaction that
+// makes it, so the change and its entry stand or fall together.
+type Audit func(ctx context.Context, tx store.Tx, details map[string]any) error
+
 // SetCopyIDMode switches how copies are identified (CAT-9), in one
 // transaction. Switching to own-barcode mode gives every copy without a code a
 // generated one; switching to ISBN mode changes only the setting. Copies and
-// loans are untouched.
-func (s *Service) SetCopyIDMode(ctx context.Context, actor int64, mode string) error {
+// loans are untouched. audit, when it isn't nil, writes the activity entry in
+// the same transaction: the mode before and after, and how many copies were
+// given a code.
+func (s *Service) SetCopyIDMode(ctx context.Context, actor int64, mode string, audit Audit) error {
 	err := s.st.WithTx(ctx, func(tx store.Tx) error {
+		was, err := copyIDMode(ctx, tx)
+		if err != nil {
+			return err
+		}
 		if err := s.settings.SetCopyIDModeTx(ctx, tx, mode); err != nil {
 			return err
 		}
-		if mode != settings.CopyIDOwn {
+		coded := 0
+		if mode == settings.CopyIDOwn {
+			if coded, err = codeBareCopies(ctx, tx); err != nil {
+				return err
+			}
+		}
+		if audit == nil {
 			return nil
 		}
-		rows, err := tx.QueryContext(ctx, `SELECT c.id FROM copies c WHERE c.removed_at IS NULL
-			AND NOT EXISTS (SELECT 1 FROM identifiers i WHERE i.copy_id = c.id) ORDER BY c.id`)
-		if err != nil {
-			return err
-		}
-		var ids []int64
-		for rows.Next() {
-			var id int64
-			if err := rows.Scan(&id); err != nil {
-				rows.Close()
-				return err
-			}
-			ids = append(ids, id)
-		}
-		err = rows.Err()
-		rows.Close()
-		if err != nil {
-			return err
-		}
-		for _, id := range ids {
-			if err := giveGeneratedCode(ctx, tx, id); err != nil {
-				return err
-			}
-		}
-		return nil
+		return audit(ctx, tx, map[string]any{"copy_id_mode": map[string]any{"from": was, "to": mode}, "copies_given_ids": coded})
 	})
 	if err != nil {
 		return err
 	}
 	return s.settings.Reload(ctx)
+}
+
+// codeBareCopies gives every live copy without a code a generated one, and
+// says how many that was.
+func codeBareCopies(ctx context.Context, tx store.Tx) (int, error) {
+	rows, err := tx.QueryContext(ctx, `SELECT c.id FROM copies c WHERE c.removed_at IS NULL
+		AND NOT EXISTS (SELECT 1 FROM identifiers i WHERE i.copy_id = c.id) ORDER BY c.id`)
+	if err != nil {
+		return 0, err
+	}
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		ids = append(ids, id)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return 0, err
+	}
+	for _, id := range ids {
+		if err := giveGeneratedCode(ctx, tx, id); err != nil {
+			return 0, err
+		}
+	}
+	return len(ids), nil
 }
 
 // LookupCode finds the copy a scanned code identifies. A code that is no
@@ -406,3 +447,60 @@ func countByLocation(ctx context.Context, q DB) (map[int64]int, error) {
 // hasCopyAtSQL is a condition on the books table that holds for a book with a
 // copy in the location bound to its one "?".
 const hasCopyAtSQL = `EXISTS (SELECT 1 FROM copies c WHERE c.book_id = books.id AND c.location_id = ? AND c.removed_at IS NULL)`
+
+// Counts is how many copies of the book are in the catalog and how many of
+// them can be borrowed now. A book that isn't in the catalog is not found.
+func (s *Service) Counts(ctx context.Context, bookID int64) (copies, available int, err error) {
+	if err = mustExist(ctx, s.st.DB(), bookID); err != nil {
+		return 0, 0, err
+	}
+	if err = s.st.DB().QueryRowContext(ctx, `SELECT count(*) FROM copies WHERE book_id = ? AND removed_at IS NULL`, bookID).Scan(&copies); err != nil {
+		return 0, 0, err
+	}
+	out, err := s.loans.LoanedCopies(ctx, s.st.DB(), bookID)
+	if err != nil {
+		return 0, 0, err
+	}
+	return copies, copies - out, nil
+}
+
+// DueDates maps each of the book's copies on loan now to its due date.
+func (s *Service) DueDates(ctx context.Context, bookID int64) (map[int64]string, error) {
+	return s.loans.DueDates(ctx, s.st.DB(), bookID)
+}
+
+// LabelCopy is a copy with what its label shows about its book.
+type LabelCopy struct {
+	Copy
+	Title string
+	ISBN  string // the book's ISBN-13, "" when it has none
+}
+
+// LabelCopies returns the copies with the given IDs, in the order given, each
+// with its book's title and ISBN, and the library's copy-ID mode, all read in
+// one transaction so a label never mixes two modes. A copy that isn't in the
+// catalog is not found.
+func (s *Service) LabelCopies(ctx context.Context, ids []int64) ([]LabelCopy, string, error) {
+	out := make([]LabelCopy, 0, len(ids))
+	var mode string
+	err := s.st.WithTx(ctx, func(tx store.Tx) error {
+		var err error
+		if mode, err = copyIDMode(ctx, tx); err != nil {
+			return err
+		}
+		for _, id := range ids {
+			c, err := s.getCopy(ctx, tx, id)
+			if err != nil {
+				return err
+			}
+			var isbn sql.NullString
+			var title string
+			if err := tx.QueryRowContext(ctx, `SELECT title, isbn13 FROM books WHERE id = ?`, c.BookID).Scan(&title, &isbn); err != nil {
+				return err
+			}
+			out = append(out, LabelCopy{Copy: c, Title: title, ISBN: isbn.String})
+		}
+		return nil
+	})
+	return out, mode, err
+}

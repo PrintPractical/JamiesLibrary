@@ -21,13 +21,14 @@ var ctx = context.Background()
 const isbnA, isbnB = "9780306406157", "9780140328721"
 
 type rig struct {
-	t   *testing.T
-	st  *store.Store
-	set *settings.Service
-	cat *catalog.Service
-	us  *users.Service
-	svc *Service
-	now time.Time
+	t     *testing.T
+	st    *store.Store
+	set   *settings.Service
+	cat   *catalog.Service
+	us    *users.Service
+	svc   *Service
+	now   time.Time
+	desks int
 }
 
 func newRig(t *testing.T) *rig {
@@ -80,7 +81,7 @@ func (r *rig) book(title, isbn string, copies int) (catalog.Book, []catalog.Copy
 
 func (r *rig) ownMode() {
 	r.t.Helper()
-	if err := r.cat.SetCopyIDMode(ctx, 1, settings.CopyIDOwn); err != nil {
+	if err := r.cat.SetCopyIDMode(ctx, 1, settings.CopyIDOwn, nil); err != nil {
 		r.t.Fatal(err)
 	}
 }
@@ -140,7 +141,7 @@ func TestCopyAlreadyOut(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err := r.svc.Checkout(ctx, lib.ID, c2, code)
-	wantErr(t, err, apperr.Conflict, "on loan to Sam")
+	wantErr(t, err, apperr.Conflict, "on loan to Sam, due Thu 29 Jan.")
 	if !strings.Contains(err.(*apperr.Error).Message, "check it in first") {
 		t.Errorf("the message doesn't say what to do: %v", err)
 	}
@@ -460,7 +461,7 @@ func TestUnknownCode(t *testing.T) {
 	_, err := r.svc.Resolve(ctx, r.code(cs[0].ID), StepPatron)
 	wantErr(t, err, apperr.NotFound, "No such patron")
 	// a valid ISBN no book has, in ISBN mode
-	if err := r.cat.SetCopyIDMode(ctx, 1, settings.CopyIDISBN); err != nil {
+	if err := r.cat.SetCopyIDMode(ctx, 1, settings.CopyIDISBN, nil); err != nil {
 		t.Fatal(err)
 	}
 	_, err = r.svc.Resolve(ctx, isbnB, StepItem)

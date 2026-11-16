@@ -44,6 +44,9 @@ type Loans interface {
 	LoanedCopies(ctx context.Context, q DB, bookID int64) (int, error)
 	// OnLoan reports whether the copy is on loan now.
 	OnLoan(ctx context.Context, q DB, copyID int64) (bool, error)
+	// DueDates maps the ID of each of the book's copies that is on loan now to
+	// its due date (YYYY-MM-DD). It says nothing about who has the copy.
+	DueDates(ctx context.Context, q DB, bookID int64) (map[int64]string, error)
 }
 
 // NoLoans is the Loans of a library with no loans table yet: nothing is on loan.
@@ -51,6 +54,9 @@ type NoLoans struct{}
 
 func (NoLoans) LoanedCopies(context.Context, DB, int64) (int, error) { return 0, nil }
 func (NoLoans) OnLoan(context.Context, DB, int64) (bool, error)      { return false, nil }
+func (NoLoans) DueDates(context.Context, DB, int64) (map[int64]string, error) {
+	return map[int64]string{}, nil
+}
 
 // Options change how a Service is made; the zero value is not enough.
 type Options struct {
