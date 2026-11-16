@@ -88,7 +88,10 @@ describe("ADMIN-2 Manage users", () => {
     const sw = await screen.findByRole("switch", { name: /^Manage users/ });
     expect(sw).toBeChecked();
     await userEvent.click(sw);
-    expect((await screen.findByRole("alert")).textContent).toContain("At least one active user must be able to manage users and permissions.");
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("At least one active user must be able to manage users and permissions.");
+    // Right under the switch that was refused, not at the top of the page.
+    expect((sw.closest("li") as HTMLElement).contains(alert)).toBe(true);
     expect(screen.getByRole("switch", { name: /^Manage users/ })).toBeChecked();
   });
 
@@ -97,7 +100,8 @@ describe("ADMIN-2 Manage users", () => {
     await renderApp("/admin/people/1");
     await userEvent.click(await screen.findByRole("button", { name: "Deactivate" }));
     await userEvent.click(screen.getByRole("button", { name: "Yes, deactivate" }));
-    expect(await screen.findByText("You are the last administrator.")).toBeInTheDocument();
+    const msg = await screen.findByText("You are the last administrator.");
+    expect(screen.getByRole("region", { name: "Account" }).contains(msg)).toBe(true);
   });
 
   test("Deactivate asks first, then marks the user deactivated; reactivate undoes it", async () => {

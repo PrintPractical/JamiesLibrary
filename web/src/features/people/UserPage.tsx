@@ -52,8 +52,6 @@ export function UserPage() {
 
 function UserDetail({ user, onChanged }: { user: AdminUser; onChanged: (u: AdminUser) => void }) {
   const { can, me } = useSession();
-  const [error, setError] = useState<unknown>(null);
-
   // The server refuses to act on someone who holds what the viewer doesn't (security design §4b).
   const beyond = user.permissions.filter((p) => !can(p));
   const locked = beyond.length > 0;
@@ -90,34 +88,34 @@ function UserDetail({ user, onChanged }: { user: AdminUser; onChanged: (u: Admin
             </div>
           </div>
         )}
-        <InlineError error={error} />
       </header>
 
-      {can("users.permissions") && <RoleSection user={user} locked={locked} onChanged={onChanged} onError={setError} />}
-      {can("users.permissions") && <Switches user={user} locked={locked} onChanged={onChanged} onError={setError} />}
-      {can("users.manage") && <Account user={user} locked={locked} onChanged={onChanged} onError={setError} />}
+      {can("users.permissions") && <RoleSection user={user} locked={locked} onChanged={onChanged} />}
+      {can("users.permissions") && <Switches user={user} locked={locked} onChanged={onChanged} />}
+      {can("users.manage") && <Account user={user} locked={locked} onChanged={onChanged} />}
     </div>
   );
 }
 
 const permissionLabel = (id: string) => PERMISSIONS.find((p) => p.id === id)?.label ?? id;
 
-type Section = { user: AdminUser; locked: boolean; onChanged: (u: AdminUser) => void; onError: (e: unknown) => void };
+type Section = { user: AdminUser; locked: boolean; onChanged: (u: AdminUser) => void };
 
-function RoleSection({ user, locked, onChanged, onError }: Section) {
+function RoleSection({ user, locked, onChanged }: Section) {
   const { can } = useSession();
   // Roles whose permissions the viewer holds, and the user's own role so it shows what they have.
   const offered = ROLES.filter((r) => r.id === user.role || grantableRoles(can).some((g) => g.id === r.id));
   const [role, setRole] = useState(user.role);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
 
   async function apply() {
     setBusy(true);
-    onError(null);
+    setError(null);
     try {
       onChanged(await changeRole(user.id, role));
     } catch (err) {
-      onError(err);
+      setError(err);
     } finally {
       setBusy(false);
     }
@@ -137,6 +135,7 @@ function RoleSection({ user, locked, onChanged, onError }: Section) {
         </select>
         <span className="help">Setting a role replaces all of this person's permissions with the role's preset.</span>
       </div>
+      <InlineError error={error} />
       <div>
         <button type="button" className="btn btn-secondary" onClick={() => void apply()} disabled={locked || busy || role === user.role}>
           {busy ? "Saving…" : "Set role"}
@@ -146,18 +145,20 @@ function RoleSection({ user, locked, onChanged, onError }: Section) {
   );
 }
 
-function Switches({ user, locked, onChanged, onError }: Section) {
+function Switches({ user, locked, onChanged }: Section) {
   const { can } = useSession();
   const [busy, setBusy] = useState<string | null>(null);
+  // The refusal stays under the switch that was refused.
+  const [refused, setRefused] = useState<{ permission: string; error: unknown } | null>(null);
   const on = new Set(user.permissions);
 
   async function flip(permission: string, value: boolean) {
     setBusy(permission);
-    onError(null);
+    setRefused(null);
     try {
       onChanged(await setPermission(user.id, permission, value));
     } catch (err) {
-      onError(err); // the last-administrator rule, or a permission the viewer lacks: the server says which
+      setRefused({ permission, error: err }); // the last-administrator rule, or a permission the viewer lacks: the server says which
     } finally {
       setBusy(null);
     }
@@ -171,7 +172,8 @@ function Switches({ user, locked, onChanged, onError }: Section) {
           const held = can(p.id);
           const disabled = locked || !held || busy !== null;
           return (
-            <li key={p.id} className="sw">
+            <li key={p.id}>
+              <div className="sw">
               <label className="sw-text" htmlFor={`perm-${p.id}`}>
                 <b>{p.label}</b>
                 <span className="small muted">{p.help}</span>
@@ -186,6 +188,12 @@ function Switches({ user, locked, onChanged, onError }: Section) {
                 aria-describedby={held ? undefined : `why-${p.id}`}
                 onChange={(e) => void flip(p.id, e.target.checked)}
               />
+              </div>
+              {refused?.permission === p.id && (
+                <div className="sw-err">
+                  <InlineError error={refused.error} />
+                </div>
+              )}
             </li>
           );
         })}
@@ -194,21 +202,22 @@ function Switches({ user, locked, onChanged, onError }: Section) {
   );
 }
 
-function Account({ user, locked, onChanged, onError }: Section) {
+function Account({ user, locked, onChanged }: Section) {
   const [asking, setAsking] = useState<"deactivate" | "reset" | null>(null);
   const [busy, setBusy] = useState(false);
   // Shown once: it lives only here, and is gone when the administrator is done.
   const [temp, setTemp] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
 
   async function run(action: () => Promise<AdminUser>) {
     setBusy(true);
-    onError(null);
+    setError(null);
     try {
       onChanged(await action());
       setAsking(null);
     } catch (err) {
       setAsking(null);
-      onError(err);
+      setError(err);
     } finally {
       setBusy(false);
     }
@@ -216,13 +225,13 @@ function Account({ user, locked, onChanged, onError }: Section) {
 
   async function reset() {
     setBusy(true);
-    onError(null);
+    setError(null);
     try {
       const done = await resetPassword(user.id);
       setTemp(done.temporary_password);
       onChanged(done.user);
     } catch (err) {
-      onError(err);
+      setError(err);
     } finally {
       setAsking(null);
       setBusy(false);
@@ -232,6 +241,7 @@ function Account({ user, locked, onChanged, onError }: Section) {
   return (
     <section className="card stack" aria-labelledby="acct-h">
       <h2 id="acct-h">Account</h2>
+      <InlineError error={error} />
       {temp !== null && <TempPassword name={user.display_name} password={temp} onDone={() => setTemp(null)} />}
       {asking === "deactivate" && (
         <Confirm
