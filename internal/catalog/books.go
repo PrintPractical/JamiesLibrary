@@ -333,6 +333,26 @@ func queryBooks(ctx context.Context, q DB, query string, args ...any) ([]Book, e
 	return books, arows.Err()
 }
 
+// AuthorsIn lists a book's authors in order, whether or not the book has
+// been removed: a removed book keeps them, so its past loans still read as
+// they did.
+func (s *Service) AuthorsIn(ctx context.Context, q DB, bookID int64) ([]string, error) {
+	rows, err := q.QueryContext(ctx, `SELECT name FROM book_authors WHERE book_id = ? ORDER BY position`, bookID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []string{}
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		out = append(out, name)
+	}
+	return out, rows.Err()
+}
+
 // BookByISBN finds the book in the catalog with this ISBN-13 (as ParseISBN returns it).
 func (s *Service) BookByISBN(ctx context.Context, isbn13 string) (Book, bool, error) {
 	return s.BookByISBNIn(ctx, s.st.DB(), isbn13)

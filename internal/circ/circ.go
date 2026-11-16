@@ -267,15 +267,7 @@ func (s *Service) loansWhere(ctx context.Context, q catalog.DB, where string, ar
 }
 
 func (s *Service) authorsOf(ctx context.Context, q catalog.DB, bookID int64) ([]string, error) {
-	b, err := s.catalog.GetBookIn(ctx, q, bookID)
-	if err != nil {
-		// a removed book keeps its loans but has no live record to read authors from
-		if e, ok := apperr.As(err); ok && e.Code == apperr.NotFound {
-			return []string{}, nil
-		}
-		return nil, err
-	}
-	return b.Authors, nil
+	return s.catalog.AuthorsIn(ctx, q, bookID)
 }
 
 // OpenLoansOf lists a patron's open loans, earliest due first. It reads
