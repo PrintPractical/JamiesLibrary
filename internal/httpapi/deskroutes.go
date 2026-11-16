@@ -14,6 +14,7 @@ import (
 func registerDeskRoutes(rt *Router, o Options) {
 	d := &deskRoutes{circ: o.Circ}
 	rt.HandleFunc("POST /api/desk/resolve", Require(perm.CircDesk), d.resolve)
+	rt.HandleFunc("POST /api/desk/find", Require(perm.CircDesk), d.find)
 	rt.HandleFunc("POST /api/desk/checkout", Require(perm.CircDesk), d.checkout)
 	rt.HandleFunc("POST /api/desk/checkin", Require(perm.CircDesk), d.checkin)
 }
@@ -127,6 +128,36 @@ func (d *deskRoutes) resolve(w http.ResponseWriter, r *http.Request) {
 		out.Kind = "book"
 	}
 	WriteJSON(w, http.StatusOK, out)
+}
+
+type findRequest struct {
+	Q string `json:"q"`
+}
+
+// find answers the patron field at checkout (CIRC-8): a card selects its holder,
+// anything else lists the users whose name or username contains it. It needs
+// circ.desk only, so a librarian without patrons.lookup can use it.
+func (d *deskRoutes) find(w http.ResponseWriter, r *http.Request) {
+	var req findRequest
+	if err := DecodeJSON(w, r, &req); err != nil {
+		WriteError(w, r, err)
+		return
+	}
+	got, err := d.circ.FindAtDesk(r.Context(), req.Q)
+	if err != nil {
+		WriteError(w, r, err)
+		return
+	}
+	if p := got.Patron; p != nil {
+		WriteJSON(w, http.StatusOK, map[string]any{"kind": "patron",
+			"patron": deskPatronBody{ID: p.ID, DisplayName: p.DisplayName, Card: p.Card, Active: p.Active, Out: p.Out, Overdue: p.Overdue, Limit: p.Limit}})
+		return
+	}
+	matches := make([]patronMatchBody, 0, len(got.Matches))
+	for _, m := range got.Matches {
+		matches = append(matches, toPatronMatch(m))
+	}
+	WriteJSON(w, http.StatusOK, map[string]any{"kind": "matches", "patrons": matches, "more": got.More})
 }
 
 type checkoutRequest struct {
