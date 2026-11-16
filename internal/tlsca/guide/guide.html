@@ -44,7 +44,7 @@
 
   <section class="card" aria-labelledby="h-check">
     <h2 id="h-check">Check it is really this library</h2>
-    <p>Anyone on your network could swap the file you download for another one. So each set of steps above tells you to compare the SHA-256 fingerprint your device shows for the certificate with the one on the library's server console, or on the Settings page when an administrator is signed in. Compare the first 8 and the last 8 characters. Capitals, spaces and colons don't matter. If they differ, don't trust it.</p>
+    <p>Anyone on your network could swap the file you download for another one. So each set of steps above tells you to compare the SHA-256 fingerprint your device shows for the certificate with the one on the library's server console, or on the Settings page opened on another device that already trusts the library and shows no warning. Never sign in on the device you are setting up to read it: until it has done the step it would accept anyone's certificate. Compare the first 8 and the last 8 characters. Capitals, spaces and colons don't matter. If they differ, don't trust it.</p>
     <p>This page's own copy is for reference only, and is not the check: this page came over a connection that isn't encrypted, so it could have been changed on the way.</p>
     <code class="fp" id="fingerprint">{{.Fingerprint}}</code>
   </section>

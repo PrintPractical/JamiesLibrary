@@ -7,14 +7,17 @@ export class ApiError extends Error {
   readonly code: string;
   readonly field: string | undefined;
   readonly requestId: string | undefined;
+  /** The book that already holds an ISBN, on a refusal for a duplicate. */
+  readonly bookId: number | undefined;
 
-  constructor(init: { status: number; code: string; message: string; field?: string; requestId?: string }) {
+  constructor(init: { status: number; code: string; message: string; field?: string; requestId?: string; bookId?: number }) {
     super(init.message);
     this.name = "ApiError";
     this.status = init.status;
     this.code = init.code;
     this.field = init.field;
     this.requestId = init.requestId;
+    this.bookId = init.bookId;
   }
 }
 
@@ -30,13 +33,18 @@ export type ApiOptions = {
   /** Sent as JSON, or as it is when a FormData (a file upload). */
   body?: unknown;
   signal?: AbortSignal;
+  /** The answer is a file (a PDF), returned as a Blob. */
+  blob?: boolean;
 };
 
 /** Turns a failed response into an ApiError, whatever the body is. */
 async function toApiError(res: Response): Promise<ApiError> {
   let detail: unknown;
+  let bookId: number | undefined;
   try {
-    detail = ((await res.json()) as { error?: unknown } | null)?.error;
+    const body = (await res.json()) as { error?: unknown; book_id?: unknown } | null;
+    detail = body?.error;
+    if (typeof body?.book_id === "number") bookId = body.book_id;
   } catch {
     detail = undefined;
   }
@@ -45,7 +53,7 @@ async function toApiError(res: Response): Promise<ApiError> {
   const code = str(d.code);
   const message = str(d.message);
   if (code && message) {
-    return new ApiError({ status: res.status, code, message, field: str(d.field), requestId: str(d.request_id) });
+    return new ApiError({ status: res.status, code, message, field: str(d.field), requestId: str(d.request_id), bookId });
   }
   return new ApiError({
     status: res.status,
@@ -56,8 +64,8 @@ async function toApiError(res: Response): Promise<ApiError> {
 
 /** Calls the API and returns the parsed JSON body (undefined for 204). Throws ApiError or NetworkError. */
 export async function api<T = undefined>(path: string, options: ApiOptions = {}): Promise<T> {
-  const { method = "GET", body, signal } = options;
-  const headers: Record<string, string> = { Accept: "application/json" };
+  const { method = "GET", body, signal, blob } = options;
+  const headers: Record<string, string> = { Accept: blob ? "application/pdf" : "application/json" };
   const upload = body instanceof FormData;
   if (body !== undefined && !upload) headers["Content-Type"] = "application/json";
 
@@ -77,6 +85,13 @@ export async function api<T = undefined>(path: string, options: ApiOptions = {})
 
   if (!res.ok) throw await toApiError(res);
   if (res.status === 204) return undefined as T;
+  if (blob) {
+    try {
+      return (await res.blob()) as T;
+    } catch (err) {
+      throw new NetworkError({ cause: err });
+    }
+  }
   try {
     return (await res.json()) as T;
   } catch {
