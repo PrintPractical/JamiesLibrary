@@ -22,6 +22,8 @@ const PATHS = {
   more: ["circle:5,12,1.2", "circle:12,12,1.2", "circle:19,12,1.2"],
   check: ["M5 12.5l4.5 4.5L19 7.5"],
   alert: ["circle:12,12,9", "M12 7.5v5.5M12 16.5h.01"],
+  warning: ["M12 3.5 2.5 20h19z", "M12 10v4.5M12 17.5h.01"],
+  info: ["circle:12,12,9", "M12 11v5.5M12 7.8h.01"],
   camera: ["M4 8h3l2-3h6l2 3h3v11H4z", "circle:12,13,3.5"],
   torch: ["M7 3h10v4l-3 4v10h-4V11L7 7z", "M12 14v2"],
   upload: ["M12 16V4M7 9l5-5 5 5", "M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"],
