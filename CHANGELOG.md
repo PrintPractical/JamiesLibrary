@@ -8,6 +8,7 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Borrowing, on screen. Librarians can check books out (scan a patron's card, then each book; in ISBN mode the lowest-numbered copy that is in is lent and its number shown), check them in (scan copies one after another, choose or scan a card when several copies of a book are out, see where to put each back and how late it was), renew for a patron, see overdue loans, look a patron up by name or card with their current loans and history, and re-issue a lost card, which stops the old one working at once. Patrons have a Home screen with their books, due dates and Renew buttons, a Borrowing history page, My card with a barcode and QR code, and, where an administrator switches it on, a Check out a book page. Each refusal says what to do. New guides: [Working the desk](docs/guide-desk.md) and [Borrowing books](docs/guide-patron.md).
 - Librarians can look after the catalog from the web app: add a book by scanning or typing its ISBN (with the camera, a hand scanner or the keyboard), check the details found on Open Library and add copies in one step, or enter a book by hand when there is no internet or no ISBN. They can change a book and its copies, remove either (a copy or book on loan can't be removed), manage locations, and print copy labels as PDF for Avery 5160, Avery L7160 or a single 62 x 29 mm label. A new guide, [Looking after the catalog](docs/guide-catalog.md), explains each.
 
 ### Fixed

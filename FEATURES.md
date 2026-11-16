@@ -17,14 +17,16 @@ What Jamie's Library does today, by area. Each entry names the requirements it c
 
 ## Circulation
 
-- Check out a copy to a patron by scanning or typing their card and the copy's barcode (or, by ISBN, the book's), with a due date set by the loan period in the library's time zone; refused when the copy is out, the patron is at their limit or deactivated (CIRC-1, CIRC-4, SCAN-3, SCAN-4). API only so far.
+- Check out: on the Check out screen (`/desk/checkout`) a librarian scans or types a patron's card, then each copy's barcode (or, in ISBN mode, the book's); each scan is lent at once with its copy number and a due date set by the loan period in the library's time zone, and the screen shows how many the patron has out and what they had before (CIRC-1, CIRC-4, SCAN-3, SCAN-4). Refused, with what to do, when the card or code is unknown, the copy is out (and with whom), the patron is at their limit or deactivated. See [Working the desk](docs/guide-desk.md).
 - In ISBN mode, checkout picks the lowest-numbered copy that is in and says which; with none in it says so (CIRC-1, CAT-9).
-- Check in by copy barcode or ISBN; with several copies out, choose the loan or scan the patron's card; returned loans stay in history (CIRC-2).
+- Check in on the Check in screen (`/desk/checkin`): scan copy barcodes or ISBNs one after another with no patron chosen; the screen says where to put the book back and how late it was, and keeps a list of the session. With several copies of a book out, the librarian scans the patron's card or picks the loan; an ISBN with nothing out says so. Returned loans stay in history (CIRC-2).
 - A copy or book on loan can't be removed from the catalog.
-- Renew a loan, for a patron or for oneself, up to the renewals the library allows; refused when it is overdue or at the limit, and the reason is given (CIRC-5).
-- A loan is overdue once today, in the library's time zone, is after its due date; staff have a list of overdue loans (CIRC-6). Patrons see their own loans and history through the API (PATRON-1).
-- Self-checkout: when an administrator switches it on, a patron with the permission can check an available copy out to themselves (CIRC-7). API only so far.
-- Staff look up a patron by name or card number, see their loans and history, renew for them and re-issue a lost card, on the Patrons screen (`/desk/patrons`) and the Overdue screen (`/desk/overdue`) (CIRC-3, CIRC-6, CARD-1).
+- Renew a loan, for a patron from their Home screen or for them from the patron's page at the desk, by the loan period from the current due date, up to the renewals the library allows; refused when it is overdue or at the limit, and the reason is given (CIRC-5).
+- A loan is overdue once today, in the library's time zone, is after its due date. The Overdue screen (`/desk/overdue`) lists overdue loans with the patron and days late, longest first (CIRC-6).
+- Staff look up a patron by name or card number on the Patrons screen (`/desk/patrons`) and open their page for current loans, overdue badges and full borrowing history, with renewing (CIRC-3, CIRC-5).
+- Re-issue a lost card from the patron's page: the old number stops identifying anyone at once, and the new one is shown once (CARD-1).
+- Patron Home (`/`): the date, how many books are out and how many overdue, each loan with its due date (words and icon, not colour alone) and a Renew button or the reason it can't be renewed; and a Borrowing history page (`/loans`), a page at a time (PATRON-1, CIRC-5, UX-2). See [Borrowing books](docs/guide-patron.md).
+- Self-checkout: when an administrator switches it on, a patron with the permission scans or types a book's code on the Check out a book page (`/checkout`) and it is lent to them, with every refusal explained; patrons can't return books themselves (CIRC-7).
 
 ## Accounts and permissions
 
@@ -34,11 +36,11 @@ What Jamie's Library does today, by area. Each entry names the requirements it c
 - 16 separate permissions, grouped into the roles patron, librarian and administrator, which are starting sets: an administrator can switch single permissions for a person, and the user list marks anyone who differs from their role (ROLE-1, ROLE-2, ROLE-3, ADMIN-2). A person is never given more than the administrator granting it holds.
 - On **People & invites** (`/admin/people`), people who may manage users list everyone and open a person's page to set their role, switch single permissions, deactivate and reactivate them (which ends their sessions) and reset their password, with a temporary password shown once; there is no email in this version (ADMIN-2, ACCESS-7). Nobody can give or change more than they hold, and the last administrator can't be removed (ROLE-1, ROLE-2, ROLE-3, ADMIN-2). See [accounts](docs/accounts.md).
 - Invitation codes, one use each, for a role; people who may manage invitations make, see and revoke them on **People & invites**, and a code that gives permissions the viewer lacks is hidden from them (ACCESS-2, ACCESS-3).
-- Navigation and screens follow the person's permissions: patrons and staff see different layouts (UX-2). The patron and staff pages for browsing and borrowing are placeholders until their features are built.
+- Navigation and screens follow the person's permissions: patrons and staff see different layouts (UX-2).
 
 ## Library cards
 
-- Every patron has a 12-digit card number, shown as a Code 128 barcode and a QR code; staff can re-issue a lost card, which replaces the number (CARD-1). The card never shares a code with a copy (CAT-3).
+- Every patron has a 12-digit card number, shown on My card (`/card`) with their name and the library's logo as a Code 128 barcode and a QR code; staff can re-issue a lost card, which replaces the number (CARD-1). The card never shares a code with a copy (CAT-3).
 
 ## Catalog
 
@@ -65,7 +67,7 @@ What Jamie's Library does today, by area. Each entry names the requirements it c
 ## Web app
 
 - The Settings screen, for administrators (`/admin/settings`): library name, logo (JPEG, PNG or WebP up to 2 MB; refusals are shown) and colour scheme with a custom accent, a live preview and the server's verdict on readability (ADMIN-1); loan period, items out at once, renewals and time zone (CIRC-4); the sign-out time for unused sessions; switches for self-checkout and the public catalog, each saying what it does (CIRC-7, ACCESS-4); how copies are identified, where switching asks first and explains what it does (CAT-9); and, with the library's own certificate authority, its root fingerprint to check a device's own display against (DEPLOY-T7). See the [administrator's guide](docs/guide-admin.md).
-- Patron and staff layouts that work at phone width and on a desktop, with placeholder pages until each feature is built (UX-1, UX-2).
+- Patron and staff layouts that work at phone width and on a desktop (UX-1, UX-2).
 - One scan field for every screen that reads a code: a hand scanner or typing, and the phone's camera where the page is served securely, with a link to the trust guide where it isn't (SCAN-1, SCAN-T2).
 
 ## Printing

@@ -79,6 +79,8 @@ For the web app with live reload, run the server and `npm run dev` in `web/`; it
 - [Installing on a home or office network](docs/install-lan.md) and [on the public internet](docs/install-public.md): installation, configuration, network access, security, backup and upgrade.
 - [Data and upgrades](docs/data-and-upgrades.md): what the data directory holds, backing it up, and what to do when an upgrade refuses to start.
 - [Finding books](docs/guide-browsing.md): browse, search, book pages, ratings and reviews, and the public catalog.
+- [Working the desk](docs/guide-desk.md): for librarians: checking out and in, renewing, overdue loans, looking up a patron and re-issuing a card.
+- [Borrowing books](docs/guide-patron.md): for patrons: your books and due dates, renewing, history, your library card and self-checkout.
 - [Looking after the catalog](docs/guide-catalog.md): for librarians: adding books by scanning, copies and how they are identified, locations, changing and removing, and printing labels.
 - [Administrator's guide](docs/guide-admin.md): first-run setup, settings, statistics and the activity log.
 - [Accounts, permissions, invitations and recovery](docs/accounts.md): signing in, registering with a code, the 16 permissions and three roles, managing people, and recovering a locked-out administrator.
