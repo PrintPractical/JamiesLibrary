@@ -6,6 +6,11 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- A new library now leads you to its setup page. While no administrator exists, the sign-in page and `/register` send you to `/setup`, where the console's setup code is asked for, instead of asking for an invitation code. Once an administrator exists nothing changes. The console's "No administrator exists yet" message now names the page, for example `Setup page: https://192.168.1.20:8443/setup`. See [First-run setup](docs/guide-admin.md#first-run-setup).
+- The trust guide's Mac step no longer says to double-click the certificate, which on some Macs fails with "Error: -25294" (Keychain Access found no keychain to put it in). It now has you use Keychain Access › File › Import Items…, choose the keychain yourself (login, or System), compare the SHA-256 fingerprint, and only then set Always Trust. The certificate is unchanged, so devices that already trust the library need do nothing. See [the trust step](docs/install-lan.md#the-trust-step-once-per-phone-or-computer).
+
 ### Added
 
 - The staff Desk. Librarians and administrators now land on a Desk with large Check out and Check in buttons, today's overdue count (select it for the list), a box to find a patron by name or card number, and Add a book. Each shows only for people who may use it, and someone with none of those permissions is told so and offered their Admin pages. Described in [Working the desk](docs/guide-desk.md#the-desk).

@@ -9,7 +9,7 @@ What Jamie's Library does today, by area. Each entry names the requirements it c
 - Runs as one program with the web app built in; settings by flag or `JL_*` variable.
 - All state is in one data directory, private to its owner; a copy of it taken while the server is stopped is a complete backup (DEPLOY-T3).
 - An upgrade first saves a copy of the database in `backups/`, applies all changes or none, and says what to do if it can't; a program older than its data refuses to start (DEPLOY-T4).
-- Serves HTTPS itself: a local certificate authority that each device trusts once, the owner's own certificate, or a reverse proxy; the trust guide at `/trust/` walks a device through it (DEPLOY-T7, SCAN-T2, SEC-T1).
+- Serves HTTPS itself: a local certificate authority that each device trusts once, the owner's own certificate, or a reverse proxy; the trust guide at `/trust/` walks a device through it (DEPLOY-T7, SCAN-T2, SEC-T1). The Mac steps avoid double-clicking the certificate (Keychain error -25294): import it with Keychain Access › File › Import Items…, choose the keychain, compare the fingerprint, then Always Trust (DEPLOY-T7).
 - Works with no internet connection: the web app bundles its fonts and scripts (DEPLOY-T5).
 - Written guides for a home or office network and for the public internet, each with installation, configuration, network access, security, and backup and upgrade (DEPLOY-2).
 - The first administrator is created with a one-time setup code shown only on the server's console, and only until an administrator exists (DEPLOY-3).
@@ -59,6 +59,7 @@ What Jamie's Library does today, by area. Each entry names the requirements it c
 ## First-run setup
 
 - A guided setup at `/setup`: the administrator's account with the console's one-time code, then name, logo and colours, borrowing rules and time zone (filled in from the browser), and invitations. Steps after the first can be skipped and changed later in Settings (DEPLOY-3, ADMIN-1, CIRC-4).
+- While no administrator exists, the sign-in page and `/register` send visitors to `/setup`, and the console prints the setup page address; once one exists they behave as before (DEPLOY-3).
 
 ## Reports and the activity log
 
