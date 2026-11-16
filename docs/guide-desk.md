@@ -6,6 +6,7 @@ The desk screens are in the staff menu:
 
 | Screen | Address | You need |
 |---|---|---|
+| **Desk** (the staff home) | `/desk` | Any staff permission; each card needs its own, see [The Desk](#the-desk) |
 | **Check out** | `/desk/checkout` | Use the circulation desk (`circ.desk`) |
 | **Check in** | `/desk/checkin` | `circ.desk` |
 | **Overdue** | `/desk/overdue` | `circ.desk` |
@@ -14,6 +15,7 @@ The desk screens are in the staff menu:
 
 Librarians and administrators have all of these by default; patrons have none. See [Accounts, permissions, invitations and recovery](accounts.md#permissions-and-roles).
 
+- [The Desk](#the-desk)
 - [Scanning, typing and the camera](#scanning-typing-and-the-camera)
 - [The borrowing rules](#the-borrowing-rules)
 - [Checking out](#checking-out)
@@ -24,6 +26,26 @@ Librarians and administrators have all of these by default; patrons have none. S
 - [Overdue loans](#overdue-loans)
 - [Looking up a patron](#looking-up-a-patron)
 - [Re-issuing a lost card](#re-issuing-a-lost-card)
+
+## The Desk
+
+When staff sign in they land on the **Desk** (`/desk`), also the first item in the staff menu. It shows today's date and a card for each everyday job. A card appears only if you may do what it does; one you may not use is left out, not greyed.
+
+| Card | What it does | You need |
+|---|---|---|
+| **Check out** (large) | Opens [Check out](#checking-out). | `circ.desk` |
+| **Check in** (large, outlined) | Opens [Check in](#checking-in). | `circ.desk` |
+| **Overdue count** | Shows how many loans are overdue and opens the [Overdue](#overdue-loans) list. | `circ.desk` |
+| **Find a patron** | Searches for a patron. | `patrons.lookup` |
+| **Add a book** | Opens the catalog's [Add a book](guide-catalog.md#add-a-book) screen. | `catalog.manage` |
+
+Someone with only some of these permissions sees only those cards, and the others move up to fill the space.
+
+**The overdue count.** It is the number of loans that are overdue today, in the library's time zone. With none it reads `0 Nothing overdue` and still opens the list. With some it reads `3 loans overdue` (`1 loan overdue` for one). While it is counting the card is empty, and after a moment says `Loading…`. If the count can't be fetched the card says `Couldn't count overdue loans.` with a **Retry** button; the rest of the Desk keeps working.
+
+**Find a patron.** Type part of a name or username, or a card number (typed, or scanned with a hand scanner), and press Enter or the search button. You go to [Patrons](#looking-up-a-patron) with the search already done. Pressing Enter on an empty box does nothing except keep the cursor in the box.
+
+**If no card applies to you.** A person who has staff permissions but none of `circ.desk`, `patrons.lookup` or `catalog.manage` (for example, an administrator who may only manage settings) sees `There's nothing for you at the desk. Your administrator decides what you can do here.` with links to whichever Admin pages they may use (Settings, People & invites, Statistics, Activity log).
 
 ## Scanning, typing and the camera
 
