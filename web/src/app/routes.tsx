@@ -6,6 +6,8 @@ import { Account } from "../features/account/Account";
 import { ForcedChange } from "../features/account/ForcedChange";
 import { Register } from "../features/account/Register";
 import { SignIn } from "../features/account/SignIn";
+import { Activity } from "../features/admin/Activity";
+import { Statistics } from "../features/admin/Statistics";
 import { History } from "../features/patron/History";
 import { Home } from "../features/patron/Home";
 import { SelfCheckout } from "../features/patron/SelfCheckout";
@@ -139,7 +141,8 @@ export const routeTable: RouteObject[] = [
             path: "admin/people",
             element: gated(["users.manage", "users.permissions", "invitations.manage"], "People & invites"),
           },
-          { path: "admin/statistics", element: gated(["reports.view"], "Statistics") },
+          { path: "admin/statistics", element: <Allow any={["reports.view"]}><Statistics /></Allow> },
+          { path: "admin/activity", element: <Allow any={["activity.view"]}><Activity /></Allow> },
           { path: "more", element: <More /> },
         ],
       },
