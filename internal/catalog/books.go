@@ -202,7 +202,7 @@ func (s *Service) RemoveBook(ctx context.Context, actor, id int64) error {
 			return err
 		}
 		if n > 0 {
-			return apperr.New(apperr.Conflict, fmt.Sprintf("This book cannot be removed while %s on loan: check %s in first.", plural(n, "copy is", "copies are"), plural(n, "it", "them")))
+			return apperr.New(apperr.Conflict, fmt.Sprintf("This book cannot be removed while %s on loan: check %s in first.", plural(n, "copy is", "copies are"), plural1(n)))
 		}
 		at := s.stamp()
 		if _, err := tx.ExecContext(ctx, `DELETE FROM identifiers WHERE copy_id IN (SELECT id FROM copies WHERE book_id = ? AND removed_at IS NULL)`, id); err != nil {
@@ -331,6 +331,26 @@ func queryBooks(ctx context.Context, q DB, query string, args ...any) ([]Book, e
 		at[id].Authors = append(at[id].Authors, name)
 	}
 	return books, arows.Err()
+}
+
+// AuthorsIn lists a book's authors in order, whether or not the book has
+// been removed: a removed book keeps them, so its past loans still read as
+// they did.
+func (s *Service) AuthorsIn(ctx context.Context, q DB, bookID int64) ([]string, error) {
+	rows, err := q.QueryContext(ctx, `SELECT name FROM book_authors WHERE book_id = ? ORDER BY position`, bookID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []string{}
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		out = append(out, name)
+	}
+	return out, rows.Err()
 }
 
 // BookByISBN finds the book in the catalog with this ISBN-13 (as ParseISBN returns it).

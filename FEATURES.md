@@ -13,7 +13,7 @@ What Jamie's Library does today, by area. Each entry names the requirements it c
 - Works with no internet connection: the web app bundles its fonts and scripts (DEPLOY-T5).
 - Written guides for a home or office network and for the public internet, each with installation, configuration, network access, security, and backup and upgrade (DEPLOY-2).
 - The first administrator is created with a one-time setup code shown only on the server's console, and only until an administrator exists (DEPLOY-3).
-- `jamieslibrary admin reset-password USERNAME` recovers a locked-out administrator from the server itself (DEPLOY-4).
+- `jamieslibrary admin reset-password USERNAME` (with `--make-admin` to restore the administrator role) recovers a locked-out administrator from the server itself, also through `docker compose exec`; it prints a one-time temporary password and is recorded in the activity log as the server console (DEPLOY-4). See [accounts](docs/accounts.md#locked-out-recovering-the-only-administrator).
 
 ## Circulation
 
@@ -32,9 +32,9 @@ What Jamie's Library does today, by area. Each entry names the requirements it c
 - Sessions end after a time unused that an administrator sets, 8 hours to begin with (SEC-T1, ADMIN-1). Repeated wrong sign-ins block an address for 15 minutes without locking any account.
 - Nothing is shown to signed-out visitors unless an administrator turns the public catalog on (ACCESS-1).
 - 16 separate permissions, grouped into the roles patron, librarian and administrator, which are starting sets: an administrator can switch single permissions for a person, and the user list marks anyone who differs from their role (ROLE-1, ROLE-2, ROLE-3, ADMIN-2). A person is never given more than the administrator granting it holds.
-- Administrators list users, change roles and permissions, deactivate and reactivate accounts (which ends their sessions) and reset passwords, with a temporary password shown once; there is no email in this version (ADMIN-2, ACCESS-7). API only so far.
-- Invitation codes, one use each, for a role; administrators create, list and revoke them (ACCESS-2, ACCESS-3). API only so far, apart from creating them in first-run setup.
-- Navigation and screens follow the person's permissions: patrons and staff see different layouts (UX-2). The patron and staff pages for browsing, borrowing and people are placeholders until their features are built.
+- On **People & invites** (`/admin/people`), people who may manage users list everyone and open a person's page to set their role, switch single permissions, deactivate and reactivate them (which ends their sessions) and reset their password, with a temporary password shown once; there is no email in this version (ADMIN-2, ACCESS-7). Nobody can give or change more than they hold, and the last administrator can't be removed (ROLE-1, ROLE-2, ROLE-3, ADMIN-2). See [accounts](docs/accounts.md).
+- Invitation codes, one use each, for a role; people who may manage invitations make, see and revoke them on **People & invites**, and a code that gives permissions the viewer lacks is hidden from them (ACCESS-2, ACCESS-3).
+- Navigation and screens follow the person's permissions: patrons and staff see different layouts (UX-2). The patron and staff pages for browsing and borrowing are placeholders until their features are built.
 
 ## Library cards
 
@@ -42,11 +42,16 @@ What Jamie's Library does today, by area. Each entry names the requirements it c
 
 ## Catalog
 
-- Books with title, authors, description, ISBN (10 or 13, checked and stored as 13) and cover; several numbered copies of each, each with a condition and a named location; search by title, author or ISBN with a location filter; removing a book or copy keeps its history (CAT-1, CAT-2, CAT-3, CAT-5, CAT-8). API only so far.
-- Look up a book's details and cover by ISBN from Open Library, with a clear message when it can't be reached; covers are kept on the installation (SCAN-2, CAT-T1). API only so far.
-- Ratings of 1 to 5 and reviews of up to 2,000 characters, one per person per book; librarians can remove a review, and its author can't repost it (CAT-6). API only so far.
-- Optional public catalog: with the setting on, anyone can search and see availability and the average rating, never who has a book (ACCESS-4). API only so far.
-- Copy labels as PDF (Avery 5160, Avery L7160 or a single 62 x 29 mm label, up to 5,000 labels), with contents that suit the library's way of identifying copies (CAT-7, CAT-9). API only so far.
+- Books with title, authors, description, ISBN (10 or 13, checked and stored as 13) and cover; several numbered copies of each, each with a condition and a named location; search by title, author or ISBN with a location filter; removing a book or copy keeps its history (CAT-1, CAT-2, CAT-3, CAT-5, CAT-8). Browsing and search have a screen (`/browse`). Librarians add a book, or more copies of one already in the catalog, on the Add a book screen (`/catalog/new`), and change or remove books and copies on the Catalog screens (`/catalog`). See [Looking after the catalog](docs/guide-catalog.md).
+- Browse, search and book pages: the Browse screen lists books with their availability, searches by title, author or whole ISBN and filters by location; a book's page shows the cover, average rating, each copy's location and due date, and the description (CAT-2, CAT-4, CAT-8). See [Finding books](docs/guide-browsing.md).
+- Look up a book's details and cover by ISBN from Open Library, with a clear message when it can't be reached; covers are kept on the installation (SCAN-2, CAT-T1). Used by the Add a book screen: scan or type an ISBN, check the details found, and add the book.
+- Ratings of 1 to 5 and reviews of up to 2,000 characters, one per person per book; librarians can remove a review, and its author can't repost it (CAT-6). Written and removed on the book's page.
+- Optional public catalog: with the setting on, anyone can search and see availability and the average rating, never who has a book or where each copy is, on the same Browse and book screens, and a visitor is asked to sign in to read reviews (ACCESS-4).
+- Librarians change a book's details, ISBN and cover, and edit, add or remove its copies (location and condition); a copy or book on loan can't be removed, and a removed copy's barcode can be used again (CAT-1, CAT-3, CAT-5).
+- Named locations: add, rename, and delete an empty one, or move its copies to another location and delete it in one step; a copy's location can also be made while adding it (CAT-8). A new library has one, Main shelf.
+- Add a book by scanning or typing its ISBN, from a handheld scanner, the camera or the keyboard; the details are checked before anything is saved, and with no internet the form stays open to fill in by hand (SCAN-1, SCAN-2, SCAN-3, SCAN-T2).
+- Copies are identified by the book's ISBN or by a barcode of their own (a generated label, or a sticker already on the item); a book with no ISBN always has its own (CAT-3, CAT-9).
+- Copy labels as PDF (Avery 5160, Avery L7160 or a single 62 x 29 mm label, up to 5,000 labels), with contents that suit the library's way of identifying copies (CAT-7, CAT-9). The Print labels screen (`/catalog/labels`) picks copies from any books, and the Add a book screen offers to print the labels of the copies just added.
 
 ## First-run setup
 

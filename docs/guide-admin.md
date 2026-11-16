@@ -2,7 +2,7 @@
 
 This guide is for the person who runs the library: setting it up the first time, choosing how it looks and how borrowing works, and reading its statistics and activity log. To install the program, start with [a home or office network](install-lan.md) or [the public internet](install-public.md).
 
-Settings, statistics and the activity log are done in the web app, signed in as an administrator. Some other screens named below (browsing the catalog, patrons' own pages, People & invites) are not built yet; where that matters, the guide says so. Each part of the Settings screen, and each of the Statistics and Activity log screens, is also open to anyone given the matching permission (`settings.manage`, `reports.view`, `activity.view`); an administrator has them all. Anyone without the permission doesn't see the entry in the side bar.
+Settings, statistics and the activity log are done in the web app, signed in as an administrator. People, roles and invitations have their own guide: [accounts, permissions, invitations and recovery](accounts.md). Browsing the library is described in [Finding books](guide-browsing.md); a screen named below that isn't described there or here may not exist yet, and where that matters the guide says so. Each part of the Settings screen, and each of the Statistics and Activity log screens, is also open to anyone given the matching permission (`settings.manage`, `reports.view`, `activity.view`); an administrator has them all. Anyone without the permission doesn't see the entry in the side bar.
 
 - [First-run setup](#first-run-setup)
 - [Settings](#settings)
@@ -37,11 +37,11 @@ A new library has no accounts. The server makes the first administrator only for
 
 5. **Step 3, How borrowing works.** The loan period, how many books a person can have out, how many renewals, and the time zone. The time zone box is filled in with the one your browser is in; check it. See [Borrowing rules and time zone](#borrowing-rules-and-time-zone).
 
-6. **Step 4, Invite people.** Choose a role and **Create invitation** for each person you want to bring in. Each code works once. Send it with the address of the library followed by `/register`, and hand it over privately (not in a group chat or on a shared screen): whoever holds a librarian or administrator code can register with that role's permissions. People & invites is not built as a screen yet, so after setup invitations can be created, listed and revoked only through the API (`POST /api/admin/invitations`, for a signed-in caller who may manage invitations); revoke any code that goes unused.
+6. **Step 4, Invite people.** Choose a role and **Create invitation** for each person you want to bring in. Each code works once. Send it with the address of the library followed by `/register`, and hand it over privately (not in a group chat or on a shared screen): whoever holds a librarian or administrator code can register with that role's permissions. Later, make, see and revoke codes on **People & invites** (see [Inviting people](accounts.md#inviting-people)); revoke any code that goes unused.
 
 Steps 2 and 3 can be skipped with **Skip**, and step 4 with **Skip and finish**; and everything in them can be changed later in Settings. If you close the browser part-way, sign in and open **Settings**; the library already works with its defaults.
 
-The first administrator is the only account made this way. If you are ever locked out, recover from the server with `jamieslibrary admin reset-password USERNAME` (see [Locked-out administrator](install-lan.md#locked-out-administrator)).
+The first administrator is the only account made this way. If you are ever locked out, recover from the server with `jamieslibrary admin reset-password USERNAME` (see [Locked out: recovering the only administrator](accounts.md#locked-out-recovering-the-only-administrator)).
 
 ## Settings
 
@@ -99,10 +99,15 @@ A change to the rules applies to loans made from then on; the due dates of loans
 
 Each of these switches saves as soon as you flip it, and says in a line what it does.
 
-The screens patrons would use for these (browsing, the book page, My books, checking out) are not built yet, so today the switches change what the server allows through its API:
+- **Public catalog** is off in a new library. While it is off, a visitor who isn't signed in who opens the library, `/browse` or any book's page is sent to the sign-in page, and sees nothing of the books.
 
-- **Self-checkout** lets a patron who has the self-checkout permission check an available copy out to themselves, by its code. While it is off, self-checkout is refused. Patrons return books only through a librarian at the desk, and the desk is unaffected either way.
-- **Public catalog** lets anyone, signed in or not, search the books through the server's public catalog routes and see each book's title, authors, ISBN, description, cover, how many copies are available and the average rating. They never see patrons, who has a book, or loan history; reviews and their writers' names are for signed-in users only. While it is off those routes answer "not found" and the library is private: a visitor who isn't signed in is sent to the sign-in page.
+  While it is on, a visitor who isn't signed in who opens the library's address lands on **Browse** (`/browse`). They can:
+
+  - search by title, author or ISBN (there is no location filter for visitors) and page through the results; each result shows the cover, title, authors and whether the book is available, as "2 of 3 copies on the shelf", "Unavailable · the copy is out" (or "Unavailable · all 3 copies are out") or "No copies yet";
+  - open a book (`/books/` and its number) to see its cover, title, authors, average rating and how many ratings it rests on, how many copies are on the shelf, its description and ISBN.
+
+  A visitor never sees patrons, who has a book, when it is due, or loan history, and not the individual copies. Reviews and their writers' names are for signed-in people: in their place the book page offers a link to sign in. Any other page sends a visitor to sign in (apart from the sign-in page itself and registering with an invitation code). Turning the switch off takes effect straight away: the next page a visitor opens sends them to sign in. (A browser may keep showing a cover it already loaded for up to an hour.) See [Finding books](guide-browsing.md#without-an-account-the-public-catalog).
+- **Self-checkout** lets a patron who has the self-checkout permission check an available copy out to themselves, by its code. While it is off, self-checkout is refused. Patrons return books only through a librarian at the desk, and the desk is unaffected either way. The patron's screen for checking out, and My books, are not built yet, so for now self-checkout is only available through the server's API (`POST /api/me/checkout`).
 
 ### How copies are identified
 

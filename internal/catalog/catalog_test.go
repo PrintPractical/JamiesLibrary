@@ -241,7 +241,7 @@ func TestRemoveBookIsSoftAndRefusedWhileOnLoan(t *testing.T) {
 	c.loaned[b.ID] = 2
 	err := s.RemoveBook(ctx, 1, b.ID)
 	wantField(t, err, apperr.Conflict, "")
-	if e, _ := apperr.As(err); !strings.Contains(e.Message, "2 copies are on loan") {
+	if e, _ := apperr.As(err); e.Message != "This book cannot be removed while 2 copies are on loan: check them in first." {
 		t.Errorf("message = %q", e.Message)
 	}
 	if _, err := s.GetBook(ctx, b.ID); err != nil {
@@ -463,6 +463,17 @@ func TestCreateLocationWithPunctuation(t *testing.T) {
 	}
 }
 
+func TestRenameLocationReportsItsCopies(t *testing.T) {
+	s := newService(t, nil)
+	b := add(t, s, "Kept", "A")
+	loc, _ := s.CreateLocation(ctx, 1, "Kitchen")
+	addCopy(t, s, b.ID, CopyInput{LocationID: loc.ID})
+	l, err := s.RenameLocation(ctx, 1, loc.ID, "Kitchen shelf")
+	if err != nil || l.Copies != 1 {
+		t.Fatalf("%+v %v", l, err)
+	}
+}
+
 func TestRenameLocation(t *testing.T) {
 	s := newService(t, nil)
 	locs, _ := s.Locations(ctx)
@@ -518,5 +529,17 @@ func TestSearchOver20000BooksIsFast(t *testing.T) {
 		if took > 200*time.Millisecond {
 			t.Errorf("search %q (%d found) took %v, over 200ms", q, r.Total, took)
 		}
+	}
+}
+
+func TestRemoveBookRefusalWordingForOneCopy(t *testing.T) {
+	c := fakeLoans{loaned: map[int64]int{}}
+	s := newService(t, c)
+	b := add(t, s, "Loaned once", "A")
+	c.loaned[b.ID] = 1
+	err := s.RemoveBook(ctx, 1, b.ID)
+	wantField(t, err, apperr.Conflict, "")
+	if e, _ := apperr.As(err); e.Message != "This book cannot be removed while 1 copy is on loan: check it in first." {
+		t.Errorf("message = %q", e.Message)
 	}
 }
