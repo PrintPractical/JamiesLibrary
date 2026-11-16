@@ -34,7 +34,7 @@ What Jamie's Library does today, by area. Each entry names the requirements it c
 - 16 separate permissions, grouped into the roles patron, librarian and administrator, which are starting sets: an administrator can switch single permissions for a person, and the user list marks anyone who differs from their role (ROLE-1, ROLE-2, ROLE-3, ADMIN-2). A person is never given more than the administrator granting it holds.
 - On **People & invites** (`/admin/people`), people who may manage users list everyone and open a person's page to set their role, switch single permissions, deactivate and reactivate them (which ends their sessions) and reset their password, with a temporary password shown once; there is no email in this version (ADMIN-2, ACCESS-7). Nobody can give or change more than they hold, and the last administrator can't be removed (ROLE-1, ROLE-2, ROLE-3, ADMIN-2). See [accounts](docs/accounts.md).
 - Invitation codes, one use each, for a role; people who may manage invitations make, see and revoke them on **People & invites**, and a code that gives permissions the viewer lacks is hidden from them (ACCESS-2, ACCESS-3).
-- Navigation and screens follow the person's permissions: patrons and staff see different layouts (UX-2). The patron and staff pages for browsing, borrowing and people are placeholders until their features are built.
+- Navigation and screens follow the person's permissions: patrons and staff see different layouts (UX-2). The patron and staff pages for browsing and borrowing are placeholders until their features are built.
 
 ## Library cards
 
