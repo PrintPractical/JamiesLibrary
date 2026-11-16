@@ -6,13 +6,18 @@ import { Account } from "../features/account/Account";
 import { ForcedChange } from "../features/account/ForcedChange";
 import { Register } from "../features/account/Register";
 import { SignIn } from "../features/account/SignIn";
+import { CheckIn } from "../features/desk/CheckIn";
+import { Checkout } from "../features/desk/Checkout";
 import { BookPage } from "../features/catalog/BookPage";
 import { Browse } from "../features/catalog/Browse";
 import { Activity } from "../features/admin/Activity";
 import { Statistics } from "../features/admin/Statistics";
+import { AddBook } from "../features/catalog/AddBook";
 import { Overdue } from "../features/patrons/Overdue";
 import { PatronPage } from "../features/patrons/PatronPage";
 import { Patrons } from "../features/patrons/Patrons";
+import { People } from "../features/people/People";
+import { UserPage } from "../features/people/UserPage";
 import { Settings } from "../features/settings/Settings";
 import { Setup } from "../features/setup/Setup";
 import { NotFound } from "../features/placeholder/NotFound";
@@ -128,18 +133,23 @@ export const routeTable: RouteObject[] = [
         element: <StaffArea />,
         children: [
           { path: "desk", element: page("Desk") },
-          { path: "desk/checkout", element: gated(["circ.desk"], "Check out") },
-          { path: "desk/checkin", element: gated(["circ.desk"], "Check in") },
+          { path: "desk/checkout", element: <Allow any={["circ.desk"]}><Checkout /></Allow> },
+          { path: "desk/checkin", element: <Allow any={["circ.desk"]}><CheckIn /></Allow> },
           { path: "desk/patrons", element: <Allow any={["patrons.lookup"]}><Patrons /></Allow> },
           { path: "desk/patrons/:id", element: <Allow any={["patrons.lookup"]}><PatronPage /></Allow> },
           { path: "desk/overdue", element: <Allow any={["circ.desk"]}><Overdue /></Allow> },
           { path: "catalog", element: gated(["catalog.manage"], "Catalog") },
-          { path: "catalog/new", element: gated(["catalog.manage"], "Add a book") },
+          { path: "catalog/new", element: <Allow any={["catalog.manage"]}><AddBook /></Allow> },
           { path: "admin/settings", element: <Allow any={["settings.manage"]}><Settings /></Allow> },
           {
             path: "admin/people",
-            element: gated(["users.manage", "users.permissions", "invitations.manage"], "People & invites"),
+            element: (
+              <Allow any={["users.manage", "users.permissions", "invitations.manage"]}>
+                <People />
+              </Allow>
+            ),
           },
+          { path: "admin/people/:id", element: <Allow any={["users.manage"]}><UserPage /></Allow> },
           { path: "admin/statistics", element: <Allow any={["reports.view"]}><Statistics /></Allow> },
           { path: "admin/activity", element: <Allow any={["activity.view"]}><Activity /></Allow> },
           { path: "more", element: <More /> },
