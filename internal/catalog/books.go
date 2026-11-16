@@ -305,3 +305,8 @@ func queryBooks(ctx context.Context, q DB, query string, args ...any) ([]Book, e
 	}
 	return books, arows.Err()
 }
+
+// BookByISBN finds the book in the catalog with this ISBN-13 (as ParseISBN returns it).
+func (s *Service) BookByISBN(ctx context.Context, isbn13 string) (Book, bool, error) {
+	return s.BookByISBNIn(ctx, s.st.DB(), isbn13)
+}

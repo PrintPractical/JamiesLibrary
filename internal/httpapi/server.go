@@ -10,8 +10,10 @@ import (
 	"jamieslibrary/internal/activity"
 	"jamieslibrary/internal/apperr"
 	"jamieslibrary/internal/auth"
+	"jamieslibrary/internal/catalog"
 	"jamieslibrary/internal/circ"
 	"jamieslibrary/internal/media"
+	"jamieslibrary/internal/metadata"
 	"jamieslibrary/internal/ratelimit"
 	"jamieslibrary/internal/settings"
 	"jamieslibrary/internal/store"
@@ -47,6 +49,10 @@ type Options struct {
 	UserAdmin *useradmin.Service
 	// Circ is circulation at the desk; when set (with Users) the desk routes are registered.
 	Circ *circ.Service
+	// Catalog and Metadata are the catalog and the ISBN lookup; when both are set
+	// (with Media) the lookup routes are registered.
+	Catalog  *catalog.Service
+	Metadata *metadata.Service
 	// Authenticate, when set, wraps the routes and puts the caller in the
 	// request context (auth.WithCaller). Without it no request has a caller.
 	Authenticate func(http.Handler) http.Handler
@@ -103,6 +109,7 @@ func buildRouter(o Options) (*Router, error) {
 	// Unknown API and media paths are JSON 404s, never the web app.
 	rt.HandleFunc("/api/", Public(), notFound)
 	rt.HandleFunc("/media/", Public(), notFound)
+	rt.HandleFunc("/media-tmp/", Public(), notFound)
 	if o.Static != nil {
 		rt.Handle("/", Public(), o.Static)
 	}
@@ -131,6 +138,9 @@ func registerAPI(rt *Router, o Options) {
 	}
 	if o.Circ != nil {
 		registerDeskRoutes(rt, o)
+	}
+	if o.Catalog != nil && o.Metadata != nil {
+		registerLookupRoutes(rt, o)
 	}
 }
 

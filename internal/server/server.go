@@ -23,6 +23,7 @@ import (
 	"jamieslibrary/internal/config"
 	"jamieslibrary/internal/httpapi"
 	"jamieslibrary/internal/media"
+	"jamieslibrary/internal/metadata"
 	"jamieslibrary/internal/ratelimit"
 	"jamieslibrary/internal/settings"
 	"jamieslibrary/internal/store"
@@ -136,12 +137,22 @@ func Run(ctx context.Context, o Options) error {
 	authSvc := auth.NewService(st, usersSvc,
 		func() time.Duration { return time.Duration(set.Get().SessionIdleMinutes) * time.Minute }, log)
 	catalogSvc := catalog.New(st, catalog.Options{Settings: set, Loans: circ.Loans{}, Now: clock.Now})
+	tmpImages, err := images.Sibling(st.TmpDir())
+	if err != nil {
+		return err
+	}
+	lookup, err := metadata.New(metadata.Options{Images: images, Tmp: tmpImages, Version: o.Version,
+		BaseURL: testhooks.MetadataURL(), Logger: log, Now: clock.Now})
+	if err != nil {
+		return err
+	}
 	limiter := ratelimit.New()
 	go limiter.Run(ctx)
 	h, err := httpapi.NewHandler(httpapi.Options{
 		Clients: ratelimit.NewClients(cfg.TrustedProxies), Limiter: limiter,
 		TrustPort: trustPort, Version: o.Version, Logger: log, Static: webui.Handler(),
 		Auth: authSvc, Users: usersSvc, Settings: set, Activity: activity.New(st), Store: st, Media: images,
+		Catalog: catalogSvc, Metadata: lookup,
 		Circ:            circ.New(st, circ.Options{Settings: set, Catalog: catalogSvc, Users: usersSvc}),
 		UserAdmin:       useradmin.New(st, usersSvc, authSvc),
 		PublicCatalogOn: func() bool { return set.Get().PublicCatalog },
