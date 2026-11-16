@@ -136,7 +136,7 @@ func (a *authRoutes) signIn(w http.ResponseWriter, r *http.Request) {
 	token, id, err := a.auth.SignIn(r.Context(), in.Username, in.Password)
 	if err != nil {
 		if e, ok := apperr.As(err); ok && e.Code == apperr.Unauthorized {
-			a.log.Warn("sign-in failed", "remote", remoteHost(r), "username", truncate(in.Username, maxLoggedUsername))
+			a.log.Warn("sign-in failed", "remote", clientHost(a.clients, r), "username", truncate(in.Username, maxLoggedUsername))
 		}
 		if e, ok := apperr.As(err); !ok || e.Code != apperr.Unauthorized {
 			a.limiter.Forgive(ratelimit.SignIn, key) // not a wrong password: a fault, or a cancelled request
@@ -196,6 +196,14 @@ func (a *authRoutes) changePassword(w http.ResponseWriter, r *http.Request) {
 	}
 	a.limiter.Forgive(ratelimit.SignIn, key)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// clientHost is the client's address as the proxy setting finds it, for logs.
+func clientHost(clients *ratelimit.Clients, r *http.Request) string {
+	if addr := clients.Addr(r); addr.IsValid() {
+		return addr.String()
+	}
+	return remoteHost(r)
 }
 
 // remoteHost is the connection's own address, without the port.

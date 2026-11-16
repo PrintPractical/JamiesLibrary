@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"jamieslibrary/internal/apperr"
+	"jamieslibrary/internal/ratelimit"
 )
 
 func testHandler(t *testing.T, buf *bytes.Buffer) http.Handler {
@@ -114,7 +115,7 @@ func TestFieldOmittedWhenEmpty(t *testing.T) {
 
 func TestUnexpectedErrorHidesInternalsAndCarriesRequestID(t *testing.T) {
 	var logs bytes.Buffer
-	h := withRequest(slog.New(slog.NewTextHandler(&logs, nil)), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := withRequest(slog.New(slog.NewTextHandler(&logs, nil)), ratelimit.NewClients(nil), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, r, errors.New("secret database detail"))
 	}))
 	rec := do(h, "GET", "/x", "")
@@ -133,7 +134,7 @@ func TestUnexpectedErrorHidesInternalsAndCarriesRequestID(t *testing.T) {
 }
 
 func TestPanicBecomes500(t *testing.T) {
-	h := withRequest(slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)), http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+	h := withRequest(slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)), ratelimit.NewClients(nil), http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		panic("boom")
 	}))
 	rec := do(h, "GET", "/x", "")

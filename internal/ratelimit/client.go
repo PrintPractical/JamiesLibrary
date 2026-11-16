@@ -31,6 +31,10 @@ func ParseTrusted(list string) ([]netip.Prefix, error) {
 			}
 			p = netip.PrefixFrom(a.Unmap(), p.Bits()-96)
 		}
+		if p.Bits() == 0 {
+			// Every client would count as a proxy, and so every X-Forwarded-For as true.
+			return nil, fmt.Errorf("JL_TRUSTED_PROXIES: %q would trust every address; list the proxies' own addresses or ranges", item)
+		}
 		out = append(out, p.Masked())
 	}
 	return out, nil

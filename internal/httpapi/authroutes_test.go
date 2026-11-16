@@ -18,6 +18,7 @@ import (
 	"jamieslibrary/internal/activity"
 	"jamieslibrary/internal/auth"
 	"jamieslibrary/internal/clock"
+	"jamieslibrary/internal/media"
 	"jamieslibrary/internal/perm"
 	"jamieslibrary/internal/settings"
 	"jamieslibrary/internal/store"
@@ -34,6 +35,7 @@ type site struct {
 	st    *store.Store
 	users *users.Service
 	set   *settings.Service
+	img   *media.Images
 	auth  *auth.Service
 	h     http.Handler
 	logs  *bytes.Buffer
@@ -56,12 +58,15 @@ func newSite(t *testing.T, tweak ...func(*Options)) *site {
 	if s.set, err = settings.New(ctx, s.st); err != nil {
 		t.Fatal(err)
 	}
+	if s.img, err = media.Open(s.dir); err != nil {
+		t.Fatal(err)
+	}
 	log := slog.New(slog.NewTextHandler(s.logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	s.auth = auth.NewService(s.st, s.users,
 		func() time.Duration { return time.Duration(s.set.Get().SessionIdleMinutes) * time.Minute }, log)
 	static := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, "<html>app</html>") })
 	opts := Options{
-		Logger: log, Static: static, Auth: s.auth, Users: s.users, Settings: s.set, Activity: activity.New(s.st), Store: s.st,
+		Logger: log, Static: static, Auth: s.auth, Users: s.users, Settings: s.set, Media: s.img, Activity: activity.New(s.st), Store: s.st,
 		UserAdmin: useradmin.New(s.st, s.users, s.auth), PublicCatalogOn: func() bool { return s.set.Get().PublicCatalog },
 	}
 	for _, f := range tweak {

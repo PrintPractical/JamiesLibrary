@@ -11,6 +11,7 @@ import (
 	"jamieslibrary/internal/apperr"
 	"jamieslibrary/internal/auth"
 	"jamieslibrary/internal/circ"
+	"jamieslibrary/internal/media"
 	"jamieslibrary/internal/ratelimit"
 	"jamieslibrary/internal/settings"
 	"jamieslibrary/internal/store"
@@ -35,6 +36,8 @@ type Options struct {
 	Auth     *auth.Service
 	Users    *users.Service
 	Settings *settings.Service
+	// Media stores the images /media/{name} serves; the route needs Settings too.
+	Media *media.Images
 	// Store lets a route compose services and the activity log in one
 	// transaction; the card routes need it as well as Users.
 	Store *store.Store
@@ -80,7 +83,7 @@ func NewHandler(o Options) (http.Handler, error) {
 	if o.Authenticate != nil {
 		h = o.Authenticate(h)
 	}
-	return withRequest(o.Logger, withProtections(h)), nil
+	return withRequest(o.Logger, o.Clients, withProtections(h)), nil
 }
 
 // buildRouter registers every route, the API's own first. It is separate from
@@ -113,6 +116,9 @@ func buildRouter(o Options) (*Router, error) {
 func registerAPI(rt *Router, o Options) {
 	if o.Auth != nil {
 		registerAuthRoutes(rt, o)
+	}
+	if o.Media != nil && o.Settings != nil {
+		registerMedia(rt, o)
 	}
 	if o.Activity != nil {
 		registerActivityRoutes(rt, o)
