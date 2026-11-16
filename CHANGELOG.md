@@ -6,6 +6,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- A server killed during the copy made before an upgrade no longer leaves a broken `backups/pre-...db`: the copy is written as a hidden `.pre-...tmp` file and renamed only when whole, and leftovers are deleted at the next upgrade. A restart in the same second no longer fails with "already exists": the new copy's name ends in `-2`, `-3` and so on.
+
 ### Added
 
 - The administrator's guide, [`docs/guide-admin.md`](docs/guide-admin.md): first-run setup, every setting with its default and range, the readability rule for accent colours, and reading the statistics, the circulation report and the activity log.
