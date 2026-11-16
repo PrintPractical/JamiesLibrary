@@ -9,6 +9,7 @@ package media
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
@@ -81,8 +82,10 @@ const notAnImage = "That file isn't a JPEG, PNG or WebP image. Choose a differen
 
 // Store reads at most limit bytes from r, checks that they are a JPEG, PNG or
 // WebP picture (by the bytes, never by name), re-encodes it and saves it under a
-// new random name, which it returns. A refused image saves nothing.
-func (im *Images) Store(r io.Reader, limit int64, kind Kind) (string, error) {
+// new random name, which it returns. A refused image saves nothing. If ctx ends
+// while the upload waits for its turn to decode, Store gives up with ctx's
+// error, saving nothing.
+func (im *Images) Store(ctx context.Context, r io.Reader, limit int64, kind Kind) (string, error) {
 	data, err := io.ReadAll(io.LimitReader(r, limit+1))
 	if err != nil {
 		return "", fmt.Errorf("reading the upload: %w", err)
@@ -102,8 +105,15 @@ func (im *Images) Store(r io.Reader, limit int64, kind Kind) (string, error) {
 		return "", refuse(tooBigToOpen(cfg, cost))
 	}
 
-	im.sem <- struct{}{}
-	defer func() { <-im.sem }()
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	select {
+	case im.sem <- struct{}{}:
+		defer func() { <-im.sem }()
+	case <-ctx.Done():
+		return "", ctx.Err()
+	}
 	src, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
 		return "", refuse("That image is damaged or can't be read. Choose a different file.")
@@ -262,6 +272,8 @@ func hasAlpha(img image.Image) bool {
 		return anyAlpha(m.Pix, m.Stride, m.Rect.Dx(), m.Rect.Dy(), 8, 6, 2)
 	case *image.RGBA64:
 		return anyAlpha(m.Pix, m.Stride, m.Rect.Dx(), m.Rect.Dy(), 8, 6, 2)
+	case *image.NYCbCrA: // a lossy WebP with alpha: the alpha plane is its own byte slice
+		return anyAlpha(m.A, m.AStride, m.Rect.Dx(), m.Rect.Dy(), 1, 0, 1)
 	}
 	if o, ok := img.(interface{ Opaque() bool }); ok && o.Opaque() {
 		return false
