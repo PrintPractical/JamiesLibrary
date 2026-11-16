@@ -48,11 +48,9 @@ func newLib(t *testing.T) *lib {
 func newLibInZone(t *testing.T, serverZone string) *lib {
 	t.Helper()
 	dir := t.TempDir()
-	control := fmt.Sprintf("127.0.0.1:%d", freePort(t))
 	p := launch(t, dir, map[string]string{
-		"TZ":                   serverZone,
-		"JL_TEST_CONTROL_ADDR": control,
-		"JL_TEST_NOW":          testutil.DefaultNow.UTC().Format(time.RFC3339),
+		"TZ":          serverZone,
+		"JL_TEST_NOW": testutil.DefaultNow.UTC().Format(time.RFC3339),
 	})
 	if err := p.waitReady(); err != nil {
 		t.Fatalf("server not ready: %v\n%s", err, p.Stderr.String())
@@ -61,7 +59,7 @@ func newLibInZone(t *testing.T, serverZone string) *lib {
 	if !ok {
 		t.Fatalf("no setup code in the console output:\n%s", p.Stdout.String())
 	}
-	s := &testutil.Server{URL: p.Base, ControlURL: "http://" + control, DataDir: dir}
+	s := &testutil.Server{URL: p.Base, ControlURL: "http://" + p.Control, DataDir: dir}
 	root := newWho(t, s)
 	root.want(200, "POST", "/api/setup/admin", map[string]string{
 		"code": code, "username": "root", "display_name": "Root", "password": adminPassword})
