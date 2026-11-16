@@ -125,9 +125,13 @@ func decodeCost(data []byte, cfg image.Config) int64 {
 	case isPNG16(data):
 		return px * 8
 	case bytes.HasPrefix(data, []byte{0xFF, 0xD8}):
-		if coeff, ok := jpegCoefficientBytes(data); ok {
+		if coeff, known := jpegCoefficientBytes(data); known {
 			return px*4 + coeff
 		}
+		// The decoder skips stray bytes the estimate doesn't follow, so a
+		// header it can't read cleanly is costed as the worst a decode can be:
+		// progressive, four components at full sampling.
+		return px * (4 + 4*4)
 	}
 	return px * 4
 }
@@ -139,8 +143,10 @@ func isPNG16(data []byte) bool {
 
 // jpegCoefficientBytes reads the frame header of a progressive JPEG (SOF2) and
 // returns the coefficient storage the decoder will allocate for it, in bytes.
-// It reports false for a baseline file, which keeps none, and for a header it
-// cannot read (the decoder then refuses the file itself).
+// A baseline frame (SOF0, SOF1) keeps none. It reports known only for a frame
+// header found by walking the segments with nothing unexpected between them;
+// anything else (stray bytes, a cut-off file, another frame type) is unknown
+// and the caller must assume the worst: the check fails closed.
 func jpegCoefficientBytes(data []byte) (int64, bool) {
 	for i := 2; i+4 <= len(data); {
 		if data[i] != 0xFF {
@@ -176,8 +182,14 @@ func jpegCoefficientBytes(data []byte) (int64, bool) {
 			}
 			return blocks * 256, true
 		}
-		if m >= 0xC0 && m <= 0xCF && m != 0xC4 && m != 0xC8 && m != 0xCC {
-			return 0, false // another frame type: baseline keeps no coefficients
+		if m == 0xC0 || m == 0xC1 {
+			return 0, true // baseline: no coefficient storage
+		}
+		if m >= 0xC3 && m <= 0xCF && m != 0xC4 && m != 0xC8 && m != 0xCC {
+			return 0, false // a frame type this code doesn't cost
+		}
+		if m == 0xDA { // the scan started with no frame header before it
+			return 0, false
 		}
 		i += 2 + n
 	}

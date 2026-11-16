@@ -509,6 +509,44 @@ func TestDecodeCost(t *testing.T) {
 	if _, ok := jpegCoefficientBytes([]byte{0xFF, 0xD8, 0xFF}); ok {
 		t.Error("a cut-off header was read")
 	}
+	if _, known := jpegCoefficientBytes(base); !known {
+		t.Error("a baseline header was not recognised")
+	}
+}
+
+// The decoder skips stray bytes before a marker, so the estimate must not be
+// fooled by them into costing a progressive file as baseline: one byte before
+// the frame header, or an FF 00, still gets the file refused.
+func TestStrayBytesBeforeTheFrameHeaderDoNotHideAProgressiveJPEG(t *testing.T) {
+	data := testdata(t, "progressive-cmyk-40mp.jpg")
+	sof := bytes.Index(data, []byte{0xFF, 0xC2})
+	if sof < 0 {
+		t.Fatal("no SOF2 in the test file")
+	}
+	for name, stray := range map[string][]byte{"one zero": {0x00}, "FF 00": {0xFF, 0x00}, "text": []byte("junk"), "FF FF": {0xFF, 0xFF}} {
+		mod := append(append(append([]byte{}, data[:sof]...), stray...), data[sof:]...)
+		if _, _, err := image.DecodeConfig(bytes.NewReader(mod)); err != nil {
+			t.Fatalf("%s: the decoder itself refuses it (%v): the test proves nothing", name, err)
+		}
+		im, dir := newImages(t)
+		_, err := im.Store(bytes.NewReader(mod), LogoLimit, Logo)
+		e := wantCode(t, err, apperr.Invalid)
+		if !strings.Contains(e.Message, "too large to open safely") {
+			t.Errorf("%s: message %q", name, e.Message)
+		}
+		if n := filesIn(t, dir); len(n) != 0 {
+			t.Errorf("%s: stored %v", name, n)
+		}
+	}
+	// A clean file the estimate can't follow is costed at its worst, not waved through:
+	// the 8 MP progressive CMYK file is within budget, and 8 MP at 20 B/px still is.
+	ok := testdata(t, "progressive-cmyk-8mp.jpg")
+	sof = bytes.Index(ok, []byte{0xFF, 0xC2})
+	mod := append(append(append([]byte{}, ok[:sof]...), 0), ok[sof:]...)
+	im, _ := newImages(t)
+	if _, err := im.Store(bytes.NewReader(mod), LogoLimit, Logo); err != nil {
+		t.Errorf("8 MP with a stray byte: %v", err)
+	}
 }
 
 // A 16-bit PNG over 20 megapixels is refused before it is decoded (the body is
