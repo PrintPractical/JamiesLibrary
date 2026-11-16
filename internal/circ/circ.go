@@ -309,6 +309,16 @@ func daysLate(due, on string) int {
 	return int(t.Sub(d).Hours() / 24)
 }
 
+// friendlyDate writes a stored calendar date the way the screens do, "Mon 30 Nov".
+// A value that isn't a date is returned as it is.
+func friendlyDate(d string) string {
+	t, err := time.Parse(time.DateOnly, d)
+	if err != nil {
+		return d
+	}
+	return t.Format("Mon 2 Jan")
+}
+
 func stamp() string { return clock.Now().UTC().Format("2006-01-02T15:04:05Z") }
 
 // Checkout lends a copy to the patron the card names (CIRC-1, CIRC-4), in one
@@ -438,7 +448,7 @@ func (s *Service) alreadyOut(ctx context.Context, q catalog.DB, c CopyInfo) erro
 	}
 	l := ls[0]
 	return apperr.New(apperr.Conflict, fmt.Sprintf("%s is already out: copy %d is on loan to %s, due %s. If it's in your hand, it was returned without being checked in: check it in first, then scan it again.",
-		c.Title, c.Number, l.PatronName, l.DueDate))
+		c.Title, c.Number, l.PatronName, friendlyDate(l.DueDate)))
 }
 
 // Check-in outcomes.

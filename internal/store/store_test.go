@@ -4,9 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -464,5 +466,98 @@ func TestEmbeddedMigrationsLoad(t *testing.T) {
 	s := open(t, t.TempDir(), Options{})
 	if err := s.DB().Ping(); err != nil {
 		t.Error(err)
+	}
+}
+
+func TestManyWritersQueueInsteadOfFailing(t *testing.T) {
+	s := open(t, t.TempDir(), Options{Migrations: mig("0001_t.sql", "CREATE TABLE t (x INTEGER)")})
+	const writers, each = 16, 20
+	errs := make(chan error, writers*each)
+	var wg sync.WaitGroup
+	for w := 0; w < writers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < each; i++ {
+				errs <- s.WithTx(ctx, func(tx Tx) error {
+					time.Sleep(2 * time.Millisecond) // a write that takes a moment
+					_, err := tx.Exec("INSERT INTO t VALUES (1)")
+					return err
+				})
+			}
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("a writer failed: %v", err)
+		}
+	}
+	if n := count(t, s.DB(), "t"); n != writers*each {
+		t.Errorf("%d rows, want %d", n, writers*each)
+	}
+}
+
+func TestWriterGivesUpWhenItsContextEnds(t *testing.T) {
+	s := open(t, t.TempDir(), Options{Migrations: mig("0001_t.sql", "CREATE TABLE t (x INTEGER)")})
+	entered, release := make(chan struct{}), make(chan struct{})
+	go s.WithTx(ctx, func(tx Tx) error { close(entered); <-release; return nil })
+	<-entered
+	defer close(release)
+	short, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
+	defer cancel()
+	if err := s.WithTx(short, func(tx Tx) error { t.Error("ran"); return nil }); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("want the deadline, got %v", err)
+	}
+}
+
+func TestIsBusy(t *testing.T) {
+	for _, c := range []struct {
+		err  error
+		want bool
+	}{
+		{fmt.Errorf("x: %w", ErrBusy), true},
+		{errors.New("starting a transaction: database is locked (5) (SQLITE_BUSY)"), true},
+		{errors.New("other"), false},
+		{nil, false},
+	} {
+		if got := IsBusy(c.err); got != c.want {
+			t.Errorf("IsBusy(%v) = %v", c.err, got)
+		}
+	}
+}
+
+func TestExecContextQueuesBehindWriters(t *testing.T) {
+	s := open(t, t.TempDir(), Options{Migrations: mig("0001_t.sql", "CREATE TABLE t (x INTEGER)")})
+	stop := make(chan struct{})
+	var wg sync.WaitGroup
+	for w := 0; w < 8; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+				}
+				s.WithTx(ctx, func(tx Tx) error {
+					time.Sleep(2 * time.Millisecond)
+					_, err := tx.Exec("INSERT INTO t VALUES (1)")
+					return err
+				})
+			}
+		}()
+	}
+	defer func() { close(stop); wg.Wait() }()
+	for i := 0; i < 50; i++ {
+		res, err := s.ExecContext(ctx, "DELETE FROM t WHERE x = 2")
+		if err != nil {
+			t.Fatalf("outside write %d failed: %v", i, err)
+		}
+		if _, err := res.RowsAffected(); err != nil {
+			t.Fatal(err)
+		}
 	}
 }

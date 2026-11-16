@@ -23,6 +23,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	xdraw "golang.org/x/image/draw"
 	_ "golang.org/x/image/webp" // registers WebP for image.DecodeConfig and image.Decode
@@ -402,4 +403,31 @@ func (im *Images) Delete(name string) error {
 		return fmt.Errorf("deleting an image: %w", err)
 	}
 	return nil
+}
+
+// Sweep removes what a crash left in the image directory: every .tmp-* file,
+// and every image in the generated form that keep does not name. A file with
+// any other name was not made by Store and is left alone, as are directories.
+// It returns how many files it removed. Call it only before anything can
+// save an image, or it could remove one that is about to be named.
+func (im *Images) Sweep(keep map[string]bool) (int, error) {
+	entries, err := os.ReadDir(im.dir)
+	if err != nil {
+		return 0, fmt.Errorf("reading %q: %w", im.dir, err)
+	}
+	removed := 0
+	for _, e := range entries {
+		name := e.Name()
+		if !e.Type().IsRegular() {
+			continue
+		}
+		if !strings.HasPrefix(name, ".tmp-") && (!ValidName(name) || keep[name]) {
+			continue
+		}
+		if err := os.Remove(filepath.Join(im.dir, name)); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return removed, fmt.Errorf("removing %q: %w", filepath.Join(im.dir, name), err)
+		}
+		removed++
+	}
+	return removed, nil
 }

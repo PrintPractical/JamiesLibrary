@@ -157,7 +157,7 @@ func (s *Service) Authenticate(ctx context.Context, token string) (*CallerInfo, 
 	now := s.now()
 	seen, perr := time.Parse(time.RFC3339, lastSeen)
 	if perr != nil || now.Sub(seen) > s.idle() {
-		_, err := s.st.DB().ExecContext(ctx, `DELETE FROM sessions WHERE token_hash = ?`, id)
+		_, err := s.st.ExecContext(ctx, `DELETE FROM sessions WHERE token_hash = ?`, id)
 		return nil, err
 	}
 	u, err := s.users.Get(ctx, userID)
@@ -171,7 +171,7 @@ func (s *Service) Authenticate(ctx context.Context, token string) (*CallerInfo, 
 		return nil, nil
 	}
 	if now.Sub(seen) >= SeenWriteInterval {
-		if _, err := s.st.DB().ExecContext(ctx, `UPDATE sessions SET last_seen_at = ? WHERE token_hash = ?`, s.stamp(), id); err != nil {
+		if _, err := s.st.ExecContext(ctx, `UPDATE sessions SET last_seen_at = ? WHERE token_hash = ?`, s.stamp(), id); err != nil {
 			s.log.Warn("could not record a session's last use", "err", err)
 		}
 	}
@@ -203,14 +203,14 @@ func (s *Service) Middleware(onError func(http.ResponseWriter, *http.Request, er
 
 // SignOut ends the session the caller came with.
 func (s *Service) SignOut(ctx context.Context, sessionID string) error {
-	_, err := s.st.DB().ExecContext(ctx, `DELETE FROM sessions WHERE token_hash = ?`, sessionID)
+	_, err := s.st.ExecContext(ctx, `DELETE FROM sessions WHERE token_hash = ?`, sessionID)
 	return err
 }
 
 // EndAll ends every session of the user: deactivation, an administrator's
 // reset, recovery, a cut in permissions.
 func (s *Service) EndAll(ctx context.Context, userID int64) error {
-	_, err := s.st.DB().ExecContext(ctx, `DELETE FROM sessions WHERE user_id = ?`, userID)
+	_, err := s.st.ExecContext(ctx, `DELETE FROM sessions WHERE user_id = ?`, userID)
 	return err
 }
 

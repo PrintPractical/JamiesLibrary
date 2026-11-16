@@ -148,7 +148,7 @@ func (s *Service) Mine(ctx context.Context, userID, bookID int64) (Review, error
 
 // Delete removes the user's own rating and review of the book for good.
 func (s *Service) Delete(ctx context.Context, userID, bookID int64) error {
-	res, err := s.st.DB().ExecContext(ctx, `DELETE FROM reviews WHERE book_id = ? AND user_id = ? AND removed_at IS NULL`, bookID, userID)
+	res, err := s.st.ExecContext(ctx, `DELETE FROM reviews WHERE book_id = ? AND user_id = ? AND removed_at IS NULL`, bookID, userID)
 	if err != nil {
 		return fmt.Errorf("deleting a review: %w", err)
 	}

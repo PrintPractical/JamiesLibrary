@@ -713,3 +713,28 @@ func TestAdoptMovesAnImageBetweenSiblingStores(t *testing.T) {
 		}
 	}
 }
+
+func TestSweepRemovesStraysAndKeepsNamed(t *testing.T) {
+	im, dir := newImages(t)
+	imgs := filepath.Join(dir, "images")
+	kept := strings.Repeat("a", 32) + ".jpg"
+	stray := strings.Repeat("b", 32) + ".png"
+	other := "notes.txt" // not made by Store: left alone
+	for _, n := range []string{kept, stray, other, ".tmp-123"} {
+		if err := os.WriteFile(filepath.Join(imgs, n), []byte("x"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Mkdir(filepath.Join(imgs, ".tmp-dir"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	n, err := im.Sweep(map[string]bool{kept: true})
+	if err != nil || n != 2 {
+		t.Fatalf("Sweep = %d, %v; want 2, nil", n, err)
+	}
+	for n, want := range map[string]bool{kept: true, other: true, ".tmp-dir": true, stray: false, ".tmp-123": false} {
+		if _, err := os.Stat(filepath.Join(imgs, n)); (err == nil) != want {
+			t.Errorf("%s present = %v, want %v", n, err == nil, want)
+		}
+	}
+}

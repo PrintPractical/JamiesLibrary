@@ -72,7 +72,7 @@ test("StaffLayout's tab bar keeps four items and a More tab for the rest", () =>
 test("the /more page lists what the tab bar left out", async () => {
   await renderApp("/more");
   const more = screen.getByRole("navigation", { name: "More" });
-  expect(labels(more)).toEqual(["Patrons", "Overdue", "Settings", "People & invites", "Statistics", "My library"]);
+  expect(labels(more)).toEqual(["Patrons", "Overdue", "Settings", "People & invites", "Statistics", "Activity log", "My library"]);
 });
 
 test.each([
@@ -81,11 +81,8 @@ test.each([
   ["/books/7", "Book"],
   ["/desk/checkout", "Check out"],
   ["/desk/checkin", "Check in"],
-  ["/desk/patrons", "Patrons"],
-  ["/desk/overdue", "Overdue"],
   ["/catalog/new", "Add a book"],
   ["/admin/settings", "Settings"],
-  ["/setup", "Set up the library"],
 ])("the route %s is a placeholder page", async (path, title) => {
   await renderApp(path);
   expect(screen.getByRole("heading", { level: 1, name: title })).toBeInTheDocument();
