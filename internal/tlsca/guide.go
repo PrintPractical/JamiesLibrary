@@ -23,9 +23,19 @@ var guideTmpl = template.Must(template.ParseFS(guideFS, "guide/guide.html"))
 // guideSection is the steps for one kind of device.
 type guideSection struct {
 	Key, Title, Intro, Download, DownloadLabel string
-	Steps                                      []string
-	Open                                       bool
+	// ExtraDownload, ExtraLabel and Command are a second way in for the
+	// system: another file, and a line to paste into a terminal.
+	ExtraDownload, ExtraLabel, Command string
+	Steps                              []string
+	Open                               bool
 }
+
+// macCommand checks the downloaded root's SHA-256 (printed before the
+// password is asked for, so the person can stop with Control-C) and then makes
+// it trusted for the whole Mac in the System keychain, which every Mac has,
+// unlike a login keychain that is missing or not the default (error -25294).
+const macCommand = "openssl x509 -inform der -in ~/Downloads/jamies-library-ca.crt -noout -fingerprint -sha256 && " +
+	"sudo security add-trusted-cert -d -r trustRoot -p ssl -k /Library/Keychains/System.keychain ~/Downloads/jamies-library-ca.crt"
 
 var guideSections = []guideSection{
 	{
@@ -60,9 +70,12 @@ var guideSections = []guideSection{
 		Intro:         "Chrome, Edge and Safari use the computer's own certificate list. Firefox keeps its own.",
 		Download:      "/trust/ca.crt",
 		DownloadLabel: "Download the certificate",
+		ExtraDownload: "/trust/ca.mobileconfig",
+		ExtraLabel:    "Mac: download the profile",
+		Command:       macCommand,
 		Steps: []string{
-			"Tap or click “Download the certificate” above.",
-			"On a Mac: double-click the file to add it to Keychain Access. Open the certificate there and compare its SHA-256 under Fingerprints with the one on the library's server console, or on the Settings page opened on another device that already trusts the library (never sign in on the device you are setting up). If they match, expand Trust and set “When using this certificate” to Always Trust. If they differ, delete the certificate.",
+			"Tap or click “Download the certificate” above. On a Mac, you may use “Mac: download the profile” instead (see the next step).",
+			"On a Mac, don't double-click the certificate: Keychain Access can refuse it with “Error: -25294” (no such keychain) when the login keychain is missing or isn't the default one. Instead, either (a) open the downloaded profile (jamies-library-ca.mobileconfig), then open System Settings › Privacy & Security › Profiles (on older macOS, System Preferences › Profiles), choose it and click Install, and enter your password; or (b) open Terminal and paste the command shown above the steps: it prints the certificate's SHA-256, then asks for your password to trust it, so press Control-C if the fingerprint isn't the one on the library's server console, or on the Settings page opened on another device that already trusts the library (never sign in on the device you are setting up). For (a), afterwards open Keychain Access, choose the System keychain, open the Jamie's Library certificate and compare its SHA-256 under Fingerprints with the same one; if they differ, remove the profile in System Settings.",
 			"In Firefox on any computer: open Settings › Privacy & Security › View Certificates › Authorities › Import. Before you tick “Trust this CA to identify websites”, choose the certificate and View it, and compare its SHA-256 fingerprint with the one on the console, or on the Settings page opened on another device that already trusts the library (never sign in on the device you are setting up).",
 			"On Windows: double-click the file, choose Install Certificate, then Current User, then “Place all certificates in the following store” and pick Trusted Root Certification Authorities. Windows' own window shows only a SHA-1 thumbprint, so check after the next step: open the library in Chrome or Edge, select the padlock (or site information) › certificate, open Details, select the top entry of the hierarchy and compare its SHA-256 fingerprint with the one on the console, or on the Settings page opened on another device that already trusts the library (never sign in on the device you are setting up). If they differ, remove the certificate from Trusted Root Certification Authorities.",
 			"Restart your browser, then use the button at the bottom to open the library.",

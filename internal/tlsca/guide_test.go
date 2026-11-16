@@ -262,3 +262,30 @@ func TestEachSystemsStepsNameWhereTheDeviceShowsTheFingerprint(t *testing.T) {
 		}
 	}
 }
+
+// Keychain Access's "Error: -25294" is errSecNoSuchKeychain: the import has no
+// keychain to go into. So a Mac is not sent to double-click the file; it gets
+// the profile and a Terminal line that trusts the root in the System keychain.
+func TestGuideGivesMacsARouteThatDoesNotNeedTheLoginKeychain(t *testing.T) {
+	h, _ := plainHandler(t)
+	page := guideAs(h, uaMac)
+	for _, want := range []string{
+		`href="/trust/ca.mobileconfig"`, "Mac: download the profile",
+		"security add-trusted-cert", "/Library/Keychains/System.keychain", "-fingerprint -sha256", "-inform der",
+		"-25294", "double-click the certificate",
+	} {
+		if !strings.Contains(page, want) {
+			t.Errorf("the Mac guide lacks %q", want)
+		}
+	}
+	// The fingerprint is printed before sudo asks for the password.
+	if strings.Index(macCommand, "-fingerprint") > strings.Index(macCommand, "sudo") || !strings.Contains(macCommand, "&& sudo") {
+		t.Error("the command trusts the certificate before showing its fingerprint")
+	}
+	if strings.Contains(page, "double-click the file to add it to Keychain Access") {
+		t.Error("the old double-click step is still there")
+	}
+	if w := get(h, "GET", "/trust/ca.mobileconfig", "x"); w.Code != 200 {
+		t.Errorf("profile: %d", w.Code)
+	}
+}
