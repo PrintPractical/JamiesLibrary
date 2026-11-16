@@ -81,7 +81,7 @@ func (r *rig) book(title, isbn string, copies int) (catalog.Book, []catalog.Copy
 
 func (r *rig) ownMode() {
 	r.t.Helper()
-	if err := r.cat.SetCopyIDMode(ctx, 1, settings.CopyIDOwn); err != nil {
+	if err := r.cat.SetCopyIDMode(ctx, 1, settings.CopyIDOwn, nil); err != nil {
 		r.t.Fatal(err)
 	}
 }
@@ -461,7 +461,7 @@ func TestUnknownCode(t *testing.T) {
 	_, err := r.svc.Resolve(ctx, r.code(cs[0].ID), StepPatron)
 	wantErr(t, err, apperr.NotFound, "No such patron")
 	// a valid ISBN no book has, in ISBN mode
-	if err := r.cat.SetCopyIDMode(ctx, 1, settings.CopyIDISBN); err != nil {
+	if err := r.cat.SetCopyIDMode(ctx, 1, settings.CopyIDISBN, nil); err != nil {
 		t.Fatal(err)
 	}
 	_, err = r.svc.Resolve(ctx, isbnB, StepItem)

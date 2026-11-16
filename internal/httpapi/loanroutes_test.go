@@ -242,7 +242,7 @@ func TestSelfCheckoutRoute(t *testing.T) {
 	if rec := s.req("POST", "/api/me/checkout", s.ann, `{"code":"9780140328721","patron":"`+s.bobCard+`"}`); rec.Code == 200 {
 		t.Error("a patron field was accepted")
 	}
-	if err := s.catalog.SetCopyIDMode(ctxBG, 1, settings.CopyIDOwn); err != nil {
+	if err := s.catalog.SetCopyIDMode(ctxBG, 1, settings.CopyIDOwn, nil); err != nil {
 		t.Fatal(err)
 	}
 	if rec := co(s.ann, "9780140328721"); rec.Code != 422 {
