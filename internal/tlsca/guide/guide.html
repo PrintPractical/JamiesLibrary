@@ -29,16 +29,14 @@
   <section class="card" id="{{.Key}}" aria-labelledby="h-{{.Key}}">
     <h2 id="h-{{.Key}}">{{.Title}}</h2>
     <p class="muted">{{.Intro}}</p>
-    <p><a class="btn secondary" href="{{.Download}}">{{.DownloadLabel}}</a>{{if .ExtraDownload}} <a class="btn secondary" href="{{.ExtraDownload}}">{{.ExtraLabel}}</a>{{end}}</p>
-    {{if .Command}}<p class="muted small">On a Mac, in Terminal (after downloading the certificate):</p><code class="fp">{{.Command}}</code>{{end}}
+    <p><a class="btn secondary" href="{{.Download}}">{{.DownloadLabel}}</a></p>
     <ol class="steps">{{range .Steps}}<li>{{.}}</li>{{end}}</ol>
   </section>
   {{else}}
   <details class="card" id="{{.Key}}">
     <summary>{{.Title}}</summary>
     <p class="muted">{{.Intro}}</p>
-    <p><a class="btn secondary" href="{{.Download}}">{{.DownloadLabel}}</a>{{if .ExtraDownload}} <a class="btn secondary" href="{{.ExtraDownload}}">{{.ExtraLabel}}</a>{{end}}</p>
-    {{if .Command}}<p class="muted small">On a Mac, in Terminal (after downloading the certificate):</p><code class="fp">{{.Command}}</code>{{end}}
+    <p><a class="btn secondary" href="{{.Download}}">{{.DownloadLabel}}</a></p>
     <ol class="steps">{{range .Steps}}<li>{{.}}</li>{{end}}</ol>
   </details>
   {{end}}
