@@ -13,6 +13,10 @@ import { Browse } from "../features/catalog/Browse";
 import { Activity } from "../features/admin/Activity";
 import { Statistics } from "../features/admin/Statistics";
 import { AddBook } from "../features/catalog/AddBook";
+import { Catalog } from "../features/catalog/Catalog";
+import { Labels } from "../features/catalog/Labels";
+import { Locations } from "../features/catalog/Locations";
+import { ManageBook } from "../features/catalog/ManageBook";
 import { History } from "../features/patron/History";
 import { Home } from "../features/patron/Home";
 import { SelfCheckout } from "../features/patron/SelfCheckout";
@@ -43,7 +47,6 @@ function Allow({ any, children }: { any: readonly string[]; children: ReactNode 
   );
 }
 
-const gated = (any: readonly string[], title: string): ReactElement => <Allow any={any}>{page(title)}</Allow>;
 
 // What a visitor may open while the public catalog is on.
 const PUBLIC_CATALOG = [/^\/browse$/, /^\/books\/[^/]+$/];
@@ -142,8 +145,11 @@ export const routeTable: RouteObject[] = [
           { path: "desk/patrons", element: <Allow any={["patrons.lookup"]}><Patrons /></Allow> },
           { path: "desk/patrons/:id", element: <Allow any={["patrons.lookup"]}><PatronPage /></Allow> },
           { path: "desk/overdue", element: <Allow any={["circ.desk"]}><Overdue /></Allow> },
-          { path: "catalog", element: gated(["catalog.manage"], "Catalog") },
+          { path: "catalog", element: <Allow any={["catalog.manage"]}><Catalog /></Allow> },
           { path: "catalog/new", element: <Allow any={["catalog.manage"]}><AddBook /></Allow> },
+          { path: "catalog/books/:id", element: <Allow any={["catalog.manage"]}><ManageBook /></Allow> },
+          { path: "catalog/locations", element: <Allow any={["catalog.manage"]}><Locations /></Allow> },
+          { path: "catalog/labels", element: <Allow any={["catalog.manage"]}><Labels /></Allow> },
           { path: "admin/settings", element: <Allow any={["settings.manage"]}><Settings /></Allow> },
           {
             path: "admin/people",
