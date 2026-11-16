@@ -34,7 +34,7 @@ What Jamie's Library does today, by area. Each entry names the requirements it c
 - 16 separate permissions, grouped into the roles patron, librarian and administrator, which are starting sets: an administrator can switch single permissions for a person, and the user list marks anyone who differs from their role (ROLE-1, ROLE-2, ROLE-3, ADMIN-2). A person is never given more than the administrator granting it holds.
 - Administrators list users, change roles and permissions, deactivate and reactivate accounts (which ends their sessions) and reset passwords, with a temporary password shown once; there is no email in this version (ADMIN-2, ACCESS-7). API only so far.
 - Invitation codes, one use each, for a role; administrators create, list and revoke them (ACCESS-2, ACCESS-3). API only so far, apart from creating them in first-run setup.
-- Navigation and screens follow the person's permissions: patrons and staff see different layouts (UX-2).
+- Navigation and screens follow the person's permissions: patrons and staff see different layouts (UX-2). The patron and staff pages for browsing, borrowing and people are placeholders until their features are built.
 
 ## Library cards
 
@@ -45,7 +45,7 @@ What Jamie's Library does today, by area. Each entry names the requirements it c
 - Books with title, authors, description, ISBN (10 or 13, checked and stored as 13) and cover; several numbered copies of each, each with a condition and a named location; search by title, author or ISBN with a location filter; removing a book or copy keeps its history (CAT-1, CAT-2, CAT-3, CAT-5, CAT-8). API only so far.
 - Look up a book's details and cover by ISBN from Open Library, with a clear message when it can't be reached; covers are kept on the installation (SCAN-2, CAT-T1). API only so far.
 - Ratings of 1 to 5 and reviews of up to 2,000 characters, one per person per book; librarians can remove a review, and its author can't repost it (CAT-6). API only so far.
-- Optional public catalog: with the setting on, anyone can search and see availability and the average rating, never who has a book (ACCESS-4).
+- Optional public catalog: with the setting on, anyone can search and see availability and the average rating, never who has a book (ACCESS-4). API only so far.
 - Copy labels as PDF (Avery 5160, Avery L7160 or a single 62 x 29 mm label, up to 5,000 labels), with contents that suit the library's way of identifying copies (CAT-7, CAT-9). API only so far.
 
 ## First-run setup

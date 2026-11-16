@@ -2,7 +2,7 @@
 
 This guide is for the person who runs the library: setting it up the first time, choosing how it looks and how borrowing works, and reading its statistics and activity log. To install the program, start with [a home or office network](install-lan.md) or [the public internet](install-public.md).
 
-Everything here is done in the web app, signed in as an administrator. Each part of the Settings screen, and each of the Statistics and Activity log screens, is also open to anyone given the matching permission (`settings.manage`, `reports.view`, `activity.view`); an administrator has them all. Anyone without the permission doesn't see the entry in the side bar.
+Settings, statistics and the activity log are done in the web app, signed in as an administrator. Some other screens named below (browsing the catalog, patrons' own pages, People & invites) are not built yet; where that matters, the guide says so. Each part of the Settings screen, and each of the Statistics and Activity log screens, is also open to anyone given the matching permission (`settings.manage`, `reports.view`, `activity.view`); an administrator has them all. Anyone without the permission doesn't see the entry in the side bar.
 
 - [First-run setup](#first-run-setup)
 - [Settings](#settings)
@@ -37,7 +37,7 @@ A new library has no accounts. The server makes the first administrator only for
 
 5. **Step 3, How borrowing works.** The loan period, how many books a person can have out, how many renewals, and the time zone. The time zone box is filled in with the one your browser is in; check it. See [Borrowing rules and time zone](#borrowing-rules-and-time-zone).
 
-6. **Step 4, Invite people.** Choose a role and **Create invitation** for each person you want to bring in. Each code works once. Send it with the address of the library followed by `/register`. You can make more at any time under **People & invites**.
+6. **Step 4, Invite people.** Choose a role and **Create invitation** for each person you want to bring in. Each code works once. Send it with the address of the library followed by `/register`, and hand it over privately (not in a group chat or on a shared screen): whoever holds a librarian or administrator code can register with that role's permissions. People & invites is not built as a screen yet, so after setup invitations can be created, listed and revoked only through the API (`POST /api/admin/invitations`, for a signed-in caller who may manage invitations); revoke any code that goes unused.
 
 Steps 2 and 3 can be skipped with **Skip**, and step 4 with **Skip and finish**; and everything in them can be changed later in Settings. If you close the browser part-way, sign in and open **Settings**; the library already works with its defaults.
 
@@ -99,8 +99,10 @@ A change to the rules applies to loans made from then on; the due dates of loans
 
 Each of these switches saves as soon as you flip it, and says in a line what it does.
 
-- **Self-checkout** lets a patron who has the self-checkout permission check out an available copy to themselves by scanning or typing its code, from their own account. Patrons still return books only through a librarian at the desk. While it is off, self-checkout is refused; the desk is unaffected.
-- **Public catalog** lets anyone, signed in or not, search the books and see whether a copy is available, with the average rating. They never see patrons, who has a book, or loan history, and reviews and the names of the people who wrote them are shown to signed-in users only. While it's off, the library is private: a visitor who isn't signed in is sent to the sign-in page, and the public pages answer "not found".
+The screens patrons would use for these (browsing, the book page, My books, checking out) are not built yet, so today the switches change what the server allows through its API:
+
+- **Self-checkout** lets a patron who has the self-checkout permission check an available copy out to themselves, by its code. While it is off, self-checkout is refused. Patrons return books only through a librarian at the desk, and the desk is unaffected either way.
+- **Public catalog** lets anyone, signed in or not, search the books through the server's public catalog routes and see each book's title, authors, ISBN, description, cover, how many copies are available and the average rating. They never see patrons, who has a book, or loan history; reviews and their writers' names are for signed-in users only. While it is off those routes answer "not found" and the library is private: a visitor who isn't signed in is sent to the sign-in page.
 
 ### How copies are identified
 
