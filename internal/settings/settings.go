@@ -159,14 +159,22 @@ func inRange(field, label string, v, lo, hi int, unit string) error {
 
 // SetName sets the library's name: 1 to 80 characters, not blank.
 func (s *Service) SetName(ctx context.Context, name string) error {
-	name = strings.TrimSpace(name)
-	if n := utf8.RuneCountInString(name); n < 1 || n > MaxNameLength {
-		return invalid("name", fmt.Sprintf("The library's name must be between 1 and %d characters.", MaxNameLength))
-	}
-	if strings.ContainsFunc(name, func(r rune) bool { return r < ' ' || r == 0x7f }) {
-		return invalid("name", "The library's name can't contain control characters.")
+	name, err := checkName(name)
+	if err != nil {
+		return err
 	}
 	return s.update(ctx, "library_name", name)
+}
+
+func checkName(name string) (string, error) {
+	name = strings.TrimSpace(name)
+	if n := utf8.RuneCountInString(name); n < 1 || n > MaxNameLength {
+		return "", invalid("name", fmt.Sprintf("The library's name must be between 1 and %d characters.", MaxNameLength))
+	}
+	if strings.ContainsFunc(name, func(r rune) bool { return r < ' ' || r == 0x7f }) {
+		return "", invalid("name", "The library's name can't contain control characters.")
+	}
+	return name, nil
 }
 
 // SetLogo records the stored logo's file name; "" removes the logo. The image
@@ -181,27 +189,13 @@ func (s *Service) SetLogo(ctx context.Context, file string) error {
 // check failed and offers a darker shade; the result carries the numbers and
 // the shade, and nothing is stored.
 func (s *Service) SetBranding(ctx context.Context, schemeID, accent string) (AccentResult, error) {
-	scheme, ok := SchemeByID(schemeID)
-	if !ok {
-		return AccentResult{}, invalid("scheme", "Choose one of the colour schemes on offer.")
-	}
-	if accent != "" {
-		norm, ok := normaliseHex(accent)
-		if !ok {
-			return AccentResult{}, invalid("accent", "The accent colour must be written like #7A2E22.")
-		}
-		accent = norm
-		res, err := CheckAccent(scheme, accent)
-		if err != nil {
-			return res, invalid("accent", err.Error())
-		}
-		if !res.OK {
-			return res, invalid("accent", accentMessage(scheme, accent, res))
-		}
+	scheme, accent, res, err := checkBranding(schemeID, accent)
+	if err != nil {
+		return res, err
 	}
 	s.wmu.Lock()
 	defer s.wmu.Unlock()
-	err := s.st.WithTx(ctx, func(tx store.Tx) error {
+	err = s.st.WithTx(ctx, func(tx store.Tx) error {
 		if err := exec(ctx, tx, "scheme", scheme.ID); err != nil {
 			return err
 		}
@@ -211,6 +205,30 @@ func (s *Service) SetBranding(ctx context.Context, schemeID, accent string) (Acc
 		return AccentResult{}, err
 	}
 	return AccentResult{OK: true}, s.Reload(ctx)
+}
+
+// checkBranding validates a scheme and accent together and returns the
+// normalised accent. A failing accent gives the result with the numbers.
+func checkBranding(schemeID, accent string) (Scheme, string, AccentResult, error) {
+	scheme, ok := SchemeByID(schemeID)
+	if !ok {
+		return scheme, "", AccentResult{}, invalid("scheme", "Choose one of the colour schemes on offer.")
+	}
+	if accent == "" {
+		return scheme, "", AccentResult{OK: true}, nil
+	}
+	norm, ok := normaliseHex(accent)
+	if !ok {
+		return scheme, "", AccentResult{}, invalid("accent", "The accent colour must be written like #7A2E22.")
+	}
+	res, err := CheckAccent(scheme, norm)
+	if err != nil {
+		return scheme, "", res, invalid("accent", err.Error())
+	}
+	if !res.OK {
+		return scheme, "", res, invalid("accent", accentMessage(scheme, norm, res))
+	}
+	return scheme, norm, res, nil
 }
 
 func accentMessage(scheme Scheme, accent string, r AccentResult) string {
@@ -230,45 +248,68 @@ func accentMessage(scheme Scheme, accent string, r AccentResult) string {
 // SetTimeZone sets the library's time zone to an IANA name such as
 // "America/Chicago". "Local" is refused: the server's own zone is not the library's.
 func (s *Service) SetTimeZone(ctx context.Context, name string) error {
+	if err := checkTimeZone(name); err != nil {
+		return err
+	}
+	return s.update(ctx, "time_zone", name)
+}
+
+func checkTimeZone(name string) error {
 	if name == "" || name == "Local" || len(name) > maxTimeZoneNameSize {
 		return invalid("time_zone", "Choose a time zone such as Europe/London or America/Chicago.")
 	}
 	if _, err := time.LoadLocation(name); err != nil {
 		return invalid("time_zone", fmt.Sprintf("%q is not a time zone this server knows. Choose one such as Europe/London or America/Chicago.", name))
 	}
-	return s.update(ctx, "time_zone", name)
+	return nil
 }
 
 // SetLoanPeriod sets how many days a loan lasts: 1 to 365.
 func (s *Service) SetLoanPeriod(ctx context.Context, days int) error {
-	if err := inRange("loan_period_days", "The loan period", days, MinLoanPeriodDays, MaxLoanPeriodDays, "days"); err != nil {
+	if err := checkLoanPeriod(days); err != nil {
 		return err
 	}
 	return s.update(ctx, "loan_period_days", days)
 }
 
+func checkLoanPeriod(days int) error {
+	return inRange("loan_period_days", "The loan period", days, MinLoanPeriodDays, MaxLoanPeriodDays, "days")
+}
+
 // SetMaxLoans sets how many items a patron may have out: 1 to 100.
 func (s *Service) SetMaxLoans(ctx context.Context, n int) error {
-	if err := inRange("max_loans", "The most items a patron may have out", n, MinMaxLoans, MaxMaxLoans, "items"); err != nil {
+	if err := checkMaxLoans(n); err != nil {
 		return err
 	}
 	return s.update(ctx, "max_loans", n)
 }
 
+func checkMaxLoans(n int) error {
+	return inRange("max_loans", "The most items a patron may have out", n, MinMaxLoans, MaxMaxLoans, "items")
+}
+
 // SetMaxRenewals sets how many times a loan can be renewed: 0 to 20.
 func (s *Service) SetMaxRenewals(ctx context.Context, n int) error {
-	if err := inRange("max_renewals", "The number of renewals", n, MinMaxRenewals, MaxMaxRenewals, "times"); err != nil {
+	if err := checkMaxRenewals(n); err != nil {
 		return err
 	}
 	return s.update(ctx, "max_renewals", n)
 }
 
+func checkMaxRenewals(n int) error {
+	return inRange("max_renewals", "The number of renewals", n, MinMaxRenewals, MaxMaxRenewals, "times")
+}
+
 // SetSessionIdle sets how long a signed-in browser may sit idle: 15 minutes to 30 days.
 func (s *Service) SetSessionIdle(ctx context.Context, minutes int) error {
-	if err := inRange("session_idle_minutes", "The idle time before signing out", minutes, MinSessionIdleMins, MaxSessionIdleMins, "minutes"); err != nil {
+	if err := checkSessionIdle(minutes); err != nil {
 		return err
 	}
 	return s.update(ctx, "session_idle_minutes", minutes)
+}
+
+func checkSessionIdle(minutes int) error {
+	return inRange("session_idle_minutes", "The idle time before signing out", minutes, MinSessionIdleMins, MaxSessionIdleMins, "minutes")
 }
 
 // SetSelfCheckout turns patrons' self-checkout on or off.

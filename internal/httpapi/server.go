@@ -117,6 +117,9 @@ func registerAPI(rt *Router, o Options) {
 	if o.Media != nil && o.Settings != nil {
 		registerMedia(rt, o)
 	}
+	if o.Media != nil && o.Settings != nil {
+		registerSettingsRoutes(rt, o)
+	}
 	if o.Activity != nil {
 		registerActivityRoutes(rt, o)
 	}
