@@ -1,6 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
-import { adminItems, patronItems, staffFooterItems, staffItems } from "../app/navigation";
+import { adminItems, deskLink, patronItems, staffFooterItems, staffItems } from "../app/navigation";
 import { fakeServer, meOf, renderApp } from "../testing";
 import { PatronLayout, StaffLayout } from "./Layouts";
 
@@ -33,6 +33,20 @@ test("PatronLayout shows the same items in the same order in the side bar and th
   expect(labels(side!)).toEqual(want);
   expect(labels(tabs!)).toEqual(want);
   expect(screen.getByText("page body")).toBeInTheDocument();
+});
+
+test("PatronLayout's deskLink is one link in the side bar and the top bar, and adds no tab or More", () => {
+  renderAt("/", <PatronLayout items={patronItems} deskLink={deskLink} />);
+  const [side, tabs] = screen.getAllByRole("navigation", { name: "Main" });
+  expect(labels(side!)).toEqual(["Home", "Browse", "My card", "My books", "Account", "Desk"]);
+  expect(labels(tabs!)).toEqual(["Home", "Browse", "My card", "My books", "Account"]);
+  expect(screen.getAllByRole("link", { name: "Desk" })).toHaveLength(2);
+  expect(screen.queryByRole("link", { name: "More" })).toBeNull();
+});
+
+test("PatronLayout without a deskLink shows no Desk link", () => {
+  renderAt("/", <PatronLayout items={patronItems} />);
+  expect(screen.queryByRole("link", { name: "Desk" })).toBeNull();
 });
 
 test("PatronLayout marks the current page and takes its items as data", () => {

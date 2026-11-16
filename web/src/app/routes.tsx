@@ -30,7 +30,7 @@ import { UserPage } from "../features/people/UserPage";
 import { Settings } from "../features/settings/Settings";
 import { Setup } from "../features/setup/Setup";
 import { NotFound } from "../features/placeholder/NotFound";
-import { allowed, adminItems, isStaff, patronItems, staffFooterItems, staffItems } from "./navigation";
+import { allowed, adminItems, deskLink, isStaff, patronItems, staffFooterItems, staffItems } from "./navigation";
 import { useSession } from "./session";
 
 /** Every route's own check, shown as the page it guards. Display only: the server decides. */
@@ -89,7 +89,7 @@ function PatronArea() {
   const { me, library, canAny } = useSession();
   const user = useShellUser();
   const items = me ? allowed(patronItems, canAny) : visitorItems;
-  return <PatronLayout items={items} libraryName={library.name} logoUrl={library.logo_url || undefined} user={user} />;
+  return <PatronLayout items={items} libraryName={library.name} logoUrl={library.logo_url || undefined} user={user} deskLink={me && isStaff(canAny) ? deskLink : undefined} />;
 }
 
 function More() {
