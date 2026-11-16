@@ -45,6 +45,8 @@ Stop the server, replace the program with the new version, and start it. If the 
 1. A database that already holds data is first copied to `backups/pre-<from>-to-<to>-<UTC time>.db` (for example `backups/pre-3-to-5-20261115T221500Z.db`, where the numbers are schema versions). A brand-new database has nothing to copy, and neither does a start with nothing to upgrade.
 2. All the changes then run as one step: either every one applies or none does.
 
+A copy is written under a hidden name (`backups/.pre-...tmp`) and given its final name only when it is whole and synced, so a `pre-...db` file is always a complete copy, even if the server was killed during the upgrade. A `.tmp` file in `backups/` is not a copy: it is what a killed upgrade left behind, and the next upgrade start deletes it. A copy is never overwritten: if a start in the same second already made one, the new copy's name ends in `-2`, `-3` and so on (`pre-3-to-5-20261115T221500Z-2.db`).
+
 A `pre-...` file is an ordinary SQLite database file. It is never removed by the program; delete old ones when you no longer need them.
 
 ## When an upgrade refuses to start
