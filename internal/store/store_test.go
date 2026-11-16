@@ -561,3 +561,91 @@ func TestExecContextQueuesBehindWriters(t *testing.T) {
 		}
 	}
 }
+
+func TestBackupNeverOverwritesAndLeavesNoTemporaryCopy(t *testing.T) {
+	dir := t.TempDir()
+	s, err := Open(context.Background(), dir, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if _, err := s.DB().Exec("CREATE TABLE a (x)"); err != nil {
+		t.Fatal(err)
+	}
+	backups := filepath.Join(dir, "backups")
+	if err := os.MkdirAll(backups, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	stale := filepath.Join(backups, ".pre-1-to-2-20200101T000000Z.tmp")
+	if err := os.WriteFile(stale, []byte("half"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	p1, err := s.backup(context.Background(), 1, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p2, err := s.backup(context.Background(), 1, 2)
+	if err != nil {
+		t.Fatalf("a second copy in the same second must not fail: %v", err)
+	}
+	if p1 == p2 {
+		t.Fatalf("both copies got the name %s", p1)
+	}
+	if _, err := os.Stat(stale); err == nil {
+		t.Error("a leftover temporary copy was not removed")
+	}
+	if tmp, _ := filepath.Glob(filepath.Join(backups, ".*")); len(tmp) != 0 {
+		t.Errorf("temporary files remain: %v", tmp)
+	}
+}
+
+func TestUpgradeAfterAKilledBackupLeavesOnlyWholeCopies(t *testing.T) {
+	dir := t.TempDir()
+	at := time.Date(2026, 11, 15, 10, 30, 0, 0, time.UTC)
+	now := func() time.Time { return at }
+	v1 := mig("0001_things.sql", "CREATE TABLE things (name TEXT)")
+	open(t, dir, Options{Migrations: v1, Now: now}).Close()
+
+	// What a kill leaves: a half copy and its journal, and a finished copy of the same second.
+	backups := filepath.Join(dir, "backups")
+	if err := os.MkdirAll(backups, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	tmp := filepath.Join(backups, ".pre-1-to-2-20261115T103000Z.tmp")
+	for _, f := range []string{tmp, tmp + "-journal"} {
+		if err := os.WriteFile(f, []byte("half"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	first := open(t, t.TempDir(), Options{Migrations: v1, Now: now})
+	whole := filepath.Join(backups, "pre-1-to-2-20261115T103000Z.db")
+	if _, err := first.DB().Exec("VACUUM INTO " + quoteSQL(whole)); err != nil {
+		t.Fatal(err)
+	}
+	first.Close()
+
+	v2 := mig("0001_things.sql", "CREATE TABLE things (name TEXT)", "0002_more.sql", "CREATE TABLE more (x)")
+	s := open(t, dir, Options{Migrations: v2, Now: now})
+	defer s.Close()
+	if !hasTable(t, s.DB(), "more") {
+		t.Fatal("the upgrade did not run")
+	}
+	left, _ := filepath.Glob(filepath.Join(backups, ".*"))
+	if len(left) != 0 {
+		t.Errorf("temporary files remain: %v", left)
+	}
+	dbs, _ := filepath.Glob(filepath.Join(backups, "*.db"))
+	if len(dbs) != 2 {
+		t.Fatalf("want 2 copies, got %v", dbs)
+	}
+	for _, b := range dbs {
+		c, err := sql.Open("sqlite", "file:"+b+"?mode=ro")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if n := count(t, c, "things"); n != 0 || hasTable(t, c, "more") {
+			t.Errorf("%s is not a whole copy of the old database", b)
+		}
+		c.Close()
+	}
+}
