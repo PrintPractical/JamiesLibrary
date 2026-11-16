@@ -62,6 +62,11 @@ func TestFreshDirectoryIsSetUp(t *testing.T) {
 	s.DB().QueryRow("PRAGMA journal_mode").Scan(&mode)
 	s.DB().QueryRow("PRAGMA foreign_keys").Scan(&fk)
 	s.DB().QueryRow("PRAGMA busy_timeout").Scan(&busy)
+	var temp string
+	s.DB().QueryRow("PRAGMA temp_store").Scan(&temp)
+	if temp != "2" { // 2 is MEMORY: temporary tables and sorts never need a writable /tmp
+		t.Errorf("temp_store=%s, want 2 (memory)", temp)
+	}
 	if mode != "wal" || fk != "1" || busy != "5000" {
 		t.Errorf("pragmas: journal_mode=%s foreign_keys=%s busy_timeout=%s", mode, fk, busy)
 	}
