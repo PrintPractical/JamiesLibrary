@@ -163,12 +163,6 @@ func TestFullDiskGivesACleanErrorAndReadsContinue(t *testing.T) {
 	}
 }
 
-// diskMessageIsActionable turns on the check that a refusal on a full disk says
-// the disk is full. Today it is the generic "something went wrong" 500 (a known
-// gap, on the board as a fix), so the check is off until that fix is merged and
-// the test task that waits on it turns this on.
-const diskMessageIsActionable = false
-
 // requireCleanError: a refusal a person can act on, in the app's own error
 // shape, with no server fault text or paths in it.
 func requireCleanError(t *testing.T, what string, r reply) {
@@ -182,7 +176,7 @@ func requireCleanError(t *testing.T, what string, r reply) {
 		return
 	}
 	low := strings.ToLower(msg)
-	if diskMessageIsActionable && !strings.Contains(low, "space") && !strings.Contains(low, "disk") && !strings.Contains(low, "full") {
+	if !strings.Contains(low, "space") && !strings.Contains(low, "disk") && !strings.Contains(low, "full") {
 		t.Errorf("%s: the message does not say what is wrong: %q", what, msg)
 	}
 	for _, bad := range []string{"/data", "sqlite", "SQLITE", "goroutine", ".go:", "database or disk is full", "errno"} {
