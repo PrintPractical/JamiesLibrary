@@ -39,6 +39,7 @@ export const adminItems: GatedItem[] = [
   { to: "/admin/settings", label: "Settings", icon: "settings", any: ["settings.manage"] },
   { to: "/admin/people", label: "People & invites", icon: "people", any: ["users.manage", "users.permissions", "invitations.manage"] },
   { to: "/admin/statistics", label: "Statistics", icon: "stats", any: ["reports.view"] },
+  { to: "/admin/activity", label: "Activity log", icon: "log", any: ["activity.view"] },
 ];
 
 export const staffFooterItems: NavItem[] = [{ to: "/", label: "My library", icon: "switch", end: true }];

@@ -74,6 +74,9 @@ func TestRenewOverLimit(t *testing.T) {
 	}
 	_, err := r.svc.Renew(ctx, l.ID, pat.ID)
 	wantErr(t, err, apperr.Conflict, "renewed the most times allowed (1)")
+	if e, _ := apperr.As(err); !strings.Contains(e.Message, "returned by Thu 12 Feb.") {
+		t.Errorf("date: %s", e.Message)
+	}
 	if mine, _ := r.svc.OpenLoansOf(ctx, pat.ID); mine[0].DueDate != "2026-02-12" || mine[0].Renewals != 1 {
 		t.Errorf("changed: %+v", mine[0])
 	}
@@ -92,7 +95,7 @@ func TestRenewOverdue(t *testing.T) {
 	}
 	r.now = time.Date(2026, 2, 13, 0, 0, 0, 0, time.UTC) // new due date 2026-02-12 has passed
 	_, err := r.svc.Renew(ctx, l.ID, 0)
-	wantErr(t, err, apperr.Conflict, "overdue")
+	wantErr(t, err, apperr.Conflict, "overdue (due Thu 12 Feb)")
 	if mine, _ := r.svc.OpenLoansOf(ctx, pat.ID); mine[0].DueDate != "2026-02-12" || mine[0].Renewals != 1 {
 		t.Errorf("changed: %+v", mine[0])
 	}

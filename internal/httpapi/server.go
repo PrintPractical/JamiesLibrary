@@ -16,6 +16,8 @@ import (
 	"jamieslibrary/internal/media"
 	"jamieslibrary/internal/metadata"
 	"jamieslibrary/internal/ratelimit"
+	"jamieslibrary/internal/reports"
+	"jamieslibrary/internal/reviews"
 	"jamieslibrary/internal/settings"
 	"jamieslibrary/internal/setup"
 	"jamieslibrary/internal/store"
@@ -47,6 +49,8 @@ type Options struct {
 	Store *store.Store
 	// Activity is the administrative activity log; when set its route is registered.
 	Activity *activity.Service
+	// Reports is the statistics and circulation report; when set its routes are registered.
+	Reports *reports.Service
 	// UserAdmin makes the changes to other people's accounts; when it and Users are set the user routes are registered.
 	UserAdmin *useradmin.Service
 	// Invitations makes and redeems invitation codes; when set with Auth and Users its routes are registered.
@@ -57,6 +61,9 @@ type Options struct {
 	// (with Media) the lookup routes are registered.
 	Catalog  *catalog.Service
 	Metadata *metadata.Service
+	// Reviews is ratings and reviews; when set (with Catalog and Media) the book
+	// pages carry them and the review routes are registered.
+	Reviews *reviews.Service
 	// Authenticate, when set, wraps the routes and puts the caller in the
 	// request context (auth.WithCaller). Without it no request has a caller.
 	Authenticate func(http.Handler) http.Handler
@@ -142,6 +149,9 @@ func registerAPI(rt *Router, o Options) {
 	if o.Activity != nil {
 		registerActivityRoutes(rt, o)
 	}
+	if o.Reports != nil {
+		registerReportRoutes(rt, o)
+	}
 	if o.UserAdmin != nil && o.Users != nil {
 		registerUserRoutes(rt, o)
 	}
@@ -162,6 +172,9 @@ func registerAPI(rt *Router, o Options) {
 		registerCatalogRoutes(rt, o)
 		registerCopyRoutes(rt, o)
 		registerPublicRoutes(rt, o)
+		if o.Reviews != nil {
+			registerReviewRoutes(rt, o)
+		}
 	}
 }
 

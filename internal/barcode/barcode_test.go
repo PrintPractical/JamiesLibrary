@@ -6,12 +6,12 @@ import (
 	"image/color"
 	"io"
 	"math"
+	"math/bits"
 	"math/rand"
 	"regexp"
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"jamieslibrary/internal/barcode/barcodetest"
 
@@ -541,14 +541,22 @@ func TestLabelsNeverPanicOnAnyText(t *testing.T) {
 	}
 }
 
+// The cut must take a logarithmic number of width measures, not a linear or
+// quadratic one; counting them keeps the test independent of machine load.
 func TestFitIsFastOnLongText(t *testing.T) {
 	doc := newTextProbe(Avery5160)
 	long := strings.Repeat("W", maxLineRune)
-	start := time.Now()
-	for i := 0; i < 1000; i++ {
-		fit(doc, long, Avery5160.innerW())
+	calls := 0
+	measure := func(s string) float64 {
+		calls++
+		return doc.GetStringWidth(s)
 	}
-	if d := time.Since(start); d > 2*time.Second {
-		t.Errorf("1000 cuts of a %d-rune line took %v", maxLineRune, d)
+	got := fitWith(measure, long, Avery5160.innerW())
+	if !strings.HasSuffix(got, ellipsis) {
+		t.Fatalf("fit = %q, want a cut ending in an ellipsis", got)
+	}
+	// One for the whole line, a binary search of about log2(n) steps, one to confirm.
+	if limit := 2 * bits.Len(uint(maxLineRune)); calls > limit {
+		t.Errorf("cutting a %d-rune line took %d width measures, want at most %d", maxLineRune, calls, limit)
 	}
 }

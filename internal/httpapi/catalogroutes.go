@@ -14,12 +14,13 @@ import (
 	"jamieslibrary/internal/catalog"
 	"jamieslibrary/internal/media"
 	"jamieslibrary/internal/perm"
+	"jamieslibrary/internal/reviews"
 )
 
 // registerCatalogRoutes registers search, book pages, books and locations
 // (CAT-1, CAT-2, CAT-4, CAT-5, CAT-8). The rules live in catalog.
 func registerCatalogRoutes(rt *Router, o Options) {
-	c := &catalogRoutes{cat: o.Catalog, images: o.Media, meta: o.Metadata}
+	c := &catalogRoutes{cat: o.Catalog, images: o.Media, meta: o.Metadata, reviews: o.Reviews}
 	rt.HandleFunc("GET /api/books", Require(perm.CatalogBrowse), c.search)
 	rt.HandleFunc("GET /api/books/{id}", Require(perm.CatalogBrowse), c.book)
 	rt.HandleFunc("GET /api/locations", Require(perm.CatalogBrowse), c.locations)
@@ -33,9 +34,10 @@ func registerCatalogRoutes(rt *Router, o Options) {
 }
 
 type catalogRoutes struct {
-	cat    *catalog.Service
-	images *media.Images
-	meta   interface {
+	cat     *catalog.Service
+	images  *media.Images
+	reviews *reviews.Service // nil: book pages carry no ratings
+	meta    interface {
 		TakeCover(token string, actor int64) (string, error)
 	}
 }
@@ -67,6 +69,12 @@ type bookDetail struct {
 	bookSummary
 	Description string         `json:"description"`
 	Copies      []bookCopyBody `json:"copies"`
+	// Ratings and reviews (CAT-6): the page of a signed-in caller only.
+	RatingAverage float64      `json:"rating_average"`
+	RatingCount   int          `json:"rating_count"`
+	MyReview      *reviewBody  `json:"my_review"`
+	Reviews       []reviewBody `json:"reviews"`
+	ReviewsTotal  int          `json:"reviews_total"`
 }
 
 type searchBody struct {
@@ -121,6 +129,11 @@ func (c *catalogRoutes) detail(r *http.Request, b catalog.Book) (bookDetail, err
 	for _, cp := range copies {
 		d.Copies = append(d.Copies, bookCopyBody{ID: cp.ID, Number: cp.Number, Condition: cp.Condition,
 			Location: cp.LocationName, Available: !cp.OnLoan, DueDate: dues[cp.ID]})
+	}
+	if c.reviews != nil {
+		if err := fillReviews(r, c.reviews, &d); err != nil {
+			return bookDetail{}, err
+		}
 	}
 	return d, nil
 }

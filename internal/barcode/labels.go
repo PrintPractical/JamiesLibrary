@@ -260,11 +260,16 @@ func clean(text string) string {
 // fit cleans text and shortens it, ending in an ellipsis, until it is no wider
 // than width in the current font.
 func fit(pdf *fpdf.Fpdf, text string, width float64) string {
+	return fitWith(pdf.GetStringWidth, text, width)
+}
+
+// fitWith is fit with the width measure given, so a test can count its calls.
+func fitWith(measure func(string) float64, text string, width float64) string {
 	r := []rune(strings.TrimSpace(clean(text)))
 	if len(r) > maxLineRune {
 		r = r[:maxLineRune]
 	}
-	if pdf.GetStringWidth(string(r)) <= width {
+	if measure(string(r)) <= width {
 		return string(r)
 	}
 	// The longest prefix whose text with an ellipsis fits (width grows with length).
@@ -272,13 +277,13 @@ func fit(pdf *fpdf.Fpdf, text string, width float64) string {
 	lo, hi := 0, len(r)-1
 	for lo < hi {
 		mid := (lo + hi + 1) / 2
-		if pdf.GetStringWidth(cut(mid)) <= width {
+		if measure(cut(mid)) <= width {
 			lo = mid
 		} else {
 			hi = mid - 1
 		}
 	}
-	if s := cut(lo); pdf.GetStringWidth(s) <= width {
+	if s := cut(lo); measure(s) <= width {
 		return s
 	}
 	return ""

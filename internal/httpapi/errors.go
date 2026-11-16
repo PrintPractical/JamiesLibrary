@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"jamieslibrary/internal/apperr"
+	"jamieslibrary/internal/store"
 )
 
 type errorBody struct {
@@ -24,6 +25,13 @@ type errorDetail struct {
 func WriteError(w http.ResponseWriter, r *http.Request, err error) {
 	if e, ok := apperr.As(err); ok && e.Code != apperr.Internal {
 		WriteJSON(w, apperr.Status(e.Code), errorBody{errorDetail{Code: e.Code, Message: e.Message, Field: e.Field}})
+		return
+	}
+	if store.IsBusy(err) {
+		WriteJSON(w, apperr.Status(apperr.Unavailable), errorBody{errorDetail{
+			Code:    apperr.Unavailable,
+			Message: "The library is busy right now. Nothing was saved: please try again in a moment.",
+		}})
 		return
 	}
 	id := RequestID(r.Context())

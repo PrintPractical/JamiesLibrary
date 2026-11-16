@@ -17,12 +17,17 @@ const PATHS = {
   ],
   people: ["M3 8a2 2 0 0 0 2-2h14a2 2 0 0 0 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 0-2 2H5a2 2 0 0 0-2-2v-2a2 2 0 0 0 0-4z", "M14 6v12"],
   stats: ["M4 20V10M10 20V4M16 20v-7M21 20H3"],
+  log: ["M6 3h12v18H6z", "M9 8h6M9 12h6M9 16h4"],
   switch: ["M7 4 3 8l4 4M3 8h14M17 12l4 4-4 4M21 16H7"],
   more: ["circle:5,12,1.2", "circle:12,12,1.2", "circle:19,12,1.2"],
   check: ["M5 12.5l4.5 4.5L19 7.5"],
   alert: ["circle:12,12,9", "M12 7.5v5.5M12 16.5h.01"],
   camera: ["M4 8h3l2-3h6l2 3h3v11H4z", "circle:12,13,3.5"],
   torch: ["M7 3h10v4l-3 4v10h-4V11L7 7z", "M12 14v2"],
+  upload: ["M12 16V4M7 9l5-5 5 5", "M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"],
+  left: ["M15 6l-6 6 6 6"],
+  right: ["m9 6 6 6-6 6"],
+  pin: ["M12 21s7-6.2 7-12a7 7 0 0 0-14 0c0 5.8 7 12 7 12z", "circle:12,9,2.5"],
   close: ["M6 6l12 12M18 6 6 18"],
 } as const;
 

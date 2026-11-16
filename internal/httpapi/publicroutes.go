@@ -5,19 +5,21 @@ import (
 
 	"jamieslibrary/internal/apperr"
 	"jamieslibrary/internal/catalog"
+	"jamieslibrary/internal/reviews"
 )
 
 // registerPublicRoutes registers the signed-out catalog (ACCESS-4, sec §7). Each
 // route is declared PublicCatalog, so it answers 404 while the setting is off,
 // checked on every request.
 func registerPublicRoutes(rt *Router, o Options) {
-	p := &publicRoutes{cat: o.Catalog}
+	p := &publicRoutes{cat: o.Catalog, reviews: o.Reviews}
 	rt.HandleFunc("GET /api/public/books", PublicCatalog(), p.search)
 	rt.HandleFunc("GET /api/public/books/{id}", PublicCatalog(), p.detail)
 }
 
 type publicRoutes struct {
-	cat *catalog.Service
+	cat     *catalog.Service
+	reviews *reviews.Service // nil: no book has a rating
 }
 
 // publicBook is a book as a signed-out visitor sees it. It holds exactly the
@@ -33,7 +35,7 @@ type publicBook struct {
 	CoverURL    string   `json:"cover_url"`
 	Available   int      `json:"available_copies"`
 	Total       int      `json:"total_copies"`
-	// Reviews are not stored yet, so every book has no rating.
+	// The average and the count only: never a review or a name (sec §7).
 	RatingAverage float64 `json:"rating_average"`
 	RatingCount   int     `json:"rating_count"`
 }
@@ -54,8 +56,16 @@ func (p *publicRoutes) book(r *http.Request, b catalog.Book) (publicBook, error)
 	if authors == nil {
 		authors = []string{}
 	}
-	return publicBook{ID: b.ID, Title: b.Title, Authors: authors, ISBN: b.ISBN13, Description: b.Description,
-		CoverURL: coverURL(b.Cover), Available: avail, Total: total}, nil
+	pb := publicBook{ID: b.ID, Title: b.Title, Authors: authors, ISBN: b.ISBN13, Description: b.Description,
+		CoverURL: coverURL(b.Cover), Available: avail, Total: total}
+	if p.reviews != nil {
+		sum, err := p.reviews.Summary(r.Context(), b.ID)
+		if err != nil {
+			return publicBook{}, err
+		}
+		pb.RatingAverage, pb.RatingCount = sum.Average, sum.Count
+	}
+	return pb, nil
 }
 
 // search takes only q and page: the location filter would let a visitor probe

@@ -141,7 +141,7 @@ func TestCopyAlreadyOut(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err := r.svc.Checkout(ctx, lib.ID, c2, code)
-	wantErr(t, err, apperr.Conflict, "on loan to Sam")
+	wantErr(t, err, apperr.Conflict, "on loan to Sam, due Thu 29 Jan.")
 	if !strings.Contains(err.(*apperr.Error).Message, "check it in first") {
 		t.Errorf("the message doesn't say what to do: %v", err)
 	}
