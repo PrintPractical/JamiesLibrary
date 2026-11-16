@@ -6,6 +6,7 @@ import { Account } from "../features/account/Account";
 import { ForcedChange } from "../features/account/ForcedChange";
 import { Register } from "../features/account/Register";
 import { SignIn } from "../features/account/SignIn";
+import { Checkout } from "../features/desk/Checkout";
 import { BookPage } from "../features/catalog/BookPage";
 import { Browse } from "../features/catalog/Browse";
 import { Activity } from "../features/admin/Activity";
@@ -128,7 +129,7 @@ export const routeTable: RouteObject[] = [
         element: <StaffArea />,
         children: [
           { path: "desk", element: page("Desk") },
-          { path: "desk/checkout", element: gated(["circ.desk"], "Check out") },
+          { path: "desk/checkout", element: <Allow any={["circ.desk"]}><Checkout /></Allow> },
           { path: "desk/checkin", element: gated(["circ.desk"], "Check in") },
           { path: "desk/patrons", element: <Allow any={["patrons.lookup"]}><Patrons /></Allow> },
           { path: "desk/patrons/:id", element: <Allow any={["patrons.lookup"]}><PatronPage /></Allow> },
