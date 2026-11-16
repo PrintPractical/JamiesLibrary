@@ -344,7 +344,6 @@ func openRO(t testing.TB, dir string) *sql.DB {
 	// which trusts a wal-index that lacks the last commits and serves a stale picture of the
 	// data. Releasing each connection when its query is done keeps the test from being the
 	// other process that holds the file.
-	db.SetMaxIdleConns(0)
 	t.Cleanup(func() { db.Close() })
 	return db
 }
