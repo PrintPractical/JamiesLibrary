@@ -142,7 +142,12 @@ func (s *Service) Create(ctx context.Context, n NewUser) (User, error) {
 		if id, err = res.LastInsertId(); err != nil {
 			return err
 		}
-		return setPermissions(ctx, tx, id, perm.Preset(n.Role))
+		if err := setPermissions(ctx, tx, id, perm.Preset(n.Role)); err != nil {
+			return err
+		}
+		// every account gets its library card when it is made (CARD-1)
+		_, err = s.IssueCard(ctx, tx, id)
+		return err
 	})
 	if err != nil {
 		return User{}, err

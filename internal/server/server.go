@@ -124,7 +124,7 @@ func Run(ctx context.Context, o Options) error {
 		func() time.Duration { return time.Duration(set.Get().SessionIdleMinutes) * time.Minute }, log)
 	h, err := httpapi.NewHandler(httpapi.Options{
 		Version: o.Version, Logger: log, Static: webui.Handler(),
-		Auth: authSvc, Users: usersSvc, Settings: set, Activity: activity.New(st), UserAdmin: useradmin.New(st, usersSvc, authSvc),
+		Auth: authSvc, Users: usersSvc, Settings: set, Activity: activity.New(st), Store: st, UserAdmin: useradmin.New(st, usersSvc, authSvc),
 		PublicCatalogOn: func() bool { return set.Get().PublicCatalog },
 	})
 	if err != nil {
