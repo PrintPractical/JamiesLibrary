@@ -406,3 +406,24 @@ func countByLocation(ctx context.Context, q DB) (map[int64]int, error) {
 // hasCopyAtSQL is a condition on the books table that holds for a book with a
 // copy in the location bound to its one "?".
 const hasCopyAtSQL = `EXISTS (SELECT 1 FROM copies c WHERE c.book_id = books.id AND c.location_id = ? AND c.removed_at IS NULL)`
+
+// Counts is how many copies of the book are in the catalog and how many of
+// them can be borrowed now. A book that isn't in the catalog is not found.
+func (s *Service) Counts(ctx context.Context, bookID int64) (copies, available int, err error) {
+	if err = mustExist(ctx, s.st.DB(), bookID); err != nil {
+		return 0, 0, err
+	}
+	if err = s.st.DB().QueryRowContext(ctx, `SELECT count(*) FROM copies WHERE book_id = ? AND removed_at IS NULL`, bookID).Scan(&copies); err != nil {
+		return 0, 0, err
+	}
+	out, err := s.loans.LoanedCopies(ctx, s.st.DB(), bookID)
+	if err != nil {
+		return 0, 0, err
+	}
+	return copies, copies - out, nil
+}
+
+// DueDates maps each of the book's copies on loan now to its due date.
+func (s *Service) DueDates(ctx context.Context, bookID int64) (map[int64]string, error) {
+	return s.loans.DueDates(ctx, s.st.DB(), bookID)
+}

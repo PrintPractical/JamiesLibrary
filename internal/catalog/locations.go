@@ -101,9 +101,31 @@ func (s *Service) RenameLocation(ctx context.Context, actor, id int64, name stri
 // DeleteLocation deletes an empty location. One that holds copies is a
 // *LocationInUse that says how many.
 func (s *Service) DeleteLocation(ctx context.Context, actor, id int64) error {
+	return s.deleteLocation(ctx, id, 0)
+}
+
+// MoveAndDeleteLocation moves every copy in the location to another and then
+// deletes it, in one transaction: nothing moves if the delete fails.
+func (s *Service) MoveAndDeleteLocation(ctx context.Context, actor, id, to int64) error {
+	if id == to {
+		return apperr.OnField(apperr.Invalid, "move_to", "Choose a different location to move the copies to.")
+	}
+	return s.deleteLocation(ctx, id, to)
+}
+
+// deleteLocation deletes a location; with to set, its copies move there first.
+func (s *Service) deleteLocation(ctx context.Context, id, to int64) error {
 	return s.st.WithTx(ctx, func(tx store.Tx) error {
 		if err := locationExists(ctx, tx, id); err != nil {
 			return err
+		}
+		if to != 0 {
+			if err := mustHaveLocation(ctx, tx, to); err != nil {
+				return apperr.OnField(apperr.Invalid, "move_to", "The location to move the copies to does not exist.")
+			}
+			if _, err := tx.ExecContext(ctx, `UPDATE copies SET location_id = ? WHERE location_id = ? AND removed_at IS NULL`, to, id); err != nil {
+				return err
+			}
 		}
 		counts, err := countByLocation(ctx, tx)
 		if err != nil {
