@@ -266,7 +266,7 @@ function Account({ user, locked, onChanged }: Section) {
         </Confirm>
       )}
       {asking === null && (
-        <div className="row actions">
+        <div className="row user-actions">
           {user.active ? (
             <button type="button" className="btn btn-secondary" onClick={() => setAsking("deactivate")} disabled={locked}>
               Deactivate
@@ -306,7 +306,7 @@ function Confirm({
       <div className="stack">
         <p className="t">{title}</p>
         <p>{children}</p>
-        <div className="row actions">
+        <div className="row user-actions">
           <button type="button" className="btn btn-primary" onClick={onYes} disabled={busy}>
             {busy ? "Working…" : yes}
           </button>
@@ -340,7 +340,7 @@ function TempPassword({ name, password, onDone }: { name: string; password: stri
         <p>
           <b>This won't be shown again.</b> Give it to {name} now. They must choose a new password when they sign in.
         </p>
-        <div className="row actions">
+        <div className="row user-actions">
           <button type="button" className="btn btn-secondary" onClick={() => void copy()}>
             Copy
           </button>

@@ -103,7 +103,7 @@ export function Home() {
         </Link>
       </div>
       {can("catalog.browse") && (
-        <Link className="search" to="/browse">
+        <Link className="home-search" to="/browse">
           <Icon name="search" />
           <span>Search by title, author or ISBN</span>
         </Link>

@@ -118,7 +118,7 @@ function Picker({ start, chosen, onToggle }: { start: number; chosen: Map<number
   return (
     <section className="card stack" aria-labelledby="lb-pick">
       <h2 id="lb-pick">Choose copies</h2>
-      <form className="search" role="search" onSubmit={submit}>
+      <form className="catalog-search" role="search" onSubmit={submit}>
         <div className="field grow">
           <label htmlFor="lb-q">Find a book</label>
           <input id="lb-q" className="input" type="search" value={term} maxLength={200} placeholder="Title, author or ISBN" onChange={(e) => setTerm(e.target.value)} />

@@ -52,7 +52,7 @@ export function SelfCheckout() {
   }
 
   return (
-    <div className="home checkout">
+    <div className="home self-checkout">
       <div className="stack-s">
         <h1>Check out a book</h1>
         <p className="muted">Scan the barcode on the book, or type it in. Books are returned at the desk.</p>
@@ -74,7 +74,7 @@ export function SelfCheckout() {
                   {o.loan.copy_code && (
                     <>
                       {" "}
-                      (<span className="code">{o.loan.copy_code}</span>)
+                      (<span className="self-code">{o.loan.copy_code}</span>)
                     </>
                   )}
                   , due {formatDay(o.loan.due_date)}
@@ -88,7 +88,7 @@ export function SelfCheckout() {
                 <p className="t">Not checked out</p>
                 <p>{o.refusal}</p>
                 <p className="small">
-                  Scanned: <span className="code">{o.code}</span>
+                  Scanned: <span className="self-code">{o.code}</span>
                 </p>
               </div>
             </div>

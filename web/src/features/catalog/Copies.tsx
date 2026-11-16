@@ -132,9 +132,10 @@ export function CopyCard({ copy, number, errors, locations, ownBarcodes, busy, o
             onInput={(sticker) => onChange({ sticker })}
             onScan={(sticker) => onChange({ sticker })}
             hint="Point at the sticker"
+            invalidBy={errors.sticker ? `${id}-sticker-error` : undefined}
             detectorFactory={detectorFactory}
           />
-          {errors.sticker && <FieldError text={errors.sticker} />}
+          {errors.sticker && <FieldError id={`${id}-sticker-error`} text={errors.sticker} />}
         </div>
       ) : null}
 

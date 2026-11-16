@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError } from "../../api/client";
 import { checkin, type CheckinResult, type DeskLoan } from "../../api/desk";
 import { InlineError } from "../../components/Errors";
+import { colourClass } from "../../components/Cover";
 import { Icon, type IconName } from "../../components/Icon";
 import { ScanField } from "../../components/ScanField";
 import "./checkin.css";
@@ -76,7 +77,7 @@ function unknown(id: number, code: string): Entry {
 function Cover({ loan }: { loan: DeskLoan }) {
   const authors = (loan.authors ?? []).join(", ");
   return (
-    <div className={`ci-cover c${loan.book_id % 8}`} aria-hidden="true">
+    <div className={`ci-cover ${colourClass(loan.book_id)}`} aria-hidden="true">
       <span className="t">{loan.title}</span>
       <span className="a">{authors}</span>
     </div>

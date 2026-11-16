@@ -72,6 +72,6 @@
   overflow-wrap: anywhere;
   user-select: all;
 }
-.actions {
+.user-actions {
   flex-wrap: wrap;
 }

@@ -5,7 +5,8 @@ import { PageError } from "../../components/Errors";
 import { Pager } from "../patrons/Pager";
 import { useLoad } from "../patrons/useLoad";
 import { useSession } from "../../app/session";
-import { Availability, Cover } from "./parts";
+import { Cover } from "../../components/Cover";
+import { Availability } from "./parts";
 import "./catalog.css";
 
 /** Browse and search the catalog (CAT-2, CAT-8). A visitor under the public catalog searches by term only (ACCESS-4). */
@@ -50,7 +51,7 @@ export function Browse() {
   return (
     <div className="stack browse">
       <h1>Browse</h1>
-      <form className="card search" role="search" onSubmit={submit}>
+      <form className="card catalog-search" role="search" onSubmit={submit}>
         <div className="field grow">
           <label htmlFor="browse-q">Search the library</label>
           <input
@@ -109,7 +110,7 @@ export function Browse() {
                 {results.state.data.books.map((b) => (
                   <li key={b.id}>
                     <Link className="book-row" to={`/books/${b.id}`}>
-                      <Cover book={b} className="mini" />
+                      <Cover book={b} size="mini" />
                       <span className="book-main">
                         <b className="book-title">{b.title}</b>
                         {b.authors.length > 0 && <span className="small muted">{b.authors.join(", ")}</span>}

@@ -47,8 +47,8 @@ export function LoanCard({ loan, today, maxRenewals, onRenewed, onRefused }: Pro
   }
 
   return (
-    <article className="loan">
-      <Cover id={loan.book_id} title={loan.title} author={loan.authors?.[0]} />
+    <article className="my-loan">
+      <Cover book={{ id: loan.book_id, title: loan.title, authors: loan.authors ?? [], coverUrl: "" }} size="card" />
       <div className="meta">
         <h3>{loan.title}</h3>
         {!!loan.authors?.length && <p className="small muted">{loan.authors.join(", ")}</p>}
