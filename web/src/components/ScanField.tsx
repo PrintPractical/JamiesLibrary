@@ -61,6 +61,8 @@ interface Props {
   /** Said over the camera view. */
   hint?: string;
   autoFocus?: boolean;
+  /** Marks the input as refused, tied to the element (by id) that says why. */
+  invalidBy?: string;
   /** Where tests supply a fake decoder. */
   detectorFactory?: DetectorFactory;
 }
@@ -81,6 +83,7 @@ export function ScanField({
   onInput,
   hint = "Point at a barcode",
   autoFocus = false,
+  invalidBy,
   detectorFactory = loadDetector,
 }: Props) {
   const id = useId();
@@ -305,7 +308,9 @@ export function ScanField({
           <input
             ref={input}
             id={id}
-            className="input"
+            className={invalidBy ? "input input-error" : "input"}
+            aria-invalid={invalidBy ? true : undefined}
+            aria-describedby={invalidBy}
             placeholder={placeholder}
             autoFocus={autoFocus}
             defaultValue={defaultValue}

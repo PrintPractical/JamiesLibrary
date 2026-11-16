@@ -253,3 +253,8 @@
 .ab-print .field {
   flex: 1 1 240px;
 }
+/* Focus on a refused field scrolls it clear of the sticky app bar above and the tab bar below. */
+.addbook [aria-invalid="true"],
+.addbook [data-error-target] {
+  scroll-margin: 88px 0 96px;
+}
