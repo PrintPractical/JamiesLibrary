@@ -163,3 +163,75 @@ func TestRegistrationLimitIgnoresAForgedAddress(t *testing.T) {
 	st, body := postFrom(t, c, s.URL+"/api/register", "198.51.100.77", registerBody(wrongCode, "x"))
 	wantBlocked(t, st, body)
 }
+
+// A valid registration takes back only its own attempt: the wrong codes before
+// it stay counted, so one more wrong code after nine makes ten.
+func TestAValidCodeNeverResetsTheCount(t *testing.T) {
+	s := testutil.StartServer(t, testutil.Options{})
+	setup, _ := s.SetupCode()
+	owner := s.Client()
+	if st, body := postFrom(t, owner, s.URL+"/api/setup/admin", "", setupBody(setup, "jamie")); st != 200 {
+		t.Fatalf("setup: %d %s", st, body)
+	}
+	invite := func() string {
+		st, body := postFrom(t, owner, s.URL+"/api/admin/invitations", "", map[string]string{"role": "patron"})
+		var inv struct{ Code string }
+		if st != 201 || json.Unmarshal([]byte(body), &inv) != nil {
+			t.Fatalf("invite: %d %s", st, body)
+		}
+		return inv.Code
+	}
+	first, second := invite(), invite()
+	v := s.Client()
+	guessRegister(t, s, v, "", 9)
+	if st, body := postFrom(t, v, s.URL+"/api/register", "", registerBody(first, "first")); st != 201 {
+		t.Fatalf("valid registration at nine failures: %d %s", st, body)
+	}
+	guessRegister(t, s, v, "", 1)
+	st, body := postFrom(t, v, s.URL+"/api/register", "", registerBody(second, "second"))
+	wantBlocked(t, st, body)
+}
+
+// A code whose creator has since been deactivated is no longer valid, and
+// counts like any other wrong code.
+func TestACodeOfADeactivatedCreatorCounts(t *testing.T) {
+	s := testutil.StartServer(t, testutil.Options{})
+	setup, _ := s.SetupCode()
+	owner := s.Client()
+	if st, body := postFrom(t, owner, s.URL+"/api/setup/admin", "", setupBody(setup, "jamie")); st != 200 {
+		t.Fatalf("setup: %d %s", st, body)
+	}
+	invite := func(c *http.Client, role string) string {
+		st, body := postFrom(t, c, s.URL+"/api/admin/invitations", "", map[string]string{"role": role})
+		var inv struct{ Code string }
+		if st != 201 || json.Unmarshal([]byte(body), &inv) != nil {
+			t.Fatalf("invite: %d %s", st, body)
+		}
+		return inv.Code
+	}
+	helper := s.Client()
+	st, body := postFrom(t, helper, s.URL+"/api/register", "", registerBody(invite(owner, "administrator"), "helper"))
+	var reg struct {
+		ID   int64
+		User struct{ ID int64 }
+	}
+	if st != 201 || json.Unmarshal([]byte(body), &reg) != nil {
+		t.Fatalf("helper registration: %d %s", st, body)
+	}
+	id := reg.ID
+	if id == 0 {
+		id = reg.User.ID
+	}
+	orphan := invite(helper, "patron")
+	if st, body := postFrom(t, owner, fmt.Sprintf("%s/api/admin/users/%d/deactivate", s.URL, id), "", struct{}{}); st != 200 {
+		t.Fatalf("deactivate: %d %s", st, body)
+	}
+	v := s.Client()
+	for i := 0; i < 10; i++ {
+		if st, body := postFrom(t, v, s.URL+"/api/register", "", registerBody(orphan, "late")); st != 422 {
+			t.Fatalf("attempt %d with the orphaned code: %d %s", i+1, st, body)
+		}
+	}
+	st, body = postFrom(t, v, s.URL+"/api/register", "", registerBody(wrongCode, "late"))
+	wantBlocked(t, st, body)
+}
