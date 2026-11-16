@@ -76,6 +76,39 @@ func Open(dataDir string) (*Images, error) {
 	return &Images{dir: dir, sem: make(chan struct{}, maxConcurrent)}, nil
 }
 
+// Sibling is a store over another directory (created 0700) that shares im's
+// limit on decodes at once, so the memory bound holds across both.
+func (im *Images) Sibling(dir string) (*Images, error) {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return nil, fmt.Errorf("cannot create %q: %w", dir, err)
+	}
+	return &Images{dir: dir, sem: im.sem}, nil
+}
+
+// Adopt moves the image called name out of from into im, keeping its name, so
+// an image checked and stored once is not decoded again. A name not in the
+// generated form is refused; one that has no file is ErrNotFound.
+func (im *Images) Adopt(from *Images, name string) error {
+	if !ValidName(name) {
+		return ErrNotFound
+	}
+	src, dst := filepath.Join(from.dir, name), filepath.Join(im.dir, name)
+	if err := os.Rename(src, dst); err == nil {
+		return nil
+	} else if errors.Is(err, os.ErrNotExist) {
+		return ErrNotFound
+	}
+	// The two directories are on different file systems: copy, then remove.
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return fmt.Errorf("moving an image: %w", err)
+	}
+	if err := os.WriteFile(dst, data, 0o600); err != nil {
+		return fmt.Errorf("moving an image: %w", err)
+	}
+	return os.Remove(src)
+}
+
 func refuse(msg string) error { return apperr.New(apperr.Invalid, msg) }
 
 const notAnImage = "That file isn't a JPEG, PNG or WebP image. Choose a different file."

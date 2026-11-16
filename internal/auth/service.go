@@ -179,14 +179,14 @@ func (s *Service) Authenticate(ctx context.Context, token string) (*CallerInfo, 
 }
 
 // Middleware puts the caller in the request's context when it carries a valid
-// session cookie. Only API and media requests are looked up; the app's own
+// session cookie. Only API and media (and fetched-cover preview) requests are looked up; the app's own
 // files need no session. A database failure answers 500 rather than letting
 // the request through unauthenticated.
 func (s *Service) Middleware(onError func(http.ResponseWriter, *http.Request, error)) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if c, err := r.Cookie(CookieName); err == nil && c.Value != "" &&
-				(strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/media/")) {
+				(strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/media/") || strings.HasPrefix(r.URL.Path, "/media-tmp/")) {
 				caller, err := s.Authenticate(r.Context(), c.Value)
 				if err != nil {
 					onError(w, r, err)

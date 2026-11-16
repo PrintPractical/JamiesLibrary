@@ -681,3 +681,35 @@ func TestStoreLeavesTheQueueWhenCancelled(t *testing.T) {
 		t.Errorf("%d files saved", len(ents))
 	}
 }
+
+func TestAdoptMovesAnImageBetweenSiblingStores(t *testing.T) {
+	dir := t.TempDir()
+	images, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tmp, err := images.Sibling(filepath.Join(dir, "tmp"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	name, err := tmp.Store(context.Background(), bytes.NewReader(jpegBytes(t, 8, 8)), CoverLimit, Cover)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := images.Adopt(tmp, name); err != nil {
+		t.Fatal(err)
+	}
+	if f, err := images.Open(name); err != nil {
+		t.Errorf("not in images: %v", err)
+	} else {
+		f.Close()
+	}
+	if _, err := tmp.Open(name); !errors.Is(err, ErrNotFound) {
+		t.Errorf("still in the source: %v", err)
+	}
+	for _, bad := range []string{name, "../x.jpg", "", "a.jpg"} {
+		if err := images.Adopt(tmp, bad); !errors.Is(err, ErrNotFound) {
+			t.Errorf("Adopt(%q) = %v, want ErrNotFound", bad, err)
+		}
+	}
+}
