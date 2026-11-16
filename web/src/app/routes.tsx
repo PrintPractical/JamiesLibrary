@@ -7,11 +7,14 @@ import { ForcedChange } from "../features/account/ForcedChange";
 import { Register } from "../features/account/Register";
 import { SignIn } from "../features/account/SignIn";
 import { CheckIn } from "../features/desk/CheckIn";
+import { BookPage } from "../features/catalog/BookPage";
+import { Browse } from "../features/catalog/Browse";
 import { Activity } from "../features/admin/Activity";
 import { Statistics } from "../features/admin/Statistics";
 import { Overdue } from "../features/patrons/Overdue";
 import { PatronPage } from "../features/patrons/PatronPage";
 import { Patrons } from "../features/patrons/Patrons";
+import { Settings } from "../features/settings/Settings";
 import { Setup } from "../features/setup/Setup";
 import { NotFound } from "../features/placeholder/NotFound";
 import { Placeholder } from "../features/placeholder/Placeholder";
@@ -114,11 +117,11 @@ export const routeTable: RouteObject[] = [
         element: <PatronArea />,
         children: [
           { index: true, element: page("Home") },
-          { path: "browse", element: gated(["catalog.browse"], "Browse") },
+          { path: "browse", element: <Allow any={["catalog.browse"]}><Browse /></Allow> },
           { path: "card", element: page("My card") },
           { path: "loans", element: gated(["loans.own.view"], "My books") },
           { path: "account", element: <Account /> },
-          { path: "books/:id", element: gated(["catalog.browse"], "Book") },
+          { path: "books/:id", element: <Allow any={["catalog.browse"]}><BookPage /></Allow> },
           { path: "*", element: <NotFound /> },
         ],
       },
@@ -133,7 +136,7 @@ export const routeTable: RouteObject[] = [
           { path: "desk/overdue", element: <Allow any={["circ.desk"]}><Overdue /></Allow> },
           { path: "catalog", element: gated(["catalog.manage"], "Catalog") },
           { path: "catalog/new", element: gated(["catalog.manage"], "Add a book") },
-          { path: "admin/settings", element: gated(["settings.manage"], "Settings") },
+          { path: "admin/settings", element: <Allow any={["settings.manage"]}><Settings /></Allow> },
           {
             path: "admin/people",
             element: gated(["users.manage", "users.permissions", "invitations.manage"], "People & invites"),
