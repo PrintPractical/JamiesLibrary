@@ -302,7 +302,9 @@ describe("CIRC-8 Find a patron by name at checkout", () => {
     fakeServer({ ...base, "POST /api/desk/find": matches([ann], true) });
     await renderApp("/desk/checkout");
     await scan("Patron", "a");
-    expect(await screen.findByText("More than 50 patrons match. Type more of the name.")).toBeInTheDocument();
+    const note = await screen.findByText("More than 50 patrons match. Type more of the name.");
+    // said before the rows, so it's read first
+    expect(note.compareDocumentPosition(screen.getByRole("list")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   test("exactly 50 match: no such notice", async () => {

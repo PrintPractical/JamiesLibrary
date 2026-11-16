@@ -55,6 +55,7 @@ function MatchList({ found, onChoose }: { found: Matches; onChoose: (card: strin
   return (
     <section className="card matches" aria-labelledby="matches-h">
       <h3 id="matches-h">Matches for ‘{found.q}’</h3>
+      {found.more && <p className="small more">More than 50 patrons match. Type more of the name.</p>}
       {found.patrons.length === 0 ? (
         <p className="small muted">No patron matches ‘{found.q}’.</p>
       ) : (
@@ -74,6 +75,9 @@ function MatchList({ found, onChoose }: { found: Matches; onChoose: (card: strin
                 ) : (
                   <button type="button" className="match" onClick={() => onChoose(m.card)}>
                     <MatchBody m={m} />
+                    <span className="go" aria-hidden="true">
+                      <Icon name="right" />
+                    </span>
                   </button>
                 )}
               </li>
@@ -81,7 +85,6 @@ function MatchList({ found, onChoose }: { found: Matches; onChoose: (card: strin
           })}
         </ul>
       )}
-      {found.more && <p className="small">More than 50 patrons match. Type more of the name.</p>}
     </section>
   );
 }

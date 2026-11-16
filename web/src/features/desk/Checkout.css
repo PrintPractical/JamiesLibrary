@@ -203,9 +203,22 @@
 .checkout button.match {
   cursor: pointer;
 }
-.checkout button.match:hover .m b {
+.checkout button.match:hover,
+.checkout button.match:active {
+  background: var(--card-2);
+}
+.checkout .match .go {
+  margin-left: auto;
   color: var(--primary);
-  text-decoration: underline;
+  display: flex;
+}
+.checkout .match .go svg {
+  width: 20px;
+  height: 20px;
+}
+.checkout .matches .more {
+  margin: 4px 0 8px;
+  font-weight: 700;
 }
 .checkout button.match:focus-visible {
   outline: 3px solid var(--ink);
