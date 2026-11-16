@@ -34,6 +34,14 @@ func WriteError(w http.ResponseWriter, r *http.Request, err error) {
 		}})
 		return
 	}
+	if store.IsDiskFull(err) {
+		logger(r).Error("disk full", "request_id", RequestID(r.Context()), "error", err)
+		WriteJSON(w, apperr.Status(apperr.Unavailable), errorBody{errorDetail{
+			Code:    apperr.Unavailable,
+			Message: "The library has run out of disk space, so this could not be saved. Free some space on the machine and try again.",
+		}})
+		return
+	}
 	id := RequestID(r.Context())
 	logger(r).Error("unexpected error", "request_id", id, "error", err)
 	WriteJSON(w, http.StatusInternalServerError, errorBody{errorDetail{

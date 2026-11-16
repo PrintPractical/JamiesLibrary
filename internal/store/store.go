@@ -20,6 +20,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"jamieslibrary/internal/clock"
@@ -66,6 +67,24 @@ func IsBusy(err error) bool {
 	}
 	m := err.Error()
 	return strings.Contains(m, "SQLITE_BUSY") || strings.Contains(m, "database is locked")
+}
+
+// IsDiskFull reports whether err is SQLite's "database or disk is full"
+// (SQLITE_FULL) or the operating system's ENOSPC, from the database or from
+// writing a file beside it.
+func IsDiskFull(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, syscall.ENOSPC) {
+		return true
+	}
+	var se *sqlite.Error
+	if errors.As(err, &se) && se.Code()&0xff == sqlite3.SQLITE_FULL {
+		return true
+	}
+	m := err.Error()
+	return strings.Contains(m, "SQLITE_FULL") || strings.Contains(m, "database or disk is full") || strings.Contains(m, "no space left on device")
 }
 
 // Tx is the transaction a WithTx function works in.
