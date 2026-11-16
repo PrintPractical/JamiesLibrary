@@ -299,8 +299,10 @@ func TestSettingsShowTheFingerprintTheConsolePrints(t *testing.T) {
 	if want := strings.ToUpper(hex.EncodeToString(sum[:])); strings.ReplaceAll(got.Fingerprint, ":", "") != want {
 		t.Fatalf("settings fingerprint %s is not the downloaded certificate's %s", got.Fingerprint, want)
 	}
+}
 
-	// no local CA: nothing to show
+// Without the local CA there is no fingerprint to show.
+func TestSettingsOmitTheFingerprintWithoutTheCA(t *testing.T) {
 	p := testutil.StartServer(t, testutil.Options{})
 	pc := p.Client()
 	pcode, _ := p.SetupCode()
