@@ -8,7 +8,7 @@ browser (React app) --HTTP--> jamieslibrary binary --> SQLite database and files
 
 The server answers three kinds of request:
 
-- `/api/...`: a JSON API, the only way the web app reads or changes anything. Today that is `GET /api/health`; any other `/api/` path answers a JSON `not_found` error.
+- `/api/...`: a JSON API, the only way the web app reads or changes anything. Every route is registered with a statement of who may call it (see [Accounts, sessions and the route guard](#accounts-sessions-and-the-route-guard)); an unknown `/api/` path answers a JSON `not_found` error.
 - `/media/...`: reserved for covers and the logo. Nothing is served there yet.
 - everything else: the web app, from files embedded in the binary. A path that names no file and has no extension gets `index.html` (the app's own router handles it); a missing file with an extension is a 404, so a script is never answered with a page.
 
@@ -220,6 +220,44 @@ Fonts (Fraunces, Nunito Sans) are bundled from `@fontsource` packages. The app m
 **To add a page:** add a `<Route>` in `app/routes.tsx` under the patron or staff layout, and, if it needs a menu entry, an item in `app/navigation.ts`. The staff tab bar keeps its first four items; the rest go on the "More" page.
 
 **To add a colour scheme:** add a `Scheme` object in `app/theme.ts` with a value for every name in `COLOUR_TOKENS` (the defaults in `tokens.css` are the Hearth scheme); `ThemeProvider` applies it.
+
+## Accounts, sessions and the route guard
+
+How people are told apart and kept to what they may do. The user-facing description is in [Accounts, permissions, invitations and recovery](accounts.md).
+
+**Packages.**
+
+| Package | Owns |
+|---|---|
+| `internal/perm` | the 16 permission IDs, the three role presets and set operations. The IDs are stored in the database and sent to the web app, so they never change |
+| `internal/users` | the `users` and `user_permissions` tables, username and display-name rules, cards |
+| `internal/auth` | password hashing, sessions, sign-in, own password change |
+| `internal/useradmin` | changing other people: role, single permissions, deactivation, password reset, and the no-escalation and last-administrator rules |
+| `internal/invitations` | invitation codes and registration |
+| `internal/setup`, `internal/setupcode` | the first administrator and its one-time code |
+| `internal/recovery` | the `admin reset-password` command (`cmd/jamieslibrary/admin.go` is only its command line) |
+| `internal/ratelimit` | failed-attempt limits and the client address |
+| `internal/activity` | the administrative activity log |
+
+**Permissions are data per user.** `user_permissions` holds one row per permission a person has; `users.role` records only the preset last applied, so "differs from the preset" can be shown. Setting a role replaces the person's rows with the preset.
+
+**Passwords** are hashed with argon2id (19456 KiB, 2 passes, 1 lane, 16-byte salt) and stored as a PHC string, so the parameters can be raised later and a hash rehashed at the next sign-in. At most two hashes run at once; a request that waits more than 10 seconds for its turn gets `unavailable`. An unknown username is checked against a fixed dummy hash so timing doesn't show which usernames exist. A password is 10 to 256 Unicode code points with no other rule; the same check runs at registration, own change, administrator reset and recovery.
+
+**Sessions.** `sessions` (migration `0005`) holds the SHA-256 of a random 32-byte token, the user and the creation and last-seen times; the token itself exists only in the browser's cookie, so a copy of the database holds nothing usable as a cookie. The cookie is `__Host-jl_session` with `Secure; HttpOnly; SameSite=Lax; Path=/`, no `Domain` and no `Max-Age`: its lifetime is decided on the server. Each request looks the token up, ends the session if `now - last_seen_at` is over the idle limit (setting "sign out after unused", 15 minutes to 30 days, 8 hours by default) and writes `last_seen_at` at most once a minute. Every request also loads the user's active flag and permissions from the database, never from the session, so a deactivation or a removed permission applies to the very next request. A new session is made at every sign-in and a token the client presents at sign-in is never adopted. Sessions are deleted at sign-out; all of a user's others when they change their own password; and all of a user's when an administrator resets their password, deactivates them or takes away a permission.
+
+**Must-change-password.** A temporary password sets `users.must_change_password`. While it is set, the guard lets the session reach only `GET /api/me`, `POST /api/me/password` and `POST /api/auth/signout`; everything else is `403`. The web app mirrors this by showing only the change-password page.
+
+**The route guard.** `internal/httpapi/routes.go` defines the one route table (`Router`) and the `Access` kinds; each area registers its routes in its own `*routes.go` file (`authroutes.go`, `userroutes.go`, `invitationroutes.go` and so on), gathered by `registerAPI` in `server.go`. Every route is registered with an `Access`: `Require(permission)`, `SignedIn()`, `Public()`, `PublicCatalog()` (404 while the public catalog is off) or `Mixed()` (the handler decides; only `/media/{name}`). The zero `Access` is a mistake: building the routes records it and the server refuses to start, so a route can't be added without saying who may call it. The guard answers `401` to a request with no session and `403` to one without the permission, and refuses a state-changing request whose body isn't `application/json` (image uploads opt in with `Multipart()`). A test walks the table and fails for any route without a declaration, and `internal/e2e/permission_matrix_test.go` calls every route as each role. Hiding a button in the web app is never the check.
+
+Handlers for a person's own data take the user from the session only; an ID in the path or body that names someone else's loan or review is answered `404`, as if it did not exist. Routes that cross a boundary (anything that changes another account, or reads an invitation code) apply the no-escalation rule in the service, in the same transaction as the change, so concurrent requests can't both pass the last-administrator check.
+
+**Limits on guessing.** `internal/ratelimit` counts failed sign-ins per client address (IPv4 by address, IPv6 by its /64; the address is the TCP peer unless `JL_TRUSTED_PROXIES` names it a proxy, and then the right-most `X-Forwarded-For` entry that isn't itself a trusted proxy). Five consecutive failures block the address for 15 minutes. A successful sign-in resets the count only when every failure since the last reset named that same account, so someone with an account of their own can't reset the count between guesses at another's. A wrong current password on `POST /api/me/password` counts like a failed sign-in. Registration and first-run setup share a second counter (10 wrong codes, 15 minutes) that a valid code never resets. Counters live in memory, at most 50,000, and a restart clears them. Nothing is keyed by account, so an attacker can't lock a person out.
+
+**Other protections in front of the guard.** `internal/httpapi/protect.go` wraps the whole server in Go's cross-origin protection (a cross-origin state-changing request is refused; no CORS header is ever sent) and sets a strict Content-Security-Policy, `nosniff`, `Referrer-Policy: no-referrer`, a restrictive `Permissions-Policy` and, over HTTPS, HSTS. Every `/api/` response is `Cache-Control: no-store`.
+
+**First administrator and recovery.** While no active user holds both `users.manage` and `users.permissions`, each start generates a setup code from `crypto/rand`, keeps it only in memory and prints it on the console. Creating the administrator re-checks in one transaction that none exists, and afterwards the setup routes answer `404`. Recovery is `jamieslibrary admin reset-password`, a subcommand of the same program that opens the data directory directly, without the server's lock, so it is run with the same program version as the server. It prints a temporary password once, sets must-change, ends the user's sessions and writes an activity entry by "Server console". There is deliberately no network route for it.
+
+**Where the rules are held.** The rules for passwords, sessions, permissions and the route guard are the ones described in this section, and the tests hold them: the permission matrix, the route-declaration test, and the unit tests in each package named in the table. Before changing a password, session or permission rule, read those tests and keep them passing; a change that loosens one needs a reason written down with it.
 
 ## Building and testing
 

@@ -12,6 +12,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- The accounts guide, [`docs/accounts.md`](docs/accounts.md): signing in, registering with an invitation code, changing your password, the 16 permissions and the three roles, inviting and managing people, the rules that stop anyone giving more than they hold or removing the last administrator, resetting a password, and recovering a locked-out administrator from the server (`jamieslibrary admin reset-password`, also through `docker compose exec`), with the messages you may meet and what each means.
+- The architecture document now describes accounts, sessions and the route guard.
 - The administrator's settings (`GET /api/admin/settings`) carry `ca_fingerprint`, the local CA's SHA-256 fingerprint, read-only and only for people who may manage settings, so the trust guide's "compare with the Settings page" can be followed (absent when the app doesn't use the local CA). The Settings screen shows it.
 - With no `JL_HOSTNAMES` or `JL_ADDRESSES`, the console's trust-guide address lists the machine's own private network addresses (up to three) instead of `localhost`, which a phone can't reach.
 - The administrator's guide, [`docs/guide-admin.md`](docs/guide-admin.md): first-run setup, every setting with its default and range, the readability rule for accent colours, and reading the statistics, the circulation report and the activity log.
