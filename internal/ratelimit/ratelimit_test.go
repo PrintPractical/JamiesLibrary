@@ -321,7 +321,7 @@ func TestParseTrusted(t *testing.T) {
 	if err != nil || fmt.Sprint(p) != fmt.Sprint(want) {
 		t.Fatalf("%v %v", p, err)
 	}
-	for _, bad := range []string{"nope", "10.0.0.0/33", "10.0.0.0/8, banana", "fe80::1%eth0", "::ffff:0.0.0.0/8"} {
+	for _, bad := range []string{"nope", "10.0.0.0/33", "10.0.0.0/8, banana", "fe80::1%eth0", "::ffff:0.0.0.0/8", "0.0.0.0/0", "::/0", "10.0.0.0/8, 0.0.0.0/0", "::ffff:0.0.0.0/96"} {
 		if _, err := ParseTrusted(bad); err == nil || !strings.Contains(err.Error(), "JL_TRUSTED_PROXIES") {
 			t.Errorf("%q: error %v", bad, err)
 		}
