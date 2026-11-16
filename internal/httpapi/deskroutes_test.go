@@ -298,8 +298,10 @@ func TestDeskFindNeedsCircDeskOnly(t *testing.T) {
 	s.addUser("pat", goodPassword, perm.Patron)
 	pat := s.signIn("pat", goodPassword)
 	cl := s.signIn("clerk", goodPassword)
-	if rec := s.req("GET", "/api/patrons?q=pat", cl, ""); rec.Code != 403 {
-		t.Fatalf("the clerk has patrons.lookup: %d", rec.Code)
+	for _, path := range []string{"/api/patrons?q=pat", "/api/patrons/1", "/api/patron-loans/1", "/api/patrons/by-card/" + s.cardOf(pat)} {
+		if rec := s.req("GET", path, cl, ""); rec.Code != 403 {
+			t.Fatalf("the clerk reached %s: %d", path, rec.Code)
+		}
 	}
 	a, b := s.req("POST", "/api/desk/find", cl, `{"q":"pat"}`), s.req("POST", "/api/desk/find", lib, `{"q":"pat"}`)
 	if a.Code != 200 || a.Body.String() != b.Body.String() {
@@ -310,5 +312,89 @@ func TestDeskFindNeedsCircDeskOnly(t *testing.T) {
 	}
 	if rec := s.req("POST", "/api/desk/find", "", `{"q":"pat"}`); rec.Code != 401 {
 		t.Errorf("signed out: %d", rec.Code)
+	}
+}
+
+func keysOf(t *testing.T, m map[string]any, allowed ...string) {
+	t.Helper()
+	ok := map[string]bool{}
+	for _, k := range allowed {
+		ok[k] = true
+	}
+	for k := range m {
+		if !ok[k] {
+			t.Errorf("unexpected key %q in %v", k, m)
+		}
+	}
+}
+
+// security-design-r4: the answers carry only the allowed keys, so a field added for patrons.lookup can't reach circ.desk holders.
+func TestDeskFindAnswersOnlyAllowedKeys(t *testing.T) {
+	s, _ := deskSite(t)
+	s.addUser("lib", goodPassword, perm.Librarian)
+	lib := s.signIn("lib", goodPassword)
+	pat := s.addUser("pat", goodPassword, perm.Patron)
+	card, _ := s.users.Card(ctxBG, pat.ID)
+	decode := func(q string) map[string]any {
+		var m map[string]any
+		rec := s.req("POST", "/api/desk/find", lib, body(map[string]string{"q": q}))
+		if rec.Code != 200 || json.Unmarshal(rec.Body.Bytes(), &m) != nil {
+			t.Fatalf("%d %s", rec.Code, rec.Body)
+		}
+		return m
+	}
+	m := decode(card)
+	keysOf(t, m, "kind", "patron")
+	keysOf(t, m["patron"].(map[string]any), "id", "display_name", "card", "active", "out", "overdue", "limit")
+	m = decode("pat")
+	keysOf(t, m, "kind", "patrons", "more")
+	list := m["patrons"].([]any)
+	if len(list) == 0 {
+		t.Fatal("no matches")
+	}
+	for _, p := range list {
+		keysOf(t, p.(map[string]any), "id", "display_name", "username", "card", "active", "out", "overdue")
+	}
+}
+
+// A card matches only whole; a prefix or an interior part finds no one; hostile input behaves; 60 give 50 and more.
+func TestDeskFindCardAndHostileInput(t *testing.T) {
+	s, _ := deskSite(t)
+	s.addUser("lib", goodPassword, perm.Librarian)
+	lib := s.signIn("lib", goodPassword)
+	pat := s.addUser("pat", goodPassword, perm.Patron)
+	card, _ := s.users.Card(ctxBG, pat.ID)
+	s.addUser("back", goodPassword, perm.Patron)
+	s.exec(`UPDATE users SET display_name = ? WHERE username = 'back'`, `Back\slash 😀`)
+	find := func(q string) *httptest.ResponseRecorder {
+		return s.req("POST", "/api/desk/find", lib, body(map[string]string{"q": q}))
+	}
+	for _, q := range []string{card[:len(card)-1], card[:6], card[3:9], card[1 : len(card)-1]} {
+		if got := decodeAs[findAnswer](t, find(q), 200); got.Kind != "matches" || len(got.Patrons) != 0 {
+			t.Errorf("%q: %+v", q, got)
+		}
+	}
+	if got := decodeAs[findAnswer](t, find(card), 200); got.Kind != "patron" || got.Patron.ID != pat.ID {
+		t.Errorf("whole card: %+v", got)
+	}
+	for _, q := range []string{`\`, "😀"} {
+		if got := decodeAs[findAnswer](t, find(q), 200); len(got.Patrons) != 1 || got.Patrons[0].Username != "back" {
+			t.Errorf("%q: %+v", q, got)
+		}
+	}
+	if rec := find(strings.Repeat("😀", 200)); rec.Code != 200 {
+		t.Errorf("200 code points: %d %s", rec.Code, rec.Body)
+	}
+	if rec := find(strings.Repeat("😀", 201)); rec.Code != 422 {
+		t.Errorf("201 code points: %d", rec.Code)
+	}
+	if rec := find("‏‮"); rec.Code != 200 {
+		t.Errorf("RTL marks: %d", rec.Code)
+	}
+	for i := 0; i < 60; i++ {
+		s.addUser(fmt.Sprintf("sixty%02d", i), goodPassword, perm.Patron)
+	}
+	if got := decodeAs[findAnswer](t, find("sixty"), 200); len(got.Patrons) != 50 || !*got.More {
+		t.Errorf("60: %d", len(got.Patrons))
 	}
 }

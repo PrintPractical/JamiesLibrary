@@ -93,6 +93,10 @@ func bookBody(b *circ.BookInfo) *deskBookBody {
 	return &deskBookBody{ID: b.ID, Title: b.Title, Authors: b.Authors, ISBN: b.ISBN, Copies: b.Copies, Available: b.Available}
 }
 
+func toDeskPatron(p circ.Patron) deskPatronBody {
+	return deskPatronBody{ID: p.ID, DisplayName: p.DisplayName, Card: p.Card, Active: p.Active, Out: p.Out, Overdue: p.Overdue, Limit: p.Limit}
+}
+
 type resolveRequest struct {
 	Code string `json:"code"`
 	Step string `json:"step"`
@@ -121,7 +125,8 @@ func (d *deskRoutes) resolve(w http.ResponseWriter, r *http.Request) {
 	case got.Patron != nil:
 		p := got.Patron
 		out.Kind = "patron"
-		out.Patron = &deskPatronBody{ID: p.ID, DisplayName: p.DisplayName, Card: p.Card, Active: p.Active, Out: p.Out, Overdue: p.Overdue, Limit: p.Limit}
+		b := toDeskPatron(*p)
+		out.Patron = &b
 	case got.Copy != nil:
 		out.Kind = "copy"
 	default:
@@ -150,7 +155,7 @@ func (d *deskRoutes) find(w http.ResponseWriter, r *http.Request) {
 	}
 	if p := got.Patron; p != nil {
 		WriteJSON(w, http.StatusOK, map[string]any{"kind": "patron",
-			"patron": deskPatronBody{ID: p.ID, DisplayName: p.DisplayName, Card: p.Card, Active: p.Active, Out: p.Out, Overdue: p.Overdue, Limit: p.Limit}})
+			"patron": toDeskPatron(*p)})
 		return
 	}
 	matches := make([]patronMatchBody, 0, len(got.Matches))

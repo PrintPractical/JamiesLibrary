@@ -151,3 +151,63 @@ func TestFindAtDeskUnknownCodeSearchesNames(t *testing.T) {
 		t.Fatalf("%+v %v", got, err)
 	}
 }
+
+// A card matches only whole: a prefix or an interior part of its number finds no one, and the whole number still selects.
+func TestFindAtDeskCardOnlyMatchesWhole(t *testing.T) {
+	r := newRig(t)
+	pat, card := r.user("pat", perm.Patron)
+	for _, q := range []string{card[:len(card)-1], card[:6], card[3:9], card[1 : len(card)-1], card + "0"} {
+		got, err := r.svc.FindAtDesk(ctx, q)
+		if err != nil || got.Patron != nil || len(got.Matches) != 0 {
+			t.Errorf("%q: %+v %v", q, got, err)
+		}
+	}
+	if got, err := r.svc.FindAtDesk(ctx, card); err != nil || got.Patron == nil || got.Patron.ID != pat.ID {
+		t.Errorf("whole card: %+v %v", got, err)
+	}
+}
+
+// Hostile input: a backslash is literal; 200 code points are accepted (multi-byte ones count once) and 201 refused;
+// an emoji above U+FFFF and RTL marks work in the query and in a stored name.
+func TestFindAtDeskHostileInput(t *testing.T) {
+	r := newRig(t)
+	r.named("bs", `Back\slash`, perm.Patron)
+	r.named("plain", "Backslash", perm.Patron)
+	r.named("emo", "Pat 😀 Smith", perm.Patron)
+	rtl := r.named("rtl", "Dana Lee", perm.Patron)
+	// creation refuses such a name, but one may be stored by older data or another path
+	if _, err := r.st.DB().ExecContext(ctx, `UPDATE users SET display_name = ? WHERE id = ?`, "Dana ‏‮Lee", rtl.ID); err != nil {
+		t.Fatal(err)
+	}
+	for q, want := range map[string]string{`\`: `Back\slash`, `k\s`: `Back\slash`, "😀": "Pat 😀 Smith", "t 😀 S": "Pat 😀 Smith", "‏": "Dana ‏‮Lee", "‮Lee": "Dana ‏‮Lee"} {
+		got, err := r.svc.FindAtDesk(ctx, q)
+		if err != nil || names(got.Matches) != want {
+			t.Errorf("%q: %+v %v", q, got, err)
+		}
+	}
+	for _, unit := range []string{"x", "é", "😀"} {
+		if got, err := r.svc.FindAtDesk(ctx, strings.Repeat(unit, 200)); err != nil || len(got.Matches) != 0 {
+			t.Errorf("200 × %q: %+v %v", unit, got, err)
+		}
+		_, err := r.svc.FindAtDesk(ctx, strings.Repeat(unit, 201))
+		if e, ok := apperr.As(err); !ok || e.Code != apperr.Invalid || e.Field != "q" {
+			t.Errorf("201 × %q: %v", unit, err)
+		}
+	}
+	r.named("long", strings.Repeat("😀", 30), perm.Patron)
+	if got, err := r.svc.FindAtDesk(ctx, strings.Repeat("😀", 30)); err != nil || len(got.Matches) != 1 {
+		t.Errorf("a long emoji name: %+v %v", got, err)
+	}
+}
+
+// 60 matches give the first 50 and more.
+func TestFindAtDeskSixtyMatches(t *testing.T) {
+	r := newRig(t)
+	for i := 0; i < 60; i++ {
+		r.named(fmt.Sprintf("six%02d", i), fmt.Sprintf("Sixty %02d", i), perm.Patron)
+	}
+	got, err := r.svc.FindAtDesk(ctx, "sixty")
+	if err != nil || len(got.Matches) != 50 || !got.More || got.Matches[0].DisplayName != "Sixty 00" || got.Matches[49].DisplayName != "Sixty 49" {
+		t.Fatalf("%d more=%v %v", len(got.Matches), got.More, err)
+	}
+}
