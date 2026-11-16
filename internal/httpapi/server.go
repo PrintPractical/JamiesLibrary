@@ -10,6 +10,7 @@ import (
 	"jamieslibrary/internal/activity"
 	"jamieslibrary/internal/apperr"
 	"jamieslibrary/internal/auth"
+	"jamieslibrary/internal/circ"
 	"jamieslibrary/internal/media"
 	"jamieslibrary/internal/ratelimit"
 	"jamieslibrary/internal/settings"
@@ -44,6 +45,8 @@ type Options struct {
 	Activity *activity.Service
 	// UserAdmin makes the changes to other people's accounts; when it and Users are set the user routes are registered.
 	UserAdmin *useradmin.Service
+	// Circ is circulation at the desk; when set (with Users) the desk routes are registered.
+	Circ *circ.Service
 	// Authenticate, when set, wraps the routes and puts the caller in the
 	// request context (auth.WithCaller). Without it no request has a caller.
 	Authenticate func(http.Handler) http.Handler
@@ -125,6 +128,9 @@ func registerAPI(rt *Router, o Options) {
 	}
 	if o.Users != nil && o.Store != nil {
 		registerCardRoutes(rt, o)
+	}
+	if o.Circ != nil {
+		registerDeskRoutes(rt, o)
 	}
 }
 

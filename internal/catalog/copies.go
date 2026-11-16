@@ -345,19 +345,24 @@ func (s *Service) SetCopyIDMode(ctx context.Context, actor int64, mode string) e
 // LookupCode finds the copy a scanned code identifies. A code that is no
 // copy's (a card's, unknown, or not a valid code at all) finds none.
 func (s *Service) LookupCode(ctx context.Context, code string) (Copy, bool, error) {
+	return s.LookupCodeIn(ctx, s.st.DB(), code)
+}
+
+// LookupCodeIn is LookupCode inside the caller's transaction.
+func (s *Service) LookupCodeIn(ctx context.Context, q DB, code string) (Copy, bool, error) {
 	code, err := NormaliseCode(code)
 	if err != nil {
 		return Copy{}, false, nil
 	}
 	var id int64
-	err = s.st.DB().QueryRowContext(ctx, `SELECT copy_id FROM identifiers WHERE code = ? AND kind = 'copy'`, code).Scan(&id)
+	err = q.QueryRowContext(ctx, `SELECT copy_id FROM identifiers WHERE code = ? AND kind = 'copy'`, code).Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Copy{}, false, nil
 	}
 	if err != nil {
 		return Copy{}, false, err
 	}
-	c, err := s.GetCopy(ctx, id)
+	c, err := s.getCopy(ctx, q, id)
 	if err != nil {
 		if e, ok := apperr.As(err); ok && e.Code == apperr.NotFound {
 			return Copy{}, false, nil
@@ -365,6 +370,17 @@ func (s *Service) LookupCode(ctx context.Context, code string) (Copy, bool, erro
 		return Copy{}, false, err
 	}
 	return c, true, nil
+}
+
+// CopiesIn is a book's live copies by number, read inside the caller's
+// transaction, with each one's location and whether it is on loan.
+func (s *Service) CopiesIn(ctx context.Context, q DB, bookID int64) ([]Copy, error) {
+	return s.copiesWhere(ctx, q, `c.book_id = ?`, bookID)
+}
+
+// GetCopyIn is GetCopy inside the caller's transaction.
+func (s *Service) GetCopyIn(ctx context.Context, q DB, id int64) (Copy, error) {
+	return s.getCopy(ctx, q, id)
 }
 
 // countByLocation is how many copies each location holds; a location with
