@@ -148,6 +148,7 @@ function CopyCard({ copy, number, errors, locations, ownBarcodes, busy, onChange
             disabled={locked}
             onChange={(e) => onChange({ locationId: e.target.value })}
             aria-invalid={errors.location ? true : undefined}
+            aria-describedby={errors.location ? `${id}-loc-error` : undefined}
           >
             <option value="">Choose a location…</option>
             {locations.map((l) => (
@@ -157,6 +158,7 @@ function CopyCard({ copy, number, errors, locations, ownBarcodes, busy, onChange
             ))}
             <option value="new">New location…</option>
           </select>
+          {errors.location && <FieldError id={`${id}-loc-error`} text={errors.location} />}
         </div>
         <div className="field">
           <label htmlFor={`${id}-cond`}>Condition</label>
@@ -188,16 +190,15 @@ function CopyCard({ copy, number, errors, locations, ownBarcodes, busy, onChange
           />
         </div>
       )}
-      {errors.location && <FieldError text={errors.location} />}
       {errors.condition && <FieldError text={errors.condition} />}
       {errors.general && <FieldError text={errors.general} />}
     </div>
   );
 }
 
-function FieldError({ text }: { text: string }) {
+function FieldError({ text, id }: { text: string; id?: string }) {
   return (
-    <span className="field-error" role="alert" style={{ marginTop: 6 }}>
+    <span className="field-error" id={id} role="alert" style={{ marginTop: 6 }}>
       <Icon name="alert" />
       {text}
     </span>

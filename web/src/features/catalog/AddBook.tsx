@@ -75,7 +75,7 @@ export function AddBook({ detectorFactory }: Props) {
   if (state.status === "error") return <PageError error={state.error} onRetry={reload} />;
   if (state.status === "loading") {
     return (
-      <div className="stack ab">
+      <div className="stack addbook">
         <h1>Add a book</h1>
         <p className="muted">Loading…</p>
       </div>
@@ -92,6 +92,8 @@ function Flow({ mode, initialLocations, detectorFactory }: FlowProps) {
   const [looking, setLooking] = useState(false);
   const [lookupError, setLookupError] = useState<unknown>(null);
   const lookupCtl = useRef<AbortController | null>(null);
+  // Bumped to start the ISBN field over empty: it keeps what it holds otherwise.
+  const [fieldKey, setFieldKey] = useState(0);
 
   const [details, setDetails] = useState<DetailsState>(EMPTY_DETAILS);
   const [detailErrors, setDetailErrors] = useState<DetailErrors>({});
@@ -102,7 +104,7 @@ function Flow({ mode, initialLocations, detectorFactory }: FlowProps) {
   const [saveError, setSaveError] = useState<unknown>(null);
   // The new book, once the server has it: a retry after a copy failed adds only what is left.
   const [savedBook, setSavedBook] = useState<{ id: number; title: string } | null>(null);
-  const [done, setDone] = useState<{ bookId: number; title: string; copies: DoneCopy[] } | null>(null);
+  const [done, setDone] = useState<{ bookId: number; title: string; added: boolean; copies: DoneCopy[] } | null>(null);
 
   useEffect(() => () => lookupCtl.current?.abort(), []);
 
@@ -168,6 +170,7 @@ function Flow({ mode, initialLocations, detectorFactory }: FlowProps) {
     setLooking(false);
     setLookupError(null);
     setIsbn("");
+    setFieldKey((k) => k + 1);
     resetForm({ kind: "details", note: "manual" });
   }
 
@@ -291,12 +294,26 @@ function Flow({ mode, initialLocations, detectorFactory }: FlowProps) {
     setDone({
       bookId,
       title,
-      copies: work.flatMap((c) => (c.saved ? [{ id: c.saved.id, number: c.saved.number, barcode: c.saved.barcode }] : [])),
+      added: existing !== null,
+      copies: work.flatMap((c) =>
+        c.saved
+          ? [
+              {
+                id: c.saved.id,
+                number: c.saved.number,
+                barcode: c.saved.barcode,
+                condition: c.condition,
+                location: locations.find((l) => String(l.id) === c.locationId)?.name ?? "",
+              },
+            ]
+          : [],
+      ),
     });
   }
 
   function another() {
     setIsbn("");
+    setFieldKey((k) => k + 1);
     setSavedBook(null);
     setDone(null);
     setLookupError(null);
@@ -313,9 +330,9 @@ function Flow({ mode, initialLocations, detectorFactory }: FlowProps) {
 
   if (done) return <Done {...done} ownBarcodes={ownBarcodes} onAnother={another} />;
 
-  const note = stage.kind === "details" ? NOTES[stage.note] : null;
+  const note = stage.kind === "details" && !savedBook ? NOTES[stage.note] : null;
   return (
-    <div className="stack ab">
+    <div className="stack addbook">
       <Link className="ab-back" to="/catalog">
         <Icon name="left" />
         Catalog
@@ -331,7 +348,7 @@ function Flow({ mode, initialLocations, detectorFactory }: FlowProps) {
           ) : (
             <>
               <ScanField
-                key={stage.kind === "start" ? "start" : "field"}
+                key={fieldKey}
                 label="ISBN"
                 placeholder="Scan the barcode, or type the ISBN"
                 submitLabel="Look up"
@@ -356,6 +373,18 @@ function Flow({ mode, initialLocations, detectorFactory }: FlowProps) {
             <div>
               <p className="t">{note.title}</p>
               <p className="small">{note.text}</p>
+            </div>
+          </div>
+        )}
+        {savedBook && (
+          <div className="alert alert-warn" role="status">
+            <Icon name="alert" />
+            <div>
+              <p className="t">“{savedBook.title}” is saved, but not all its copies</p>
+              <p className="small">
+                Fix the copy marked below and press Save. The book's details are locked now: change them from{" "}
+                <Link to={`/books/${savedBook.id}`}>the book's page</Link>.
+              </p>
             </div>
           </div>
         )}

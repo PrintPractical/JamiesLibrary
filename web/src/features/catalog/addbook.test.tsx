@@ -176,7 +176,8 @@ describe("SCAN-2 Metadata lookup", () => {
     expect(copyCard(2)).toBeInTheDocument();
     await userEvent.selectOptions(within(copyCard(2)).getByLabelText("Location"), "Living room · Shelf A1");
     await userEvent.click(screen.getByRole("button", { name: "Add 1 copy" }));
-    expect(await screen.findByText(/is in the catalog with 1 copy/)).toBeInTheDocument();
+    expect(await screen.findByText(`1 copy added to “${found.title}”.`)).toBeInTheDocument();
+    expect(screen.queryByText(/is in the catalog with/)).toBeNull();
     expect(posted(calls, "/api/books")).toHaveLength(0);
     expect(posted(calls, "/api/books/12/copies")[0]?.body).toEqual({ location_id: 2, condition: "good" });
   });
@@ -219,6 +220,33 @@ describe("Entering a book without an ISBN", () => {
     expect(await screen.findByText(/C000080/)).toBeInTheDocument();
     expect(posted(calls, "/api/books")[0]?.body).toMatchObject({ isbn: "", authors: ["A. Writer", "B. Writer"] });
   });
+});
+
+test("Enter without an ISBN after a lookup empties the ISBN field and the book is saved with none", async () => {
+  const calls = server({
+    "POST /api/catalog/lookup": { body: { status: "not_found", isbn: ISBN } },
+    "POST /api/books": { status: 201, body: bookOf(40, { isbn: "", copies: [] }) },
+    "POST /api/books/40/copies": { status: 201, body: { id: 80, book_id: 40, number: 1, condition: "good", barcode: "C000080" } },
+  });
+  await lookupWith(ISBN);
+  await screen.findByText("Not found on Open Library");
+  expect(screen.getByLabelText("ISBN")).toHaveValue(ISBN);
+  await userEvent.click(screen.getByRole("button", { name: "Enter without an ISBN" }));
+  expect(screen.getByLabelText("ISBN")).toHaveValue("");
+  await userEvent.type(screen.getByLabelText("Title (required)"), "Old Book");
+  await userEvent.selectOptions(within(copyCard(1)).getByLabelText("Location"), "1");
+  await userEvent.click(screen.getByRole("button", { name: "Add book & 1 copy" }));
+  await screen.findByText(/C000080/);
+  expect(posted(calls, "/api/books")[0]?.body).toMatchObject({ isbn: "" });
+});
+
+test("a missing location is said under the Location field", async () => {
+  server({ "POST /api/catalog/lookup": { body: { status: "not_found", isbn: ISBN } } });
+  await lookupWith(ISBN);
+  await userEvent.type(await screen.findByLabelText("Title (required)"), "X");
+  await userEvent.click(screen.getByRole("button", { name: "Add book & 1 copy" }));
+  const select = within(copyCard(1)).getByLabelText("Location");
+  expect(select).toHaveAccessibleDescription("Choose where this copy lives.");
 });
 
 describe("CAT-9 How copies are identified", () => {
@@ -306,6 +334,9 @@ describe("CAT-3 Multiple copies", () => {
     await userEvent.click(screen.getByRole("button", { name: "Add book & 1 copy" }));
     expect(await screen.findByText("That code is already on another copy.")).toBeInTheDocument();
     expect(screen.getByLabelText("Title (required)")).toBeDisabled();
+    expect(screen.getByText(/is saved, but not all its copies/)).toBeInTheDocument();
+    expect(screen.queryByText(/Nothing is saved until you press Add/)).toBeNull();
+    expect(screen.getByRole("link", { name: "the book's page" })).toHaveAttribute("href", "/books/31");
     await userEvent.click(within(copyCard(1)).getByRole("radio", { name: "New label" }));
     await userEvent.click(screen.getByRole("button", { name: "Save 1 copy" }));
     expect(await screen.findByText(/is in the catalog with 1 copy/)).toBeInTheDocument();

@@ -5,12 +5,12 @@ import { InlineError } from "../../components/Errors";
 import { Icon } from "../../components/Icon";
 import "./addbook.css";
 
-export type DoneCopy = { id: number; number: number; barcode: string };
+export type DoneCopy = { id: number; number: number; barcode: string; condition: string; location: string };
 
-type Props = { bookId: number; title: string; copies: DoneCopy[]; ownBarcodes: boolean; onAnother: () => void };
+type Props = { bookId: number; title: string; added: boolean; copies: DoneCopy[]; ownBarcodes: boolean; onAnother: () => void };
 
 /** After saving: what was made, and an offer to print the new copies' labels (CAT-7). */
-export function Done({ bookId, title, copies, ownBarcodes, onAnother }: Props) {
+export function Done({ bookId, title, added, copies, ownBarcodes, onAnother }: Props) {
   const [layout, setLayout] = useState<string>(LAYOUTS[0].id);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
@@ -36,14 +36,20 @@ export function Done({ bookId, title, copies, ownBarcodes, onAnother }: Props) {
   }
 
   return (
-    <div className="stack ab">
+    <div className="stack addbook">
+      <Link className="ab-back" to="/catalog">
+        <Icon name="left" />
+        Catalog
+      </Link>
       <h1>Saved</h1>
       <section className="card stack" aria-label="Saved">
         <div className="alert alert-ok" role="status">
           <Icon name="check" />
           <div>
             <p className="t">
-              “{title}” is in the catalog with {copies.length} {copies.length === 1 ? "copy" : "copies"}.
+              {added
+                ? `${copies.length} ${copies.length === 1 ? "copy" : "copies"} added to “${title}”.`
+                : `“${title}” is in the catalog with ${copies.length} ${copies.length === 1 ? "copy" : "copies"}.`}
             </p>
           </div>
         </div>
@@ -51,6 +57,8 @@ export function Done({ bookId, title, copies, ownBarcodes, onAnother }: Props) {
           {copies.map((c) => (
             <li key={c.id}>
               Copy {c.number}
+              {c.location && ` · ${c.location}`}
+              {` · ${c.condition.charAt(0).toUpperCase()}${c.condition.slice(1)}`}
               {c.barcode && (
                 <>
                   {" · barcode "}
