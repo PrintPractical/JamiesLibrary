@@ -70,6 +70,7 @@ A bad value stops the server with a message naming it. SIGTERM or SIGINT shuts t
 
 `scripts/check.sh` runs everything: in `web/` the typecheck, lint, tests and build, then `gofmt`, `go vet` and `go test`.
 Install dependencies first with `cd web && npm ci` and `go mod download`; the check itself needs no network.
+`scripts/readme-install-test.sh` follows the Docker install steps above on a clean checkout, then the locked-out recovery steps. Don't run it on a machine that serves the library: it needs ports 8080 and 8443 free and refuses to start otherwise, and it uses its own project, image and volume names (never `jamieslibrary`) and removes only those; `scripts/loadtest.sh IMAGE` is the 20,000-copy load and memory check.
 For the web app with live reload, run the server and `npm run dev` in `web/`; it proxies `/api` to port 8080.
 
 ## Documentation
@@ -77,6 +78,7 @@ For the web app with live reload, run the server and `npm run dev` in `web/`; it
 - [Architecture](docs/architecture.md): the parts, the repository layout, and how to add a migration, a route or a theme.
 - [Installing on a home or office network](docs/install-lan.md) and [on the public internet](docs/install-public.md): installation, configuration, network access, security, backup and upgrade.
 - [Data and upgrades](docs/data-and-upgrades.md): what the data directory holds, backing it up, and what to do when an upgrade refuses to start.
+- [Finding books](docs/guide-browsing.md): browse, search, book pages, ratings and reviews, and the public catalog.
 - [Administrator's guide](docs/guide-admin.md): first-run setup, settings, statistics and the activity log.
 - [Accounts, permissions, invitations and recovery](docs/accounts.md): signing in, registering with a code, the 16 permissions and three roles, managing people, and recovering a locked-out administrator.
 - [Features](FEATURES.md) and [Changelog](CHANGELOG.md).
