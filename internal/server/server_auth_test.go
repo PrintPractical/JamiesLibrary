@@ -76,6 +76,9 @@ func TestSignInLimitFollowsTheConfiguredProxies(t *testing.T) {
 	if got := attempts(plain, differing); got != 429 {
 		t.Fatalf("forged addresses escaped the limit without a proxy: %d", got)
 	}
+	if err := plain.Stop(); err != nil { // one server at a time in a test binary
+		t.Fatal(err)
+	}
 	proxied := testutil.StartServer(t, testutil.Options{Env: map[string]string{"JL_TRUSTED_PROXIES": "127.0.0.0/8, ::1/128"}})
 	if got := attempts(proxied, differing); got != 401 {
 		t.Fatalf("visitors the proxy told apart were limited together: %d", got)
