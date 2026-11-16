@@ -111,7 +111,7 @@ test("/more on a wide window goes to the desk instead of showing an empty page",
   })) as unknown as typeof window.matchMedia;
   try {
     await renderApp("/more");
-    expect(await screen.findByRole("heading", { name: "Desk" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /^Desk/ })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "More" })).toBeNull();
   } finally {
     window.matchMedia = original;

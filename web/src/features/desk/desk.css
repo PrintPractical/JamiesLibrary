@@ -1,0 +1,75 @@
+/* The staff Desk home. */
+.desk {
+  max-width: 900px;
+}
+.desk-big {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+.btn.desk-action {
+  min-height: 84px;
+  font-size: 20px;
+  gap: 12px;
+}
+.btn.desk-action svg {
+  width: 28px;
+  height: 28px;
+}
+.desk-grid {
+  display: grid;
+  gap: 12px;
+  align-items: start;
+}
+.desk-grid:empty {
+  display: none;
+}
+.desk-count {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 44px;
+  color: inherit;
+  text-decoration: none;
+}
+.desk-count > span {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.desk-count > svg {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  color: var(--primary);
+}
+.desk-num {
+  font-family: var(--serif);
+  font-size: 40px;
+  line-height: 1;
+  color: var(--err);
+}
+.desk-find-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.desk-find-row .field {
+  flex: 1;
+  min-width: 0;
+}
+.desk-find-row .btn {
+  margin-top: 26px;
+}
+.desk-add {
+  align-self: flex-start;
+}
+@media (min-width: 900px) {
+  .desk-big {
+    grid-template-columns: 1fr 1fr;
+  }
+  .desk-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
