@@ -204,7 +204,13 @@ func TestSetupCodeWrongMissingAndDeadAfterTheFirstAdministrator(t *testing.T) {
 	body := func(code string) map[string]string {
 		return map[string]string{"code": code, "username": "mallory", "display_name": "M", "password": adminPassword}
 	}
-	for name, c := range map[string]string{"missing": "", "wrong": "AAAA-AAAA-AAAA-AAAA", "lower-cased right code with a character changed": strings.ToLower(code[:len(code)-1]) + "0", "garbage": "' OR 1=1 --"} {
+	// The changed character must really differ: Crockford reads O as 0, so a code ending in 0 or O
+	// would otherwise come out unchanged, and right.
+	changed := "0"
+	if strings.ContainsAny(code[len(code)-1:], "0Oo") {
+		changed = "1"
+	}
+	for name, c := range map[string]string{"missing": "", "wrong": "AAAA-AAAA-AAAA-AAAA", "lower-cased right code with a character changed": strings.ToLower(code[:len(code)-1]) + changed, "garbage": "' OR 1=1 --"} {
 		if r := v.do("POST", "/api/setup/admin", body(c)); r.Status != 403 {
 			t.Errorf("%s code: want 403, got %d %s", name, r.Status, r.Raw)
 		}
