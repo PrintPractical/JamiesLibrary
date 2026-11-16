@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -144,7 +145,10 @@ type Entry struct {
 	ActorName string
 	Action    string
 	Target    string
-	Details   json.RawMessage
+	// TargetName is the display name of the person a "user:N" target names,
+	// "" for any other target or a person no longer in the users table.
+	TargetName string
+	Details    json.RawMessage
 }
 
 // Page is one page of the log, newest first.
@@ -203,5 +207,34 @@ func (s *Service) List(ctx context.Context, page, size int) (Page, error) {
 	if err := rows.Err(); err != nil {
 		return Page{}, fmt.Errorf("reading the activity log: %w", err)
 	}
+	if err := s.nameTargets(ctx, out.Entries); err != nil {
+		return Page{}, err
+	}
 	return out, nil
+}
+
+// nameTargets fills TargetName for entries whose target is "user:N", so a
+// reader sees who was acted on rather than a number.
+func (s *Service) nameTargets(ctx context.Context, entries []Entry) error {
+	names := map[int64]string{}
+	for i := range entries {
+		raw, ok := strings.CutPrefix(entries[i].Target, "user:")
+		if !ok {
+			continue
+		}
+		id, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil {
+			continue
+		}
+		name, seen := names[id]
+		if !seen {
+			err := s.st.DB().QueryRowContext(ctx, `SELECT display_name FROM users WHERE id = ?`, id).Scan(&name)
+			if err != nil && err != sql.ErrNoRows {
+				return fmt.Errorf("naming activity targets: %w", err)
+			}
+			names[id] = name
+		}
+		entries[i].TargetName = name
+	}
+	return nil
 }

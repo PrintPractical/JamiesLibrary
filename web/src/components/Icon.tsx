@@ -17,6 +17,7 @@ const PATHS = {
   ],
   people: ["M3 8a2 2 0 0 0 2-2h14a2 2 0 0 0 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 0-2 2H5a2 2 0 0 0-2-2v-2a2 2 0 0 0 0-4z", "M14 6v12"],
   stats: ["M4 20V10M10 20V4M16 20v-7M21 20H3"],
+  log: ["M6 3h12v18H6z", "M9 8h6M9 12h6M9 16h4"],
   switch: ["M7 4 3 8l4 4M3 8h14M17 12l4 4-4 4M21 16H7"],
   more: ["circle:5,12,1.2", "circle:12,12,1.2", "circle:19,12,1.2"],
   check: ["M5 12.5l4.5 4.5L19 7.5"],

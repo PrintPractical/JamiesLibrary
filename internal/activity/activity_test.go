@@ -3,6 +3,7 @@ package activity
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"strings"
 	"testing"
@@ -166,5 +167,25 @@ func TestRecordRefusesWhatItMustNotStore(t *testing.T) {
 	}
 	if p, _ := f.svc.List(ctx, 1, 0); p.Total != 0 {
 		t.Fatalf("refused entries were stored: %+v", p)
+	}
+}
+
+// A person who was acted on is named, not numbered; other targets and unknown people have no name.
+func TestPeopleTargetedAreNamed(t *testing.T) {
+	f := newFixture(t)
+	sam, err := users.New(f.st).Create(ctx, users.NewUser{Username: "sam", DisplayName: "Sam Lee", PasswordHash: "x", Role: perm.Patron})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.record(t, ByUser(f.admin.ID), UserRoleChanged, fmt.Sprintf("user:%d", sam.ID), nil)
+	f.record(t, ByUser(f.admin.ID), UserRoleChanged, "user:9999", nil)
+	f.record(t, ByUser(f.admin.ID), SettingsChanged, "settings", nil)
+	p, err := f.svc.List(ctx, 1, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := []string{p.Entries[2].TargetName, p.Entries[1].TargetName, p.Entries[0].TargetName}
+	if got[0] != "Sam Lee" || got[1] != "" || got[2] != "" {
+		t.Fatalf("target names %q", got)
 	}
 }
