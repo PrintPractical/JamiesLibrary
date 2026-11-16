@@ -135,14 +135,6 @@
   border-radius: 3px 6px 6px 3px;
   box-shadow: inset 6px 0 0 rgba(0, 0, 0, 0.18), inset 7px 0 0 rgba(255, 255, 255, 0.12), 0 2px 6px rgba(42, 31, 23, 0.25);
 }
-.checkout .c1 { background: #2f5544; }
-.checkout .c2 { background: #7a2e22; }
-.checkout .c3 { background: #264461; }
-.checkout .c4 { background: #b07a1f; }
-.checkout .c5 { background: #5b3a5e; }
-.checkout .c6 { background: #8a4b2a; }
-.checkout .c7 { background: #3d4f3a; }
-.checkout .c8 { background: #6e2b3c; }
 .checkout .finish {
   display: flex;
   gap: 10px;

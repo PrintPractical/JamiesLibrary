@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { ApiError, errorMessage } from "../../api/client";
 import { checkout, currentLoans, resolvePatron, type DeskLoan, type DeskPatron } from "../../api/desk";
 import { useSession } from "../../app/session";
+import { colourClass } from "../../components/Cover";
 import { Icon } from "../../components/Icon";
 import { ScanField } from "../../components/ScanField";
 import { books, dueLabel, initials } from "./format";
@@ -11,7 +12,7 @@ import "./Checkout.css";
 type Refusal = { message: string; checkIn: boolean };
 
 function Cover({ id, title }: { id: number; title: string }) {
-  return <span className={`mini-cover c${(id % 8) + 1}`} role="img" aria-label={`Cover of ${title}`} />;
+  return <span className={`mini-cover ${colourClass(id)}`} role="img" aria-label={`Cover of ${title}`} />;
 }
 
 function LoanRow({ loan, trailing }: { loan: DeskLoan; trailing: React.ReactNode }) {

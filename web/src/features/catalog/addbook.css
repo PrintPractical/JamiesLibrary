@@ -91,14 +91,14 @@
   height: 100%;
   object-fit: cover;
 }
-.ab-cover .ct {
+.ab-cover-title {
   font-size: 14px;
   font-weight: 600;
   line-height: 1.15;
   overflow: hidden;
   overflow-wrap: anywhere;
 }
-.ab-cover .ca {
+.ab-cover-author {
   font-size: 8px;
   font-family: var(--sans);
   font-weight: 700;
