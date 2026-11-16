@@ -22,6 +22,7 @@ import (
 	"jamieslibrary/internal/clock"
 	"jamieslibrary/internal/config"
 	"jamieslibrary/internal/httpapi"
+	"jamieslibrary/internal/invitations"
 	"jamieslibrary/internal/media"
 	"jamieslibrary/internal/metadata"
 	"jamieslibrary/internal/ratelimit"
@@ -161,6 +162,7 @@ func Run(ctx context.Context, o Options) error {
 		Catalog: catalogSvc, Metadata: lookup,
 		Circ:            circ.New(st, circ.Options{Settings: set, Catalog: catalogSvc, Users: usersSvc}),
 		UserAdmin:       useradmin.New(st, usersSvc, authSvc),
+		Invitations:     invitations.New(st, usersSvc, authSvc),
 		PublicCatalogOn: func() bool { return set.Get().PublicCatalog },
 	})
 	if err != nil {

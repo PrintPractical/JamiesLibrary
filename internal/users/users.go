@@ -114,6 +114,17 @@ func checkDisplayName(name string) (string, error) {
 
 func invalid(field, msg string) error { return apperr.OnField(apperr.Invalid, field, msg) }
 
+// CheckNames trims and checks a new account's username and display name, so a
+// caller can refuse them before doing expensive work.
+func CheckNames(username, displayName string) (string, string, error) {
+	username, err := checkUsername(username)
+	if err != nil {
+		return "", "", err
+	}
+	displayName, err = checkDisplayName(displayName)
+	return username, displayName, err
+}
+
 // Create adds an account with exactly the permissions of its role's preset.
 func (s *Service) Create(ctx context.Context, n NewUser) (User, error) {
 	var id int64

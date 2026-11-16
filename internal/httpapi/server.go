@@ -12,6 +12,7 @@ import (
 	"jamieslibrary/internal/auth"
 	"jamieslibrary/internal/catalog"
 	"jamieslibrary/internal/circ"
+	"jamieslibrary/internal/invitations"
 	"jamieslibrary/internal/media"
 	"jamieslibrary/internal/metadata"
 	"jamieslibrary/internal/ratelimit"
@@ -48,6 +49,8 @@ type Options struct {
 	Activity *activity.Service
 	// UserAdmin makes the changes to other people's accounts; when it and Users are set the user routes are registered.
 	UserAdmin *useradmin.Service
+	// Invitations makes and redeems invitation codes; when set with Auth and Users its routes are registered.
+	Invitations *invitations.Service
 	// Circ is circulation at the desk; when set (with Users) the desk routes are registered.
 	Circ *circ.Service
 	// Catalog and Metadata are the catalog and the ISBN lookup; when both are set
@@ -141,6 +144,9 @@ func registerAPI(rt *Router, o Options) {
 	}
 	if o.UserAdmin != nil && o.Users != nil {
 		registerUserRoutes(rt, o)
+	}
+	if o.Invitations != nil && o.Auth != nil && o.Users != nil {
+		registerInvitationRoutes(rt, o)
 	}
 	if o.Users != nil && o.Store != nil {
 		registerCardRoutes(rt, o)

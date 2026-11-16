@@ -18,6 +18,7 @@ import (
 	"jamieslibrary/internal/activity"
 	"jamieslibrary/internal/auth"
 	"jamieslibrary/internal/clock"
+	"jamieslibrary/internal/invitations"
 	"jamieslibrary/internal/media"
 	"jamieslibrary/internal/perm"
 	"jamieslibrary/internal/settings"
@@ -67,7 +68,7 @@ func newSite(t *testing.T, tweak ...func(*Options)) *site {
 	static := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, "<html>app</html>") })
 	opts := Options{
 		Logger: log, Static: static, Auth: s.auth, Users: s.users, Settings: s.set, Media: s.img, Activity: activity.New(s.st), Store: s.st,
-		UserAdmin: useradmin.New(s.st, s.users, s.auth), PublicCatalogOn: func() bool { return s.set.Get().PublicCatalog },
+		UserAdmin: useradmin.New(s.st, s.users, s.auth), Invitations: invitations.New(s.st, s.users, s.auth), PublicCatalogOn: func() bool { return s.set.Get().PublicCatalog },
 	}
 	for _, f := range tweak {
 		f(&opts)
