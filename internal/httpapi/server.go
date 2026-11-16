@@ -147,6 +147,7 @@ func registerAPI(rt *Router, o Options) {
 	}
 	if o.Circ != nil {
 		registerDeskRoutes(rt, o)
+		registerLoanRoutes(rt, o)
 	}
 	if o.Catalog != nil && o.Metadata != nil {
 		registerLookupRoutes(rt, o)

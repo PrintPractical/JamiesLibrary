@@ -299,13 +299,22 @@ func (s *Service) Checkout(ctx context.Context, actor int64, card, code string) 
 	if err != nil {
 		return Loan{}, err
 	}
+	return s.lend(ctx, actor, patron, code, false)
+}
+
+// lend is the checkout transaction. self is a patron lending to themselves:
+// the refusals then speak to them, and send returns to the desk.
+func (s *Service) lend(ctx context.Context, actor int64, patron Patron, code string, self bool) (Loan, error) {
 	var out Loan
-	err = s.st.WithTx(ctx, func(tx store.Tx) error {
+	err := s.st.WithTx(ctx, func(tx store.Tx) error {
 		active, err := s.users.IsActiveTx(ctx, tx, patron.ID)
 		if err != nil {
 			return err
 		}
 		if !active {
+			if self {
+				return apperr.New(apperr.Conflict, "Your account is deactivated, so nothing can be checked out to you. Ask an administrator to reactivate it.")
+			}
 			return apperr.New(apperr.Conflict, patron.DisplayName+"'s account is deactivated, so nothing can be checked out to them. An administrator can reactivate it.")
 		}
 		it, err := s.resolveItem(ctx, tx, code)
@@ -316,6 +325,9 @@ func (s *Service) Checkout(ctx context.Context, actor int64, card, code string) 
 		switch {
 		case it.Copy != nil:
 			if it.Copy.OnLoan {
+				if self { // another patron's name is not for a patron to read
+					return apperr.New(apperr.Conflict, it.Copy.Title+" is already out. If it's in your hand, give it to a librarian to check in.")
+				}
 				return s.alreadyOut(ctx, tx, *it.Copy)
 			}
 			copyID = it.Copy.ID
@@ -331,11 +343,18 @@ func (s *Service) Checkout(ctx context.Context, actor int64, card, code string) 
 				}
 			}
 			if it.Book.Copies == 0 {
+				if self {
+					return apperr.New(apperr.Conflict, it.Book.Title+" has no copies in the library to lend. Ask a librarian.")
+				}
 				return apperr.New(apperr.Conflict, it.Book.Title+" has no copies in the library to lend. Add a copy to the catalog first.")
 			}
 			if copyID == 0 {
-				return apperr.New(apperr.Conflict, fmt.Sprintf("No copy of %s is available: %s out. Check one in first, or wait for a return.",
-					it.Book.Title, plural(it.Book.Copies, "the only copy is", "all %d copies are")))
+				hint := "Check one in first, or wait for a return."
+				if self {
+					hint = "Ask a librarian, or try again after a return."
+				}
+				return apperr.New(apperr.Conflict, fmt.Sprintf("No copy of %s is available: %s out. %s",
+					it.Book.Title, plural(it.Book.Copies, "the only copy is", "all %d copies are"), hint))
 			}
 		}
 		var open int
@@ -343,6 +362,9 @@ func (s *Service) Checkout(ctx context.Context, actor int64, card, code string) 
 			return err
 		}
 		if max := s.settings.Get().MaxLoans; open >= max {
+			if self {
+				return apperr.New(apperr.Conflict, fmt.Sprintf("Limit reached: you already have %d of %d items out. Return one to a librarian before borrowing another.", open, max))
+			}
 			return apperr.New(apperr.Conflict, fmt.Sprintf("Limit reached: %s already has %d of %d items out. Check one in before lending another.",
 				patron.DisplayName, open, max))
 		}
