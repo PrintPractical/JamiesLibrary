@@ -2,7 +2,7 @@
 
 This guide is for the person who runs the library: setting it up the first time, choosing how it looks and how borrowing works, and reading its statistics and activity log. To install the program, start with [a home or office network](install-lan.md) or [the public internet](install-public.md).
 
-Settings, statistics and the activity log are done in the web app, signed in as an administrator. Some other screens named below (browsing the catalog, patrons' own pages, People & invites) are not built yet; where that matters, the guide says so. Each part of the Settings screen, and each of the Statistics and Activity log screens, is also open to anyone given the matching permission (`settings.manage`, `reports.view`, `activity.view`); an administrator has them all. Anyone without the permission doesn't see the entry in the side bar.
+Settings, statistics and the activity log are done in the web app, signed in as an administrator. Some other screens named below (patrons' own pages such as My books, People & invites) are not built yet; where that matters, the guide says so. Each part of the Settings screen, and each of the Statistics and Activity log screens, is also open to anyone given the matching permission (`settings.manage`, `reports.view`, `activity.view`); an administrator has them all. Anyone without the permission doesn't see the entry in the side bar.
 
 - [First-run setup](#first-run-setup)
 - [Settings](#settings)
@@ -99,10 +99,15 @@ A change to the rules applies to loans made from then on; the due dates of loans
 
 Each of these switches saves as soon as you flip it, and says in a line what it does.
 
-The screens patrons would use for these (browsing, the book page, My books, checking out) are not built yet, so today the switches change what the server allows through its API:
+- **Public catalog** is off in a new library. While it is off, a visitor who isn't signed in who opens the library, `/browse` or any book's page is sent to the sign-in page, and sees nothing of the books.
 
-- **Self-checkout** lets a patron who has the self-checkout permission check an available copy out to themselves, by its code. While it is off, self-checkout is refused. Patrons return books only through a librarian at the desk, and the desk is unaffected either way.
-- **Public catalog** lets anyone, signed in or not, search the books through the server's public catalog routes and see each book's title, authors, ISBN, description, cover, how many copies are available and the average rating. They never see patrons, who has a book, or loan history; reviews and their writers' names are for signed-in users only. While it is off those routes answer "not found" and the library is private: a visitor who isn't signed in is sent to the sign-in page.
+  While it is on, a visitor who isn't signed in who opens the library's address lands on **Browse** (`/browse`). They can:
+
+  - search by title, author or ISBN (there is no location filter for visitors) and page through the results; each result shows the cover, title, authors and whether the book is available, as "2 of 3 copies on the shelf", "Unavailable" or "No copies yet";
+  - open a book (`/books/` and its number) to see its cover, title, authors, average rating and how many ratings it rests on, how many copies are on the shelf, its description and ISBN.
+
+  A visitor never sees patrons, who has a book, when it is due, or loan history, and not the individual copies. Reviews and their writers' names are for signed-in people: in their place the book page offers a link to sign in. Any other page sends a visitor to sign in. Turning the switch off takes effect straight away: the next page a visitor opens sends them to sign in.
+- **Self-checkout** lets a patron who has the self-checkout permission check an available copy out to themselves, by its code. While it is off, self-checkout is refused. Patrons return books only through a librarian at the desk, and the desk is unaffected either way. The patron's screen for checking out, and My books, are not built yet, so for now self-checkout is only available through the server's API (`POST /api/me/checkout`).
 
 ### How copies are identified
 

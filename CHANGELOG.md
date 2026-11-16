@@ -8,6 +8,7 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The administrator's guide now says what a visitor who isn't signed in sees at `/browse` and on a book's page when the public catalog is on (and that they are sent to sign in when it is off), and no longer says browsing is not built.
 - A server killed during the copy made before an upgrade no longer leaves a broken `backups/pre-...db`: the copy is written as a hidden `.pre-...tmp` file and renamed only when whole, and leftovers are deleted at the next upgrade. A restart in the same second no longer fails with "already exists": the new copy's name ends in `-2`, `-3` and so on.
 
 ### Added
