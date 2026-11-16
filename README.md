@@ -79,4 +79,5 @@ For the web app with live reload, run the server and `npm run dev` in `web/`; it
 - [Data and upgrades](docs/data-and-upgrades.md): what the data directory holds, backing it up, and what to do when an upgrade refuses to start.
 - [Finding books](docs/guide-browsing.md): browse, search, book pages, ratings and reviews, and the public catalog.
 - [Administrator's guide](docs/guide-admin.md): first-run setup, settings, statistics and the activity log.
+- [Accounts, permissions, invitations and recovery](docs/accounts.md): signing in, registering with a code, the 16 permissions and three roles, managing people, and recovering a locked-out administrator.
 - [Features](FEATURES.md) and [Changelog](CHANGELOG.md).
