@@ -6,6 +6,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Librarians can look after the catalog from the web app: add a book by scanning or typing its ISBN (with the camera, a hand scanner or the keyboard), check the details found on Open Library and add copies in one step, or enter a book by hand when there is no internet or no ISBN. They can change a book and its copies, remove either (a copy or book on loan can't be removed), manage locations, and print copy labels as PDF for Avery 5160, Avery L7160 or a single 62 x 29 mm label. A new guide, [Looking after the catalog](docs/guide-catalog.md), explains each.
+
 ### Fixed
 
 - The administrator's guide now says what a visitor who isn't signed in sees at `/browse` and on a book's page when the public catalog is on (and that they are sent to sign in when it is off), and no longer says browsing is not built.
