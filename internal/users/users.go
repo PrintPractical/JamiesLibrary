@@ -114,45 +114,63 @@ func checkDisplayName(name string) (string, error) {
 
 func invalid(field, msg string) error { return apperr.OnField(apperr.Invalid, field, msg) }
 
+// CheckNames trims and checks a new account's username and display name, so a
+// caller can refuse them before doing expensive work.
+func CheckNames(username, displayName string) (string, string, error) {
+	username, err := checkUsername(username)
+	if err != nil {
+		return "", "", err
+	}
+	displayName, err = checkDisplayName(displayName)
+	return username, displayName, err
+}
+
 // Create adds an account with exactly the permissions of its role's preset.
 func (s *Service) Create(ctx context.Context, n NewUser) (User, error) {
-	var err error
-	if n.Username, err = checkUsername(n.Username); err != nil {
-		return User{}, err
-	}
-	if n.DisplayName, err = checkDisplayName(n.DisplayName); err != nil {
-		return User{}, err
-	}
-	if !perm.ValidRole(n.Role) {
-		return User{}, invalid("role", "Choose patron, librarian or administrator.")
-	}
 	var id int64
-	err = s.st.WithTx(ctx, func(tx store.Tx) error {
-		res, err := tx.ExecContext(ctx,
-			`INSERT INTO users (username, display_name, password_hash, must_change_password, role, active, created_at)
-			 VALUES (?, ?, ?, ?, ?, 1, ?)`,
-			n.Username, n.DisplayName, n.PasswordHash, n.MustChangePassword, string(n.Role),
-			s.now().UTC().Format(time.RFC3339))
-		if err != nil {
-			if strings.Contains(err.Error(), "UNIQUE") {
-				return apperr.OnField(apperr.Conflict, "username", "That username is taken.")
-			}
-			return err
-		}
-		if id, err = res.LastInsertId(); err != nil {
-			return err
-		}
-		if err := setPermissions(ctx, tx, id, perm.Preset(n.Role)); err != nil {
-			return err
-		}
-		// every account gets its library card when it is made (CARD-1)
-		_, err = s.IssueCard(ctx, tx, id)
+	err := s.st.WithTx(ctx, func(tx store.Tx) error {
+		var err error
+		id, err = s.CreateTx(ctx, tx, n)
 		return err
 	})
 	if err != nil {
 		return User{}, err
 	}
 	return s.Get(ctx, id)
+}
+
+// CreateTx is Create inside the caller's transaction. It returns the new ID.
+func (s *Service) CreateTx(ctx context.Context, tx store.Tx, n NewUser) (int64, error) {
+	var err error
+	if n.Username, n.DisplayName, err = CheckNames(n.Username, n.DisplayName); err != nil {
+		return 0, err
+	}
+	if !perm.ValidRole(n.Role) {
+		return 0, invalid("role", "Choose patron, librarian or administrator.")
+	}
+	res, err := tx.ExecContext(ctx,
+		`INSERT INTO users (username, display_name, password_hash, must_change_password, role, active, created_at)
+		 VALUES (?, ?, ?, ?, ?, 1, ?)`,
+		n.Username, n.DisplayName, n.PasswordHash, n.MustChangePassword, string(n.Role),
+		s.now().UTC().Format(time.RFC3339))
+	if err != nil {
+		if strings.Contains(err.Error(), "UNIQUE") {
+			return 0, apperr.OnField(apperr.Conflict, "username", "That username is taken.")
+		}
+		return 0, err
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+	if err := setPermissions(ctx, tx, id, perm.Preset(n.Role)); err != nil {
+		return 0, err
+	}
+	// every account gets its library card when it is made (CARD-1)
+	if _, err := s.IssueCard(ctx, tx, id); err != nil {
+		return 0, err
+	}
+	return id, nil
 }
 
 // AssignRole gives the user the role and replaces their permissions with its preset.

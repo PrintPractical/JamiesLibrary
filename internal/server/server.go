@@ -19,6 +19,7 @@ import (
 	"jamieslibrary/internal/auth"
 	"jamieslibrary/internal/config"
 	"jamieslibrary/internal/httpapi"
+	"jamieslibrary/internal/invitations"
 	"jamieslibrary/internal/ratelimit"
 	"jamieslibrary/internal/settings"
 	"jamieslibrary/internal/store"
@@ -134,6 +135,7 @@ func Run(ctx context.Context, o Options) error {
 		TrustPort: trustPort, Version: o.Version, Logger: log, Static: webui.Handler(),
 		Auth: authSvc, Users: usersSvc, Settings: set, Activity: activity.New(st), Store: st,
 		UserAdmin:       useradmin.New(st, usersSvc, authSvc),
+		Invitations:     invitations.New(st, usersSvc, authSvc),
 		PublicCatalogOn: func() bool { return set.Get().PublicCatalog },
 	})
 	if err != nil {

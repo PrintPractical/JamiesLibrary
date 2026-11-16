@@ -10,6 +10,7 @@ import (
 	"jamieslibrary/internal/activity"
 	"jamieslibrary/internal/apperr"
 	"jamieslibrary/internal/auth"
+	"jamieslibrary/internal/invitations"
 	"jamieslibrary/internal/ratelimit"
 	"jamieslibrary/internal/settings"
 	"jamieslibrary/internal/store"
@@ -41,6 +42,8 @@ type Options struct {
 	Activity *activity.Service
 	// UserAdmin makes the changes to other people's accounts; when it and Users are set the user routes are registered.
 	UserAdmin *useradmin.Service
+	// Invitations makes and redeems invitation codes; when set with Auth and Users its routes are registered.
+	Invitations *invitations.Service
 	// Authenticate, when set, wraps the routes and puts the caller in the
 	// request context (auth.WithCaller). Without it no request has a caller.
 	Authenticate func(http.Handler) http.Handler
@@ -116,6 +119,9 @@ func registerAPI(rt *Router, o Options) {
 	}
 	if o.UserAdmin != nil && o.Users != nil {
 		registerUserRoutes(rt, o)
+	}
+	if o.Invitations != nil && o.Auth != nil && o.Users != nil {
+		registerInvitationRoutes(rt, o)
 	}
 	if o.Users != nil && o.Store != nil {
 		registerCardRoutes(rt, o)
