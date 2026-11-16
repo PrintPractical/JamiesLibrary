@@ -2,6 +2,9 @@ package server_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"crypto/tls"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -260,5 +263,49 @@ func TestConsolePrintsTheTrustGuideWithTheCode(t *testing.T) {
 	}
 	if strings.Index(out, "/trust/") > strings.Index(out, "SETUP CODE: ") {
 		t.Fatal("the trust guide should come before the code")
+	}
+}
+
+// SCAN-T2: the trust guide tells people to compare a device's fingerprint with
+// the one on the Settings page, so the administrator's settings carry the one
+// the console prints, and it is the fingerprint of the certificate the guide
+// hands out. Without the local CA there is none.
+func TestSettingsShowTheFingerprintTheConsolePrints(t *testing.T) {
+	s := testutil.StartServer(t, testutil.Options{Env: map[string]string{"JL_HTTP_ONLY": ""}})
+	code, _ := s.SetupCode()
+	c := s.Client()
+	// Certificate checking isn't what's tested here; the CA tests do that.
+	c.Transport = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
+	if resp, body := postJSON(t, c, s.URL+"/api/setup/admin", setupBody(code, "jamie")); resp.StatusCode != 200 {
+		t.Fatalf("setup: %d %s", resp.StatusCode, body)
+	}
+	st, body := getStatus(t, c, s.URL+"/api/admin/settings")
+	var got struct {
+		Fingerprint string `json:"ca_fingerprint"`
+	}
+	if st != 200 || json.Unmarshal([]byte(body), &got) != nil || got.Fingerprint == "" {
+		t.Fatalf("settings: %d %s", st, body)
+	}
+	if want := "Local CA root SHA-256 fingerprint: " + got.Fingerprint; !strings.Contains(s.Stdout(), want) {
+		t.Fatalf("console lacks %q:\n%s", want, s.Stdout())
+	}
+	resp, err := http.Get(s.TrustURL + "/trust/ca.crt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	der, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	sum := sha256.Sum256(der)
+	if want := strings.ToUpper(hex.EncodeToString(sum[:])); strings.ReplaceAll(got.Fingerprint, ":", "") != want {
+		t.Fatalf("settings fingerprint %s is not the downloaded certificate's %s", got.Fingerprint, want)
+	}
+
+	// no local CA: nothing to show
+	p := testutil.StartServer(t, testutil.Options{})
+	pc := p.Client()
+	pcode, _ := p.SetupCode()
+	postJSON(t, pc, p.URL+"/api/setup/admin", setupBody(pcode, "jamie"))
+	if _, b := getStatus(t, pc, p.URL+"/api/admin/settings"); strings.Contains(b, "ca_fingerprint") {
+		t.Fatalf("plain install shows a fingerprint: %s", b)
 	}
 }

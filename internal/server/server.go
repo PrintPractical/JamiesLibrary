@@ -154,8 +154,13 @@ func Run(ctx context.Context, o Options) error {
 	if err := announceSetup(ctx, o.Stdout, setupSvc, cfg, trustPort); err != nil {
 		return err
 	}
+	caFingerprint := ""
+	if ca != nil {
+		caFingerprint = ca.Fingerprint()
+	}
 	h, err := httpapi.NewHandler(httpapi.Options{
-		Clients: ratelimit.NewClients(cfg.TrustedProxies), Limiter: limiter,
+		CAFingerprint: caFingerprint,
+		Clients:       ratelimit.NewClients(cfg.TrustedProxies), Limiter: limiter,
 		TrustPort: trustPort, Version: o.Version, Logger: log, Static: webui.Handler(),
 		Setup: setupSvc, Auth: authSvc, Users: usersSvc, Settings: set, Activity: activity.New(st), Store: st, Media: images,
 		Catalog: catalogSvc, Metadata: lookup,
@@ -167,9 +172,7 @@ func Run(ctx context.Context, o Options) error {
 		return err
 	}
 	r := Ready{HTTPAddr: ln.Addr().String(), TLS: tlsCfg != nil, ControlAddr: control.Addr()}
-	if ca != nil {
-		r.Fingerprint = ca.Fingerprint()
-	}
+	r.Fingerprint = caFingerprint
 	if plainLn != nil {
 		r.TrustAddr = plainLn.Addr().String()
 	}
@@ -212,16 +215,55 @@ func announceSetup(ctx context.Context, out io.Writer, s *setup.Service, cfg con
 	}
 	fmt.Fprintln(out, "No administrator exists yet. To create the first one, open the app in a browser and enter this one-time code.")
 	if trustPort != 0 {
-		host := "localhost"
-		switch {
-		case len(cfg.Hostnames) > 0:
-			host = cfg.Hostnames[0]
-		case len(cfg.Addresses) > 0:
-			host = cfg.Addresses[0].String()
+		for _, host := range trustHosts(cfg, interfaceIPs) {
+			fmt.Fprintf(out, "On a phone or another computer, first follow the trust guide: http://%s/trust/\n", net.JoinHostPort(host, strconv.Itoa(trustPort)))
 		}
-		fmt.Fprintf(out, "On a phone or another computer, first follow the trust guide: http://%s/trust/\n", net.JoinHostPort(host, strconv.Itoa(trustPort)))
 	}
 	return setupcode.Print(out, code)
+}
+
+// maxTrustHosts bounds how many addresses the console lists for the guide.
+const maxTrustHosts = 3
+
+// trustHosts are the hosts to print for the trust guide. The configured name
+// or address comes first; with none, the machine's own private network
+// addresses, which a phone on the same network can reach (no request has been
+// made yet, so the address a visitor will use isn't known). localhost is the
+// last resort.
+func trustHosts(cfg config.Config, interfaces func() ([]net.IP, error)) []string {
+	switch {
+	case len(cfg.Hostnames) > 0:
+		return []string{cfg.Hostnames[0]}
+	case len(cfg.Addresses) > 0:
+		return []string{cfg.Addresses[0].String()}
+	}
+	var hosts []string
+	if ips, err := interfaces(); err == nil {
+		for _, ip := range ips {
+			if ip.IsPrivate() && len(hosts) < maxTrustHosts {
+				hosts = append(hosts, ip.String())
+			}
+		}
+	}
+	if len(hosts) == 0 {
+		hosts = []string{"localhost"}
+	}
+	return hosts
+}
+
+// interfaceIPs are the addresses of this machine's network interfaces.
+func interfaceIPs() ([]net.IP, error) {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return nil, err
+	}
+	var out []net.IP
+	for _, a := range addrs {
+		if n, ok := a.(*net.IPNet); ok {
+			out = append(out, n.IP)
+		}
+	}
+	return out, nil
 }
 
 // tlsSetup chooses how the app is served: with no TLS configuration (plain
