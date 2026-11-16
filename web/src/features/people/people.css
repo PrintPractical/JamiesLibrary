@@ -1,0 +1,74 @@
+/* People & invites: the user list, a user's page, invitations. */
+.people {
+  max-width: 820px;
+}
+.switches {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.switches > li + li {
+  border-top: 1px solid var(--line);
+}
+.sw {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 18px;
+  min-height: 44px;
+}
+.sw-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sw input[type="checkbox"] {
+  appearance: none;
+  flex: none;
+  position: relative;
+  width: 46px;
+  height: 26px;
+  margin: 0;
+  border-radius: 999px;
+  border: 1.5px solid var(--line-2);
+  background: #e9dcc6;
+  cursor: pointer;
+}
+.sw input[type="checkbox"]::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--card);
+  box-shadow: 0 1px 2px rgba(59, 42, 31, 0.3);
+  transition: left 0.12s;
+}
+.sw input[type="checkbox"]:checked {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+.sw input[type="checkbox"]:checked::after {
+  left: 22px;
+}
+.sw input[type="checkbox"]:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.sw input[type="checkbox"]:focus-visible {
+  outline: 3px solid var(--brass);
+  outline-offset: 2px;
+}
+.temp-pw {
+  font: 800 20px/1.2 ui-monospace, monospace;
+  letter-spacing: 0.06em;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.actions {
+  flex-wrap: wrap;
+}

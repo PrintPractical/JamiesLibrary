@@ -9,6 +9,8 @@ import { SignIn } from "../features/account/SignIn";
 import { Overdue } from "../features/patrons/Overdue";
 import { PatronPage } from "../features/patrons/PatronPage";
 import { Patrons } from "../features/patrons/Patrons";
+import { People } from "../features/people/People";
+import { UserPage } from "../features/people/UserPage";
 import { Setup } from "../features/setup/Setup";
 import { NotFound } from "../features/placeholder/NotFound";
 import { Placeholder } from "../features/placeholder/Placeholder";
@@ -128,8 +130,13 @@ export function AppRoutes() {
           <Route path="admin/settings" element={gated(["settings.manage"], "Settings")} />
           <Route
             path="admin/people"
-            element={gated(["users.manage", "users.permissions", "invitations.manage"], "People & invites")}
+            element={
+              <Allow any={["users.manage", "users.permissions", "invitations.manage"]}>
+                <People />
+              </Allow>
+            }
           />
+          <Route path="admin/people/:id" element={<Allow any={["users.manage"]}><UserPage /></Allow>} />
           <Route path="admin/statistics" element={gated(["reports.view"], "Statistics")} />
           <Route path="more" element={<More />} />
         </Route>
