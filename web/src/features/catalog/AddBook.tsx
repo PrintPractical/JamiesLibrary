@@ -192,6 +192,7 @@ function Flow({ mode, initialLocations, detectorFactory }: FlowProps) {
     const d: DetailErrors = {};
     if (!existing && !locked) {
       if (details.title.trim() === "") d.title = "Enter the book's title.";
+      if (authorList(details.authors).length === 0) d.authors = "A book needs at least one author.";
       if (details.coverFile && !COVER_TYPES.includes(details.coverFile.type)) d.cover = "A cover must be a JPEG, PNG or WebP image.";
       else if (details.coverFile && details.coverFile.size > COVER_LIMIT) d.cover = "That cover is larger than 5 MB. Choose a smaller image.";
     }
@@ -253,6 +254,7 @@ function Flow({ mode, initialLocations, detectorFactory }: FlowProps) {
 
   async function saveCopies(bookId: number, title: string) {
     const made = new Map<string, number>(); // location names made in this save, lower-cased
+    let known = locations; // the locations as of now, including any made in this save
     let work = copies;
     const update = (key: number, change: Partial<CopyDraft>) => {
       work = work.map((c) => (c.key === key ? { ...c, ...change } : c));
@@ -264,12 +266,12 @@ function Flow({ mode, initialLocations, detectorFactory }: FlowProps) {
       try {
         if (locationId === "new") {
           const name = cp.newLocation.trim();
-          const known = locations.find((l) => l.name.toLowerCase() === name.toLowerCase())?.id ?? made.get(name.toLowerCase());
-          let id = known;
+          let id = known.find((l) => l.name.toLowerCase() === name.toLowerCase())?.id ?? made.get(name.toLowerCase());
           if (id === undefined) {
             const loc = await createLocation(name);
             id = loc.id;
-            setLocations((cur) => [...cur, loc]);
+            known = [...known, loc];
+            setLocations(known);
           }
           made.set(name.toLowerCase(), id);
           locationId = String(id);
@@ -303,7 +305,7 @@ function Flow({ mode, initialLocations, detectorFactory }: FlowProps) {
                 number: c.saved.number,
                 barcode: c.saved.barcode,
                 condition: c.condition,
-                location: locations.find((l) => String(l.id) === c.locationId)?.name ?? "",
+                location: known.find((l) => String(l.id) === c.locationId)?.name ?? "",
               },
             ]
           : [],

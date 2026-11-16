@@ -112,13 +112,17 @@ func launch(t *testing.T, dir string, env map[string]string) *proc {
 	t.Helper()
 	p := &proc{t: t, dir: dir, done: make(chan struct{})}
 	port := freePort(t)
+	control := freePort(t)
+	for control == port { // both are released before the server binds them, so the same number can come back
+		control = freePort(t)
+	}
 	p.Base = fmt.Sprintf("http://127.0.0.1:%d", port)
 	e := []string{
 		"JL_DATA_DIR=" + dir,
 		fmt.Sprintf("JL_HTTP_PORT=%d", port),
 		"JL_HTTP_ONLY=1",
 		"JL_BIND_ADDRESS=127.0.0.1",
-		fmt.Sprintf("JL_TEST_CONTROL_ADDR=127.0.0.1:%d", freePort(t)),
+		fmt.Sprintf("JL_TEST_CONTROL_ADDR=127.0.0.1:%d", control),
 		"HOME=" + t.TempDir(),
 	}
 	for k, v := range env {

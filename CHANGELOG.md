@@ -6,12 +6,18 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Librarians can look after the catalog from the web app: add a book by scanning or typing its ISBN (with the camera, a hand scanner or the keyboard), check the details found on Open Library and add copies in one step, or enter a book by hand when there is no internet or no ISBN. They can change a book and its copies, remove either (a copy or book on loan can't be removed), manage locations, and print copy labels as PDF for Avery 5160, Avery L7160 or a single 62 x 29 mm label. A new guide, [Looking after the catalog](docs/guide-catalog.md), explains each.
+
 ### Fixed
 
+- The administrator's guide now says what a visitor who isn't signed in sees at `/browse` and on a book's page when the public catalog is on (and that they are sent to sign in when it is off), and no longer says browsing is not built.
 - A server killed during the copy made before an upgrade no longer leaves a broken `backups/pre-...db`: the copy is written as a hidden `.pre-...tmp` file and renamed only when whole, and leftovers are deleted at the next upgrade. A restart in the same second no longer fails with "already exists": the new copy's name ends in `-2`, `-3` and so on.
 
 ### Added
 
+- The Browse screen (`/browse`) and book pages (`/books/ID`): search the catalog by title, author or ISBN, filter by location, see at a glance whether a book is on the shelf, and on a book's page see each copy's location and due date, the average rating, and read, write and remove ratings and reviews. With the public catalog on, visitors without an account can browse and open book pages, without copies' locations or reviews. See [`docs/guide-browsing.md`](docs/guide-browsing.md).
 - The accounts guide, [`docs/accounts.md`](docs/accounts.md): signing in, registering with an invitation code, changing your password, the 16 permissions and the three roles, inviting and managing people, the rules that stop anyone giving more than they hold or removing the last administrator, resetting a password, and recovering a locked-out administrator from the server (`jamieslibrary admin reset-password`, also through `docker compose exec`), with the messages you may meet and what each means.
 - The architecture document now describes accounts, sessions and the route guard.
 - The administrator's settings (`GET /api/admin/settings`) carry `ca_fingerprint`, the local CA's SHA-256 fingerprint, read-only and only for people who may manage settings, so the trust guide's "compare with the Settings page" can be followed (absent when the app doesn't use the local CA). The Settings screen shows it.

@@ -26,6 +26,7 @@ export function meOf(role: keyof typeof permissionsOf, over: Partial<Me> = {}): 
     user: { id: 1, username: role, display_name: `Pat ${role}`, role },
     permissions: permissionsOf[role],
     must_change_password: false,
+    settings: { time_zone: "UTC", loan_period_days: 14, max_renewals: 2, self_checkout: false },
     ...over,
   };
 }
