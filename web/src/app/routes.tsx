@@ -6,6 +6,7 @@ import { Account } from "../features/account/Account";
 import { ForcedChange } from "../features/account/ForcedChange";
 import { Register } from "../features/account/Register";
 import { SignIn } from "../features/account/SignIn";
+import { Card } from "../features/card/Card";
 import { CheckIn } from "../features/desk/CheckIn";
 import { Checkout } from "../features/desk/Checkout";
 import { BookPage } from "../features/catalog/BookPage";
@@ -128,7 +129,7 @@ export const routeTable: RouteObject[] = [
         children: [
           { index: true, element: <Home /> },
           { path: "browse", element: <Allow any={["catalog.browse"]}><Browse /></Allow> },
-          { path: "card", element: page("My card") },
+          { path: "card", element: <Card /> },
           { path: "loans", element: <Allow any={["loans.own.view"]}><History /></Allow> },
           { path: "checkout", element: <Allow any={["circ.self_checkout"]}><SelfCheckout /></Allow> },
           { path: "account", element: <Account /> },

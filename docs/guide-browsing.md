@@ -15,7 +15,7 @@ Open **Browse** (`/browse`). With nothing typed in, it lists every book, a page 
 
 Type words into **Search the library** and press **Search**. Words are looked for in titles and authors, so `austen` and `pride` both work. A whole ISBN, with or without hyphens, finds that book exactly. A search can be up to 200 characters. The address bar holds the search, so you can bookmark a search and the browser's back button returns to it.
 
-If the library has more than one named location (a shelf, a room, a branch), a **Location** list appears beside the search. Choose one to see only the books that have a copy there; **All locations** removes the filter.
+Signed in, a **Location** list appears beside the search whenever the library has a named location (a new library has one, "Main shelf"; others might be a room or a branch). Choose one to see only the books that have a copy there; **All locations** removes the filter.
 
 If nothing matches, the page says so and suggests checking the spelling or using fewer words. A new library with no books says "There are no books in the library yet."
 
@@ -33,7 +33,7 @@ Select a row to open the book's page (`/books/ID`). It shows:
 
 - the cover (a coloured block with the title when there's none), title and authors;
 - the average rating, or **No ratings yet**;
-- how many copies are on the shelf, and, signed in, each copy with its location and either **On the shelf** or **Out · due 24 Nov** (with the year when it isn't this year);
+- how many copies are on the shelf, and, signed in, each copy with its location and either **On the shelf** or **Out · due Nov 30** (the date is written the way your browser writes dates, so it may read `30 Nov` elsewhere; the year is added when the date isn't in this year);
 - **About this book**: the description and the ISBN;
 - **Ratings & reviews** (see below).
 
