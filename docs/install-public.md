@@ -4,7 +4,7 @@ This guide is for a library that people reach from outside, at a domain name suc
 
 Contents: [Installation](#installation) · [Configuration](#configuration) · [Network access](#network-access) · [Security](#security) · [Maintenance](#maintenance)
 
-Two ways to get HTTPS are described. Pick one:
+Two ways to get HTTPS are described, each [checked](#check-that-it-works) the same way. Pick one:
 
 - **Behind a reverse proxy** (recommended; the compose file does it all with Caddy, which gets and renews a free certificate itself).
 - **With your own certificate**, which the library serves itself.
@@ -68,7 +68,15 @@ Release files, and building from source, are described in the [README](../README
 
 ### Your own certificate
 
-If you already have a certificate for the domain (from your own authority, or issued by Let's Encrypt with another tool), the library can serve it itself without a proxy: set `JL_TLS_CERT` and `JL_TLS_KEY` to the PEM files. The certificate file must hold the whole chain (the server certificate first, then intermediates), and the key must belong to it.
+If you already have a certificate for the domain, the library can serve it itself without a proxy: set `JL_TLS_CERT` and `JL_TLS_KEY` to the PEM files. The certificate file must hold the whole chain (the server certificate first, then intermediates), and the key must belong to it.
+
+**Getting a certificate.** Browsers trust a certificate only from a public authority. A free one is available from Let's Encrypt; for example, with certbot, on a server whose port 80 is free while it runs:
+
+```sh
+sudo certbot certonly --standalone -d library.example.org
+```
+
+This writes `/etc/letsencrypt/live/library.example.org/fullchain.pem` (the chain, for `JL_TLS_CERT`) and `privkey.pem` (for `JL_TLS_KEY`). Any other authority works the same way, as long as you get a PEM chain and key. A certificate from the library's own local authority is not for this: see [Why not the local authority](#why-not-the-local-authority).
 
 ```sh
 JL_TLS_CERT=/etc/ssl/library/fullchain.pem JL_TLS_KEY=/etc/ssl/library/privkey.pem \
@@ -77,7 +85,17 @@ JL_TLS_CERT=/etc/ssl/library/fullchain.pem JL_TLS_KEY=/etc/ssl/library/privkey.p
 
 (A normal user can't listen on port 443 on Linux; either run the program with a way to do so, or let it listen on 8443 and forward 443 to it in the firewall or router.)
 
-With Docker, mount the files and publish the ports. The container runs as user 65532, so that user must be able to read the key: check with `docker logs`, which shows `open /certs/privkey.pem: permission denied` if it can't.
+**The key is a secret.** Whoever reads `privkey.pem` can impersonate your library. It must never be readable by everyone: keep it mode `0400` or `0600`, owned by the user that runs the library, and don't put it in the data directory's backups or in a repository. With certbot, its `live/` files are only links into `archive/`: point the program at them directly, or copy the files as below, and in Docker don't mount only `live/`, because the links then lead nowhere.
+
+With Docker, the container runs as user 65532, so that user must be able to read the key, without anyone else being able to. Give it a copy owned by that user:
+
+```sh
+sudo install -d -m 0755 /etc/ssl/library
+sudo install -m 0644 /etc/letsencrypt/live/library.example.org/fullchain.pem /etc/ssl/library/fullchain.pem
+sudo install -o 65532 -m 0400 /etc/letsencrypt/live/library.example.org/privkey.pem /etc/ssl/library/privkey.pem
+```
+
+(or leave the key as it is and give that user read access to it with `setfacl -m u:65532:r privkey.pem`; the directories above it need execute access for that user too). Don't `chmod 644` the key. If the library can't read it, `docker logs` shows `open /certs/privkey.pem: permission denied` and the container stops.
 
 ```sh
 docker run -d --name jamieslibrary --restart unless-stopped \
@@ -87,11 +105,36 @@ docker run -d --name jamieslibrary --restart unless-stopped \
   jamieslibrary:latest
 ```
 
-(Build the image first: `docker build -f deploy/Dockerfile -t jamieslibrary .`) A renewed certificate is picked up from the files within about a second, with no restart. If the new files can't be read, the old certificate stays in use and a warning is logged. A certificate that has expired is served anyway, with a warning in the log, and browsers will refuse it.
+(Build the image first: `docker build -f deploy/Dockerfile -t jamieslibrary .`)
 
-With your own certificate the server needs no trust step, and the plain-HTTP port (8080) only redirects to HTTPS and shows a page saying no step is needed. You don't have to open it.
+**Renewal.** Certificates from Let's Encrypt last 90 days, and certbot renews them in the background. The library does not renew anything itself. When the files change on disk (a changed modification time or size, checked at most once a second when someone connects), it loads the new certificate for the next connection with no restart, and logs `reloaded the certificate`. After certbot renews, copy the files again if you use copies as above, for example in a certbot deploy hook (`--deploy-hook` or a script in `/etc/letsencrypt/renewal-hooks/deploy/`). Replace the certificate and the key together. If the new files can't be read, or the key doesn't belong to the certificate, the old certificate stays in use and a warning is logged (`the certificate files changed but can't be used; still serving the previous certificate`). A certificate that has expired is served anyway, with a warning in the log, and browsers will refuse it, so check that renewal works before the date.
+
+With your own certificate the server needs no trust step, and the plain-HTTP port (8080) only redirects to HTTPS and shows a page saying no step is needed. You don't have to open it. The library also sends `Strict-Transport-Security` for a year.
 
 The setup code goes to the console as described above: `docker logs jamieslibrary`.
+
+### Why not the local authority
+
+The local authority of a LAN install can't be used on the internet, whatever the name you give it. It signs only local names (such as `.local` and `.lan`) and private addresses, so no public domain name could be certified by it. Each device would also have to be set up to trust it by hand, and a device that does is trusting this installation's key. On the internet, use a certificate from a public authority, by Caddy or as above. The local authority isn't started when you set `JL_HTTP_ONLY` or your own certificate.
+
+### Plain HTTP is never an option
+
+The session cookie is always marked `Secure` (and named `__Host-jl_session`), in every mode. A browser doesn't keep or send such a cookie over plain `http://` (other than on `localhost`), so nobody could sign in. Even if one did, passwords would cross the internet in the clear. Serve the library to the public only through HTTPS, and leave the library's own plain-HTTP port (`JL_HTTP_ONLY`) reachable by the proxy alone.
+
+### Check that it works
+
+1. Open `https://library.example.org` in a browser: the page opens with the padlock, with no warning, and the certificate (padlock › certificate) names your domain and a public authority as its issuer.
+2. Open `http://library.example.org`: the browser ends up at `https://library.example.org`. Or from a shell:
+
+   ```sh
+   curl -sI http://library.example.org/ | head -3     # 308 and a Location: https://... line (Caddy)
+   curl -sI https://library.example.org/ | head -1     # a 200 or other answer, with no certificate error
+   ```
+
+   With your own certificate, the library's port 8080 answers `307` with the `Location: https://...` line, if you've opened it.
+3. From another machine, check that `http://library.example.org:8080` gets no answer: the library's own port isn't published.
+
+If a browser reports an invalid certificate, check that DNS points at this server and that ports 80 and 443 are open (Caddy: `docker compose -p jamieslibrary -f deploy/compose.public.yml logs caddy` says why it couldn't get one), or, with your own, that the chain file holds the intermediates and the certificate hasn't expired.
 
 ## Configuration
 
@@ -147,7 +190,7 @@ With your own certificate and no proxy, open the HTTPS port (443, or 8443 if peo
 - **Sessions** end after 8 hours without use (an administrator can set 15 minutes to 30 days).
 - **Passwords** are 10 to 256 characters; the library keeps only a hash.
 - **Firewall.** Open only 80 and 443. Don't publish the library's own port (8080) to the internet: in `compose.public.yml` it is deliberately not published.
-- **Keep the server updated:** the operating system, Docker, and the Caddy image (pinned to `caddy:2.10` in the compose file; change the tag to take a newer one).
+- **Keep the server updated:** the operating system, Docker, and the Caddy image (its tag is set in `compose.public.yml`; change the tag to take a newer one, and pull it with `docker compose -p jamieslibrary -f deploy/compose.public.yml pull caddy`).
 - **A locked-out administrator** is recovered at the server, not on the web: see [Maintenance](#maintenance).
 
 ## Maintenance
