@@ -191,7 +191,7 @@ describe("SCAN-2 Metadata lookup", () => {
     expect(calls.filter((c) => c.method === "POST" && c.path !== "/api/catalog/lookup")).toEqual([]);
   });
 
-  test("a refused Add moves focus to the first field in error: Title, then a copy's Location", async () => {
+  test("a refused Add moves focus to the first field in error: Title, Authors, then a copy's Location", async () => {
     server({ "POST /api/catalog/lookup": { body: { status: "not_found", isbn: ISBN } } });
     await lookupWith(ISBN);
     await userEvent.click(await screen.findByRole("button", { name: "Add book & 1 copy" }));
@@ -199,6 +199,9 @@ describe("SCAN-2 Metadata lookup", () => {
     expect(title).toHaveFocus();
     expect(title).toHaveAttribute("aria-invalid", "true");
     await userEvent.type(title, "A title");
+    await userEvent.click(screen.getByRole("button", { name: "Add book & 1 copy" }));
+    expect(screen.getByLabelText("Authors (required)")).toHaveFocus();
+    await userEvent.type(screen.getByLabelText("Authors (required)"), "An Author");
     await userEvent.click(screen.getByRole("button", { name: "Add book & 1 copy" }));
     expect(within(copyCard(1)).getByLabelText("Location")).toHaveFocus();
   });
