@@ -213,8 +213,13 @@ func (s *Store) backup(ctx context.Context, from, to int) (string, error) {
 			return path, nil
 		}
 		if _, statErr := os.Lstat(path); statErr != nil {
-			removeCopy(tmp)
-			return "", fmt.Errorf("naming %q: %w", path, err)
+			// No hard links here (some FAT, SMB or FUSE mounts): rename, as the name is free.
+			if rerr := os.Rename(tmp, path); rerr != nil {
+				removeCopy(tmp)
+				return "", fmt.Errorf("naming %q: %w", path, rerr)
+			}
+			_ = syncDir(dir)
+			return path, nil
 		}
 	}
 	removeCopy(tmp)

@@ -6,6 +6,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- A server killed during the copy made before an upgrade no longer leaves a broken `backups/pre-...db`: the copy is written as a hidden `.pre-...tmp` file and renamed only when whole, and leftovers are deleted at the next upgrade. A restart in the same second no longer fails with "already exists": the new copy's name ends in `-2`, `-3` and so on.
+
 ### Added
 
 - Statistics and the circulation report, for people who may view reports: `GET /api/admin/reports/statistics` gives the numbers of books, copies, active patrons, current loans and overdue loans, and `GET /api/admin/reports/circulation?from=YYYY-MM-DD&to=YYYY-MM-DD` gives the checkouts and returns from the start of the first day to the end of the last, in the library's time zone, both days included, at most 5 years. Both are counts only, with no names, and loans of removed copies still count. An "active patron" is an active account that holds the permission to see its own loans. Not yet on a screen.
