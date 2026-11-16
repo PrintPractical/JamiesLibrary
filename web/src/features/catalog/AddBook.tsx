@@ -100,6 +100,9 @@ function Flow({ mode, initialLocations, detectorFactory }: FlowProps) {
   const [locations, setLocations] = useState(initialLocations);
   const [copies, setCopies] = useState<CopyDraft[]>(() => [newCopy()]);
   const [copyErrors, setCopyErrors] = useState<Record<number, CopyErrors>>({});
+  // Bumped when Add is refused: focus then moves to the first field in error.
+  const [refused, setRefused] = useState(0);
+  const root = useRef<HTMLDivElement>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<unknown>(null);
   // The new book, once the server has it: a retry after a copy failed adds only what is left.
@@ -107,6 +110,12 @@ function Flow({ mode, initialLocations, detectorFactory }: FlowProps) {
   const [done, setDone] = useState<{ bookId: number; title: string; added: boolean; copies: DoneCopy[] } | null>(null);
 
   useEffect(() => () => lookupCtl.current?.abort(), []);
+
+  // The errors are drawn by now: go to the first one in page order, so the screen reader says it.
+  useEffect(() => {
+    if (refused === 0) return;
+    root.current?.querySelector<HTMLElement>('[aria-invalid="true"], [data-error-target]')?.focus();
+  }, [refused]);
 
   const existing = stage.kind === "exists" ? stage.book : null;
   const bookIsbn = existing ? existing.isbn : stage.kind === "details" ? isbn : "";
@@ -206,7 +215,9 @@ function Flow({ mode, initialLocations, detectorFactory }: FlowProps) {
     }
     setDetailErrors(d);
     setCopyErrors(c);
-    return Object.keys(d).length === 0 && Object.keys(c).length === 0;
+    const ok = Object.keys(d).length === 0 && Object.keys(c).length === 0;
+    if (!ok) setRefused((n) => n + 1);
+    return ok;
   }
 
   async function save() {
@@ -237,6 +248,7 @@ function Flow({ mode, initialLocations, detectorFactory }: FlowProps) {
           }
           if (err instanceof ApiError && err.field && ["title", "authors", "description", "cover", "cover_token", "isbn"].includes(err.field)) {
             setDetailErrors({ [err.field === "cover_token" ? "cover" : err.field]: errorMessage(err) });
+            setRefused((n) => n + 1);
           } else {
             setSaveError(err);
           }
@@ -332,7 +344,7 @@ function Flow({ mode, initialLocations, detectorFactory }: FlowProps) {
 
   const note = stage.kind === "details" && !savedBook ? NOTES[stage.note] : null;
   return (
-    <div className="stack addbook">
+    <div className="stack addbook" ref={root}>
       <Link className="ab-back" to="/catalog">
         <Icon name="left" />
         Catalog
