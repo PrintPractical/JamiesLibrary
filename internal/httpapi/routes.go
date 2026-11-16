@@ -20,6 +20,7 @@ const (
 	signedIn
 	public
 	publicCatalog
+	mixed
 )
 
 // Access is what a route says about who may call it (ROLE-3, r1-architecture §4).
@@ -48,6 +49,11 @@ func Public() Access { return Access{kind: public} }
 // answers 404 as if the route did not exist while it is off (sec §7).
 func PublicCatalog() Access { return Access{kind: publicCatalog} }
 
+// Mixed lets the request reach the handler, which decides who may see what: the
+// one route whose access depends on the thing asked for (/media/{name}: the logo
+// is public, other images follow the catalog's rules).
+func Mixed() Access { return Access{kind: mixed} }
+
 // AllowWhileMustChange marks a Require or SignedIn route a caller who must
 // change their password may still reach (ACCESS-7): only me, change password
 // and sign out carry it.
@@ -68,6 +74,8 @@ func (a Access) String() string {
 		return "public"
 	case publicCatalog:
 		return "public catalog"
+	case mixed:
+		return "decided by the handler"
 	}
 	return "undeclared"
 }
@@ -151,7 +159,7 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) { r.mux.Ser
 func (r *Router) guard(a Access, h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		switch a.kind {
-		case public:
+		case public, mixed:
 		case publicCatalog:
 			if !r.publicOn() {
 				notFound(w, req)

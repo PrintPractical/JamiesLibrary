@@ -11,6 +11,13 @@ What Jamie's Library does today, by area. Each entry names the requirements it c
 - The first administrator is created with a one-time setup code shown only on the server's console, and only until an administrator exists (DEPLOY-3).
 - `jamieslibrary admin reset-password USERNAME` recovers a locked-out administrator from the server itself (DEPLOY-4).
 
+## Circulation
+
+- Check out a copy to a patron by scanning or typing their card and the copy's barcode (or, by ISBN, the book's), with a due date set by the loan period in the library's time zone; refused when the copy is out, the patron is at their limit or deactivated (CIRC-1, CIRC-4, SCAN-3, SCAN-4). API only so far.
+- In ISBN mode, checkout picks the lowest-numbered copy that is in and says which; with none in it says so (CIRC-1, CAT-9).
+- Check in by copy barcode or ISBN; with several copies out, choose the loan or scan the patron's card; returned loans stay in history (CIRC-2).
+- A copy or book on loan can't be removed from the catalog.
+
 ## Web app
 
 - Patron and staff layouts that work at phone width and on a desktop, with placeholder pages until each feature is built (UX-1, UX-2).
