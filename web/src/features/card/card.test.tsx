@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { screen, within } from "@testing-library/react";
 import { apiError, fakeServer, meOf, renderApp } from "../../testing";
 
@@ -43,5 +44,17 @@ describe("CARD-1 Digital library card", () => {
     await renderApp("/card");
     expect(await screen.findByRole("button", { name: /try again|retry/i })).toBeInTheDocument();
     expect(screen.queryByRole("img")).toBeNull();
+  });
+});
+
+describe("the card follows the library's colours", () => {
+  test("card.css takes its colours from the theme; only the code panels are fixed black on white", async () => {
+    const css = readFileSync("src/features/card/card.css", "utf8");
+    expect(css.length).toBeGreaterThan(0);
+    const hex = [...css.matchAll(/^(.*#[0-9a-f]{3,8}\b.*)$/gim)].map((m) => m[1]!.trim());
+    // Everything left is a code panel (#fff background, #000 digits).
+    expect(hex.every((l) => /#fff;|#000;/i.test(l))).toBe(true);
+    expect(css).toContain("var(--primary)");
+    expect(css).toContain("var(--card)");
   });
 });

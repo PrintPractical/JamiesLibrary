@@ -9,7 +9,7 @@
   max-width: 420px;
   border-radius: 20px;
   overflow: hidden;
-  background: #fffbf3;
+  background: var(--card);
   border: 1px solid var(--line);
   box-shadow: 0 2px 4px rgba(59, 42, 31, 0.1), 0 14px 36px rgba(59, 42, 31, 0.16);
 }
@@ -18,7 +18,7 @@
   align-items: center;
   gap: 12px;
   padding: 16px 18px;
-  background: linear-gradient(135deg, #7a2e22, #5a2118);
+  background: linear-gradient(135deg, var(--primary), var(--primary-hover));
   color: var(--on-primary);
 }
 .lcard-top .logo {
@@ -39,7 +39,7 @@
 .lcard-body {
   padding: 20px 22px 22px;
   text-align: center;
-  color: #2a1f17;
+  color: var(--ink);
 }
 .lcard-name {
   font-family: var(--serif);
