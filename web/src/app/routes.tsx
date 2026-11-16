@@ -17,6 +17,9 @@ import { Catalog } from "../features/catalog/Catalog";
 import { Labels } from "../features/catalog/Labels";
 import { Locations } from "../features/catalog/Locations";
 import { ManageBook } from "../features/catalog/ManageBook";
+import { History } from "../features/patron/History";
+import { Home } from "../features/patron/Home";
+import { SelfCheckout } from "../features/patron/SelfCheckout";
 import { Overdue } from "../features/patrons/Overdue";
 import { PatronPage } from "../features/patrons/PatronPage";
 import { Patrons } from "../features/patrons/Patrons";
@@ -44,7 +47,6 @@ function Allow({ any, children }: { any: readonly string[]; children: ReactNode 
   );
 }
 
-const gated = (any: readonly string[], title: string): ReactElement => <Allow any={any}>{page(title)}</Allow>;
 
 // What a visitor may open while the public catalog is on.
 const PUBLIC_CATALOG = [/^\/browse$/, /^\/books\/[^/]+$/];
@@ -124,10 +126,11 @@ export const routeTable: RouteObject[] = [
       {
         element: <PatronArea />,
         children: [
-          { index: true, element: page("Home") },
+          { index: true, element: <Home /> },
           { path: "browse", element: <Allow any={["catalog.browse"]}><Browse /></Allow> },
           { path: "card", element: page("My card") },
-          { path: "loans", element: gated(["loans.own.view"], "My books") },
+          { path: "loans", element: <Allow any={["loans.own.view"]}><History /></Allow> },
+          { path: "checkout", element: <Allow any={["circ.self_checkout"]}><SelfCheckout /></Allow> },
           { path: "account", element: <Account /> },
           { path: "books/:id", element: <Allow any={["catalog.browse"]}><BookPage /></Allow> },
           { path: "*", element: <NotFound /> },

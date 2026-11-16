@@ -99,8 +99,15 @@ A change to the rules applies to loans made from then on; the due dates of loans
 
 Each of these switches saves as soon as you flip it, and says in a line what it does.
 
-- **Self-checkout** lets a patron who has the self-checkout permission check an available copy out to themselves, by its code. While it is off, self-checkout is refused. Patrons return books only through a librarian at the desk, and the desk is unaffected either way. The patron-facing screen for it is not built yet; today the switch changes what the server allows through its API.
-- **Public catalog** lets anyone, signed in or not, open **Browse** (`/browse`) and a book's page (`/books/ID`) without an account. A visitor can search by title, author or ISBN and see each book's title, authors, ISBN, description, cover, how many copies are on the shelf and the average rating. They never see patrons, who has a book, where each copy is, or loan history, and a book's reviews and their writers' names are for signed-in users: the book page offers a **Sign in** link in their place. While it is off the library is private: a visitor who isn't signed in is sent to the sign-in page, and the public routes of the server's API answer "not found". See [Finding books](guide-browsing.md#without-an-account-the-public-catalog).
+- **Public catalog** is off in a new library. While it is off, a visitor who isn't signed in who opens the library, `/browse` or any book's page is sent to the sign-in page, and sees nothing of the books.
+
+  While it is on, a visitor who isn't signed in who opens the library's address lands on **Browse** (`/browse`). They can:
+
+  - search by title, author or ISBN (there is no location filter for visitors) and page through the results; each result shows the cover, title, authors and whether the book is available, as "2 of 3 copies on the shelf", "Unavailable · the copy is out" (or "Unavailable · all 3 copies are out") or "No copies yet";
+  - open a book (`/books/` and its number) to see its cover, title, authors, average rating and how many ratings it rests on, how many copies are on the shelf, its description and ISBN.
+
+  A visitor never sees patrons, who has a book, when it is due, or loan history, and not the individual copies. Reviews and their writers' names are for signed-in people: in their place the book page offers a link to sign in. Any other page sends a visitor to sign in (apart from the sign-in page itself and registering with an invitation code). Turning the switch off takes effect straight away: the next page a visitor opens sends them to sign in. (A browser may keep showing a cover it already loaded for up to an hour.) See [Finding books](guide-browsing.md#without-an-account-the-public-catalog).
+- **Self-checkout** lets a patron who has the self-checkout permission check an available copy out to themselves, by its code. While it is off, self-checkout is refused. Patrons return books only through a librarian at the desk, and the desk is unaffected either way. The patron's screen for checking out, and My books, are not built yet, so for now self-checkout is only available through the server's API (`POST /api/me/checkout`).
 
 ### How copies are identified
 

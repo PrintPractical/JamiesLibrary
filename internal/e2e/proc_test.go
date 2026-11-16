@@ -151,7 +151,11 @@ func (p *proc) spawn() {
 	t.Helper()
 	port := pickPort(t)
 	p.Base = fmt.Sprintf("http://127.0.0.1:%d", port)
-	p.Control = fmt.Sprintf("127.0.0.1:%d", pickPort(t))
+	control := pickPort(t)
+	for control == port { // both are released before the server binds them, so the same number can come back
+		control = pickPort(t)
+	}
+	p.Control = fmt.Sprintf("127.0.0.1:%d", control)
 	e := []string{
 		"JL_DATA_DIR=" + p.dir,
 		fmt.Sprintf("JL_HTTP_PORT=%d", port),
