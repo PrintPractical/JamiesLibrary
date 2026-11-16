@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router";
-import { Icon, Logo, type IconName } from "./Icon";
+import { Icon, Logo as DefaultLogo, type IconName } from "./Icon";
 
 export type NavItem = {
   to: string;
@@ -14,6 +14,8 @@ export type ShellUser = { name: string; initials: string; roleLabel: string };
 
 export type ShellProps = {
   libraryName?: string;
+  /** The library's own logo (an image address on this server); the stock mark when absent. */
+  logoUrl?: string;
   /** Side-bar items, and the phone tab bar's, in the same order. */
   items: NavItem[];
   /** Items under the side bar's "Admin" label; the group is left out when empty. */
@@ -26,6 +28,10 @@ export type ShellProps = {
   mode?: NavItem;
   user?: ShellUser;
 };
+
+function Logo({ url }: { url?: string }) {
+  return url ? <img className="logo" src={url} alt="" /> : <DefaultLogo />;
+}
 
 function Tab({ item }: { item: NavItem }) {
   return (
@@ -50,6 +56,7 @@ function SideLink({ item }: { item: NavItem }) {
 /** The frame both layouts share: a side bar on desktop, a top bar and pinned tab bar on phones (900px breakpoint). */
 export function Shell({
   libraryName = "Jamie's Library",
+  logoUrl,
   items,
   adminItems = [],
   footerItems = [],
@@ -67,7 +74,7 @@ export function Shell({
     <div className="shell">
       <nav className="side" aria-label="Main">
         <div className="brand">
-          <Logo />
+          <Logo url={logoUrl} />
           <span className="name">{libraryName}</span>
         </div>
         {items.map((item) => (
@@ -89,7 +96,7 @@ export function Shell({
       </nav>
       <div className="main">
         <header className="appbar">
-          <Logo />
+          <Logo url={logoUrl} />
           <span className="name">{libraryName}</span>
           <span className="sp" />
           {mode && (

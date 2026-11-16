@@ -378,3 +378,97 @@ button {
   flex-direction: column;
   gap: 16px;
 }
+
+/* sign in, register, account */
+.btn-primary {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+.btn-primary:hover {
+  background: var(--primary-hover);
+}
+.btn-quiet {
+  background: none;
+  color: var(--primary);
+}
+.btn:disabled {
+  background: #e9dfd0;
+  border-color: transparent;
+  color: #7d6d5e;
+  cursor: default;
+}
+.btn:focus-visible,
+a:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 2px;
+}
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  box-shadow: var(--shadow);
+  padding: 18px;
+}
+.logo {
+  object-fit: contain;
+  border-radius: 10px;
+}
+.auth {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-width: 480px;
+}
+.auth-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.auth-brand .name {
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 19px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.auth-card {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.auth-card h1 {
+  font-size: 24px;
+}
+.input-error {
+  border-color: var(--err);
+}
+.field-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--err);
+}
+.field-error svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+.field-error {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.alert-ok {
+  background: var(--ok-soft);
+  border-color: #a9cdb2;
+  color: #1d3f2b;
+}
+.alert-ok svg {
+  color: var(--ok);
+}
+.account {
+  max-width: 560px;
+}
+.card.stack > h2 {
+  margin-bottom: 0;
+}
