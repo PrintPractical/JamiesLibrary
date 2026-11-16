@@ -132,3 +132,12 @@
   background-repeat: no-repeat;
   padding-right: 36px;
 }
+/* Rows of buttons wrap, and in the narrow warning box each button may use the full width. */
+.addbook .row {
+  flex-wrap: wrap;
+}
+.mg-loc .alert .row .btn {
+  max-width: 100%;
+  white-space: normal;
+  text-align: center;
+}
