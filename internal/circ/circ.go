@@ -39,6 +39,26 @@ func (Loans) OnLoan(ctx context.Context, q catalog.DB, copyID int64) (bool, erro
 	return err == nil, err
 }
 
+// DueDates maps each of the book's copies on loan now to its due date.
+func (Loans) DueDates(ctx context.Context, q catalog.DB, bookID int64) (map[int64]string, error) {
+	rows, err := q.QueryContext(ctx, `SELECT l.copy_id, l.due_date FROM loans l JOIN copies c ON c.id = l.copy_id
+		WHERE c.book_id = ? AND l.returned_at IS NULL`, bookID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[int64]string{}
+	for rows.Next() {
+		var id int64
+		var due string
+		if err := rows.Scan(&id, &due); err != nil {
+			return nil, err
+		}
+		out[id] = due
+	}
+	return out, rows.Err()
+}
+
 // Steps of the desk: what the scanned code is meant to identify.
 const (
 	StepPatron = "patron"

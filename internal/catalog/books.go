@@ -29,6 +29,17 @@ type BookInput struct {
 	Authors     []string
 	ISBN        string // optional, ISBN-10 or -13
 	Description string
+	// Cover is the name of a stored image to give the book. "" leaves the
+	// cover as it is (none, for a new book).
+	Cover string
+}
+
+// Validate says whether the input would be accepted, before anything is
+// spent on it (an image, say). It checks what the book alone decides: not
+// whether its ISBN is taken.
+func (in BookInput) Validate() error {
+	_, err := in.clean()
+	return err
 }
 
 // DuplicateISBN is the conflict for an ISBN another book already has.
@@ -44,6 +55,7 @@ func (e *DuplicateISBN) Unwrap() error { return e.err }
 type cleanBook struct {
 	title, description, isbn string
 	authors                  []string
+	cover                    string
 }
 
 func (in BookInput) clean() (cleanBook, error) {
@@ -75,6 +87,12 @@ func (in BookInput) clean() (cleanBook, error) {
 			return c, err
 		}
 	}
+	if in.Cover != "" {
+		if err := checkCoverName(in.Cover); err != nil {
+			return c, err
+		}
+		c.cover = in.Cover
+	}
 	return c, nil
 }
 
@@ -102,8 +120,8 @@ func (s *Service) CreateBook(ctx context.Context, actor int64, in BookInput) (Bo
 		if err := checkISBNFree(ctx, tx, c.isbn, 0); err != nil {
 			return err
 		}
-		res, err := tx.ExecContext(ctx, `INSERT INTO books (title, description, isbn13, search_text, created_at) VALUES (?, ?, ?, ?, ?)`,
-			c.title, c.description, nullable(c.isbn), c.searchText(), s.stamp())
+		res, err := tx.ExecContext(ctx, `INSERT INTO books (title, description, isbn13, cover, search_text, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+			c.title, c.description, nullable(c.isbn), nullable(c.cover), c.searchText(), s.stamp())
 		if err != nil {
 			return err
 		}
@@ -118,8 +136,8 @@ func (s *Service) CreateBook(ctx context.Context, actor int64, in BookInput) (Bo
 	return s.GetBook(ctx, id)
 }
 
-// UpdateBook replaces a book's title, authors, ISBN and description. The
-// cover is left alone (see SetCover).
+// UpdateBook replaces a book's title, authors, ISBN and description, and its
+// cover when in.Cover is set.
 func (s *Service) UpdateBook(ctx context.Context, actor, id int64, in BookInput) (Book, error) {
 	c, err := in.clean()
 	if err != nil {
@@ -132,8 +150,8 @@ func (s *Service) UpdateBook(ctx context.Context, actor, id int64, in BookInput)
 		if err := checkISBNFree(ctx, tx, c.isbn, id); err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, `UPDATE books SET title = ?, description = ?, isbn13 = ?, search_text = ? WHERE id = ?`,
-			c.title, c.description, nullable(c.isbn), c.searchText(), id); err != nil {
+		if _, err := tx.ExecContext(ctx, `UPDATE books SET title = ?, description = ?, isbn13 = ?, search_text = ?, cover = COALESCE(?, cover) WHERE id = ?`,
+			c.title, c.description, nullable(c.isbn), c.searchText(), nullable(c.cover), id); err != nil {
 			return err
 		}
 		if _, err := tx.ExecContext(ctx, `DELETE FROM book_authors WHERE book_id = ?`, id); err != nil {
@@ -150,8 +168,10 @@ func (s *Service) UpdateBook(ctx context.Context, actor, id int64, in BookInput)
 // SetCover sets the book's cover to a file the media store already holds, or
 // clears it when name is "". The name is only a name: no path.
 func (s *Service) SetCover(ctx context.Context, actor, id int64, name string) error {
-	if name != "" && (len(name) > 200 || strings.ContainsAny(name, `/\`+"\x00") || strings.HasPrefix(name, ".")) {
-		return apperr.OnField(apperr.Invalid, "cover", "That is not a stored image name.")
+	if name != "" {
+		if err := checkCoverName(name); err != nil {
+			return err
+		}
 	}
 	return s.st.WithTx(ctx, func(tx store.Tx) error {
 		if err := mustExist(ctx, tx, id); err != nil {
@@ -160,6 +180,13 @@ func (s *Service) SetCover(ctx context.Context, actor, id int64, name string) er
 		_, err := tx.ExecContext(ctx, `UPDATE books SET cover = ? WHERE id = ?`, nullable(name), id)
 		return err
 	})
+}
+
+func checkCoverName(name string) error {
+	if len(name) > 200 || strings.ContainsAny(name, `/\`+"\x00") || strings.HasPrefix(name, ".") {
+		return apperr.OnField(apperr.Invalid, "cover", "That is not a stored image name.")
+	}
+	return nil
 }
 
 // RemoveBook removes a book and its copies from the catalog (the rows stay,
