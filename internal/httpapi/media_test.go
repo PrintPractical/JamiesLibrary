@@ -29,7 +29,7 @@ func smallJPEG(t *testing.T) []byte {
 
 func (s *site) storeCover(t *testing.T) string {
 	t.Helper()
-	name, err := s.img.Store(bytes.NewReader(smallJPEG(t)), media.CoverLimit, media.Cover)
+	name, err := s.img.Store(context.Background(), bytes.NewReader(smallJPEG(t)), media.CoverLimit, media.Cover)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +96,7 @@ func TestLogoIsPublic(t *testing.T) {
 	img.Set(1, 1, color.NRGBA{255, 0, 0, 255})
 	var b bytes.Buffer
 	png.Encode(&b, img)
-	logo, err := s.img.Store(&b, media.LogoLimit, media.Logo)
+	logo, err := s.img.Store(context.Background(), &b, media.LogoLimit, media.Logo)
 	if err != nil {
 		t.Fatal(err)
 	}
