@@ -87,12 +87,12 @@ func (s *Service) Renew(ctx context.Context, loanID, onlyPatron int64) (Loan, er
 		}
 		today := s.settings.Today()
 		if l.DueDate < today {
-			return apperr.New(apperr.Conflict, fmt.Sprintf("%s is overdue (due %s), so it can't be renewed. It has to be returned to a librarian.", l.Title, l.DueDate))
+			return apperr.New(apperr.Conflict, fmt.Sprintf("%s is overdue (due %s), so it can't be renewed. It has to be returned to a librarian.", l.Title, friendlyDate(l.DueDate)))
 		}
 		set := s.settings.Get()
 		if l.Renewals >= set.MaxRenewals {
 			return apperr.New(apperr.Conflict, fmt.Sprintf("%s has been renewed the most times allowed (%d), so it can't be renewed again. It has to be returned by %s.",
-				l.Title, set.MaxRenewals, l.DueDate))
+				l.Title, set.MaxRenewals, friendlyDate(l.DueDate)))
 		}
 		due, err := time.Parse(time.DateOnly, l.DueDate)
 		if err != nil {

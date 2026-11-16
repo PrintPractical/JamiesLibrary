@@ -17,6 +17,7 @@ import (
 	"jamieslibrary/internal/clock"
 	"jamieslibrary/internal/metadata"
 	"jamieslibrary/internal/perm"
+	"jamieslibrary/internal/reviews"
 	"jamieslibrary/internal/users"
 )
 
@@ -41,6 +42,7 @@ func newCatSite(t *testing.T) *catSite {
 			t.Fatal(err)
 		}
 		o.Catalog = c.cat
+		o.Reviews = reviews.New(o.Store, c.cat)
 		o.Circ = circ.New(o.Store, circ.Options{Settings: o.Settings, Catalog: c.cat, Users: o.Users})
 		o.Metadata, err = metadata.New(metadata.Options{Images: o.Media, Tmp: tmp, Version: "test", BaseURL: c.fake.srv.URL,
 			Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), Now: clock.Now})

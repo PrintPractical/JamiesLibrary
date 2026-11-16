@@ -12,6 +12,7 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -361,6 +362,15 @@ func TestPasswordsNeverStoredInClearAndTemporaryOnesForceAChange(t *testing.T) {
 		t.Fatal(err)
 	}
 	grepDataDir(t, s.DataDir, adminPassword, memberPassword, temp, next)
+	logs := s.Stdout() + s.Log()
+	if len(logs) < 100 {
+		t.Fatalf("logs are suspiciously short (%d bytes): the scan proves nothing", len(logs))
+	}
+	for _, secret := range []string{adminPassword, memberPassword, temp, next} {
+		if strings.Contains(logs, secret) {
+			t.Errorf("a password is written to the logs: %q", secret)
+		}
+	}
 }
 
 // ACCESS-6: a reset ends the user's live sessions at once.
@@ -558,6 +568,7 @@ func TestForwardedForCountsPerAddressBehindATrustedProxy(t *testing.T) {
 func TestSessionCookieFlags(t *testing.T) {
 	s, root := install(t, nil)
 	_, code := root.invite("patron")
+	var tokens []string
 	check := func(what string, r reply) {
 		t.Helper()
 		var found string
@@ -569,6 +580,7 @@ func TestSessionCookieFlags(t *testing.T) {
 		if found == "" {
 			t.Fatalf("%s: no session cookie in %v", what, r.Header.Values("Set-Cookie"))
 		}
+		tokens = append(tokens, strings.SplitN(strings.SplitN(found, "=", 2)[1], ";", 2)[0])
 		low := strings.ToLower(found)
 		if !strings.HasPrefix(found, "__Host-jl_session=") {
 			t.Errorf("%s: cookie name without the __Host- prefix: %s", what, found)
@@ -586,6 +598,9 @@ func TestSessionCookieFlags(t *testing.T) {
 	check("register", reg.want(201, "POST", "/api/register", map[string]string{"code": code, "username": "pat", "display_name": "P", "password": adminPassword}))
 	in := newWho(t, s)
 	check("sign-in", in.want(200, "POST", "/api/auth/signin", map[string]string{"username": "pat", "password": adminPassword}))
+	if len(tokens) != 2 || tokens[0] == "" || tokens[0] == tokens[1] || len(tokens[0]) < 32 {
+		t.Errorf("sessions tokens should be long and differ per sign-in: %q", tokens)
+	}
 	if r := newWho(t, s).signIn("pat", "wrong password!"); len(r.Header.Values("Set-Cookie")) != 0 {
 		t.Errorf("failed sign-in sets cookies: %v", r.Header.Values("Set-Cookie"))
 	}
@@ -617,6 +632,17 @@ func TestSignInDoesNotAdoptAPresentedToken(t *testing.T) {
 	root.member("patron", "pat")
 	root.want(200, "GET", "/api/me", nil)
 	// a browser holding root's session signs in as pat: root's old token must die, pat's new one live
+	var oldToken string
+	if u, err := url.Parse(s.URL); err == nil {
+		for _, c := range root.c.Jar.Cookies(u) {
+			if strings.HasSuffix(c.Name, "jl_session") {
+				oldToken = c.Value
+			}
+		}
+	}
+	if oldToken == "" {
+		t.Fatal("root's session cookie not found in its jar")
+	}
 	jar := root.c
 	r := (&who{t: t, s: s, c: jar}).signIn("pat", adminPassword)
 	if r.Status != 200 {
@@ -625,6 +651,17 @@ func TestSignInDoesNotAdoptAPresentedToken(t *testing.T) {
 	me := root.want(200, "GET", "/api/me", nil)
 	if u, _ := me.JSON["user"].(map[string]any); u["username"] != "pat" {
 		t.Fatalf("the browser should now be pat, got %s", me.Raw)
+	}
+	// replayed from a separate client, root's old token is dead
+	req, _ := http.NewRequest("GET", s.URL+"/api/me", nil)
+	req.AddCookie(&http.Cookie{Name: "__Host-jl_session", Value: oldToken})
+	resp, err := newWho(t, s).c.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != 401 {
+		t.Fatalf("the old token still works after the browser signed in as someone else: %d", resp.StatusCode)
 	}
 }
 
@@ -850,7 +887,7 @@ func TestTwoAdministratorsRemovingEachOtherLeaveOne(t *testing.T) {
 			if n := activeManagers(t, left); n < 1 {
 				t.Fatalf("%s round %d: no active manager (statuses %d, %d)", name, round, a, b)
 			}
-			if a == 200 && b == 200 && activeManagers(t, left) < 1 {
+			if a == 200 && b == 200 {
 				t.Fatalf("%s round %d: both removals succeeded", name, round)
 			}
 			// restore both as administrators and active for the next round

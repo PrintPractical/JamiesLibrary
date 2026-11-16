@@ -81,11 +81,8 @@ test.each([
   ["/books/7", "Book"],
   ["/desk/checkout", "Check out"],
   ["/desk/checkin", "Check in"],
-  ["/desk/patrons", "Patrons"],
-  ["/desk/overdue", "Overdue"],
   ["/catalog/new", "Add a book"],
   ["/admin/settings", "Settings"],
-  ["/setup", "Set up the library"],
 ])("the route %s is a placeholder page", async (path, title) => {
   await renderApp(path);
   expect(screen.getByRole("heading", { level: 1, name: title })).toBeInTheDocument();

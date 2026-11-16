@@ -26,6 +26,7 @@ import (
 	"jamieslibrary/internal/media"
 	"jamieslibrary/internal/metadata"
 	"jamieslibrary/internal/ratelimit"
+	"jamieslibrary/internal/reviews"
 	"jamieslibrary/internal/settings"
 	"jamieslibrary/internal/setup"
 	"jamieslibrary/internal/setupcode"
@@ -159,7 +160,7 @@ func Run(ctx context.Context, o Options) error {
 		Clients: ratelimit.NewClients(cfg.TrustedProxies), Limiter: limiter,
 		TrustPort: trustPort, Version: o.Version, Logger: log, Static: webui.Handler(),
 		Setup: setupSvc, Auth: authSvc, Users: usersSvc, Settings: set, Activity: activity.New(st), Store: st, Media: images,
-		Catalog: catalogSvc, Metadata: lookup,
+		Catalog: catalogSvc, Metadata: lookup, Reviews: reviews.New(st, catalogSvc),
 		Circ:            circ.New(st, circ.Options{Settings: set, Catalog: catalogSvc, Users: usersSvc}),
 		UserAdmin:       useradmin.New(st, usersSvc, authSvc),
 		Invitations:     invitations.New(st, usersSvc, authSvc),
