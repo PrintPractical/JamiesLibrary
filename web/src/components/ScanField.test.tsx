@@ -42,6 +42,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.unstubAllGlobals();
   vi.useRealTimers();
   vi.restoreAllMocks();
 });
@@ -71,17 +72,47 @@ test("an empty or blank field submits nothing, and the Add button submits like E
   expect(onScan).toHaveBeenCalledExactlyOnceWith("123");
 });
 
-test("SCAN-T2: outside a secure context there is no camera button, the trust guide is linked from this host, and typing works", async () => {
+function serverSays(body: unknown, status = 200) {
+  const fetchMock = vi.fn(async () => new Response(JSON.stringify(body), { status }));
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+}
+
+test("SCAN-T2: outside a secure context there is no camera button, the trust guide is linked on the port the server names, and typing works", async () => {
   setSecure(false);
+  const fetchMock = serverSays({ trust_port: 18080 });
   fakeCamera();
   const onScan = vi.fn();
   render(<ScanField label="Code" onScan={onScan} />);
   expect(screen.queryByRole("button", { name: /camera/i })).not.toBeInTheDocument();
-  const link = screen.getByRole("link", { name: /setup guide/i });
-  expect(link).toHaveAttribute("href", `http://${window.location.hostname}:8080/trust/`);
+  const link = await screen.findByRole("link", { name: /setup guide/i });
+  expect(link).toHaveAttribute("href", `http://${window.location.hostname}:18080/trust/`);
+  expect(fetchMock).toHaveBeenCalledWith("/api/client-config", expect.anything());
   expect(screen.getByRole("status")).toHaveTextContent(/one-time step/i);
   await userEvent.type(screen.getByLabelText("Code"), "ABC{Enter}");
   expect(onScan).toHaveBeenCalledWith("ABC");
+});
+
+test("SCAN-T2: with no trust port to name, or none heard, the note stays and no link points at a guess", async () => {
+  for (const reply of [() => serverSays({ trust_port: 0 }), () => serverSays({}, 500), () => serverSays({ error: "x" }, 404)]) {
+    setSecure(false);
+    fakeCamera();
+    const fetchMock = reply();
+    const { unmount } = render(<ScanField label="Code" onScan={vi.fn()} />);
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    await act(async () => {});
+    expect(screen.getByRole("status")).toHaveTextContent(/one-time step/i);
+    expect(screen.queryByRole("link", { name: /setup guide/i })).not.toBeInTheDocument();
+    unmount();
+  }
+});
+
+test("a secure page with a working camera asks the server for nothing", async () => {
+  fakeCamera();
+  const fetchMock = serverSays({ trust_port: 18080 });
+  render(<ScanField label="Code" onScan={vi.fn()} />);
+  await screen.findByRole("button", { name: "Scan with the camera" });
+  expect(fetchMock).not.toHaveBeenCalled();
 });
 
 test("SCAN-1 Unreadable barcode: a device with no camera offers none, and the ISBN can be typed", async () => {
@@ -104,11 +135,12 @@ test("a camera that is there is offered, and no stream starts before it's asked 
 
 test("permission denied: the camera button goes, the reason and guide link show, typing still works", async () => {
   fakeCamera({ reject: "NotAllowedError" });
+  serverSays({ trust_port: 18080 });
   const onScan = vi.fn();
   render(<ScanField label="Code" onScan={onScan} />);
   await userEvent.click(await screen.findByRole("button", { name: "Scan with the camera" }));
   expect(await screen.findByRole("status")).toHaveTextContent(/blocked/i);
-  expect(screen.getByRole("link", { name: /setup guide/i })).toBeInTheDocument();
+  expect(await screen.findByRole("link", { name: /setup guide/i })).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: /camera/i })).not.toBeInTheDocument();
   await userEvent.type(screen.getByLabelText("Code"), "X1{Enter}");
   expect(onScan).toHaveBeenCalledWith("X1");

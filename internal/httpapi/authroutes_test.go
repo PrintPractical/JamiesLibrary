@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"jamieslibrary/internal/activity"
 	"jamieslibrary/internal/auth"
 	"jamieslibrary/internal/clock"
 	"jamieslibrary/internal/media"
@@ -38,9 +39,11 @@ type site struct {
 	h     http.Handler
 	logs  *bytes.Buffer
 	now   time.Time
+	// remote is the connection address requests come from; "" is httptest's default.
+	remote string
 }
 
-func newSite(t *testing.T) *site {
+func newSite(t *testing.T, tweak ...func(*Options)) *site {
 	t.Helper()
 	ctx := context.Background()
 	s := &site{t: t, dir: t.TempDir(), logs: &bytes.Buffer{}, now: time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC)}
@@ -61,10 +64,14 @@ func newSite(t *testing.T) *site {
 	s.auth = auth.NewService(s.st, s.users,
 		func() time.Duration { return time.Duration(s.set.Get().SessionIdleMinutes) * time.Minute }, log)
 	static := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, "<html>app</html>") })
-	s.h, err = NewHandler(Options{
-		Logger: log, Static: static, Auth: s.auth, Users: s.users, Settings: s.set, Media: s.img,
+	opts := Options{
+		Logger: log, Static: static, Auth: s.auth, Users: s.users, Settings: s.set, Media: s.img, Activity: activity.New(s.st), Store: s.st,
 		PublicCatalogOn: func() bool { return s.set.Get().PublicCatalog },
-	})
+	}
+	for _, f := range tweak {
+		f(&opts)
+	}
+	s.h, err = NewHandler(opts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,6 +103,9 @@ func (s *site) req(method, path, cookie, body string, hdr ...string) *httptest.R
 	}
 	for i := 0; i+1 < len(hdr); i += 2 {
 		r.Header.Set(hdr[i], hdr[i+1])
+	}
+	if s.remote != "" {
+		r.RemoteAddr = s.remote
 	}
 	rec := httptest.NewRecorder()
 	s.h.ServeHTTP(rec, r)
@@ -381,7 +391,7 @@ func TestDeactivationAndPermissionChangesTakeEffectOnTheNextRequest(t *testing.T
 // and the app's own pages load the app shell, which shows sign-in.
 func TestAnonymousVisitor(t *testing.T) {
 	s := newSite(t)
-	rt, err := buildRouter(Options{Auth: s.auth, Users: s.users, Settings: s.set,
+	rt, err := buildRouter(Options{Auth: s.auth, Users: s.users, Settings: s.set, Store: s.st,
 		Static: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})})
 	if err != nil {
 		t.Fatal(err)
@@ -392,7 +402,7 @@ func TestAnonymousVisitor(t *testing.T) {
 			continue
 		}
 		method, path, _ := strings.Cut(ri.Pattern, " ")
-		path = strings.NewReplacer("{id}", "1", "{...}", "x").Replace(path)
+		path = strings.NewReplacer("{id}", "1", "{code}", "x", "{...}", "x").Replace(path)
 		rec := s.req(method, path, "", "")
 		if rec.Code != 401 {
 			t.Errorf("%s anonymous: %d", ri.Pattern, rec.Code)

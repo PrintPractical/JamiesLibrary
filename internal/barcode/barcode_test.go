@@ -13,62 +13,24 @@ import (
 	"testing"
 	"time"
 
+	"jamieslibrary/internal/barcode/barcodetest"
+
 	"github.com/go-pdf/fpdf"
-	"github.com/makiuchi-d/gozxing"
-	"github.com/makiuchi-d/gozxing/oned"
-	"github.com/makiuchi-d/gozxing/qrcode"
 	"golang.org/x/image/font/gofont/goregular"
 )
 
 // decode reads an image with the reader for kind and returns the text.
 func decode(t *testing.T, kind Kind, img image.Image) (string, error) {
 	t.Helper()
-	bmp, err := gozxing.NewBinaryBitmapFromImage(img)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var r gozxing.Reader
-	switch kind {
-	case Code128:
-		r = oned.NewCode128Reader()
-	case EAN13:
-		r = oned.NewEAN13Reader()
-	default:
-		r = qrcode.NewQRCodeReader()
-	}
-	res, err := r.Decode(bmp, nil)
-	if err != nil {
-		return "", err
-	}
-	return res.GetText(), nil
+	return barcodetest.Decode(string(kind), img)
 }
-
-var svgPath = regexp.MustCompile(`M(\d+) (\d+)h(\d+)v(\d+)h-\d+z`)
-var svgBox = regexp.MustCompile(`viewBox="0 0 (\d+) (\d+)"`)
 
 // rasterSVG draws the SVG our renderer produced, scale pixels per module.
 func rasterSVG(t *testing.T, svg string, scale int) image.Image {
 	t.Helper()
-	b := svgBox.FindStringSubmatch(svg)
-	if b == nil {
-		t.Fatalf("no viewBox in %.80s", svg)
-	}
-	w, _ := strconv.Atoi(b[1])
-	h, _ := strconv.Atoi(b[2])
-	img := image.NewGray(image.Rect(0, 0, w*scale, h*scale))
-	for i := range img.Pix {
-		img.Pix[i] = 255
-	}
-	for _, m := range svgPath.FindAllStringSubmatch(svg, -1) {
-		x, _ := strconv.Atoi(m[1])
-		y, _ := strconv.Atoi(m[2])
-		rw, _ := strconv.Atoi(m[3])
-		rh, _ := strconv.Atoi(m[4])
-		for py := y * scale; py < (y+rh)*scale; py++ {
-			for px := x * scale; px < (x+rw)*scale; px++ {
-				img.SetGray(px, py, color.Gray{0})
-			}
-		}
+	img, err := barcodetest.RasterSVG(svg, scale)
+	if err != nil {
+		t.Fatal(err)
 	}
 	return img
 }
@@ -128,6 +90,9 @@ func TestSVGIsScaledByTheViewer(t *testing.T) {
 		}
 	}
 }
+
+// svgPath matches each dark rectangle our renderer draws.
+var svgPath = regexp.MustCompile(`M(\d+) (\d+)h(\d+)v(\d+)h-\d+z`)
 
 func TestSVGQuietZone(t *testing.T) {
 	svg, _ := SVG(Code128, "A")

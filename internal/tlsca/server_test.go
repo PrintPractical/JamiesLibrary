@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"io"
@@ -17,6 +18,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -388,4 +390,43 @@ func readKey(t *testing.T, path string) *ecdsa.PrivateKey {
 		t.Fatal(err)
 	}
 	return k.(*ecdsa.PrivateKey)
+}
+
+// SCAN-T2: the app links its camera setup guide to the port the server really
+// uses for it, which is whatever --port says.
+func TestClientConfigNamesTheRealTrustPort(t *testing.T) {
+	s := testutil.StartServer(t, testutil.Options{Env: tlsEnv("")})
+	p := trustStep(t, s)
+	client := &http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{RootCAs: p.root, ServerName: "127.0.0.1"}}, Timeout: 10 * time.Second}
+	resp, err := client.Get(s.URL + "/api/client-config")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	var got struct {
+		TrustPort int `json:"trust_port"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	u, err := url.Parse(s.TrustURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.TrustPort == 0 || strconv.Itoa(got.TrustPort) != u.Port() || got.TrustPort == 8080 {
+		t.Errorf("trust_port %d, but the trust step is served at %s", got.TrustPort, s.TrustURL)
+	}
+}
+
+func TestClientConfigHasNoTrustPortInProxyMode(t *testing.T) {
+	s := testutil.StartServer(t, testutil.Options{})
+	resp, err := http.Get(s.URL + "/api/client-config")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != 200 || !strings.Contains(string(b), `"trust_port":0`) {
+		t.Errorf("%d %s", resp.StatusCode, b)
+	}
 }

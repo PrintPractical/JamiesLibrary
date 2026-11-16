@@ -8,6 +8,7 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- The administrative activity log: `GET /api/admin/activity` (for people who may view activity) lists what administrators did, newest first, with who did it and when, 50 per page by default and 100 at most (`page`, `per_page`). An action that is refused or rolled back is never logged, and codes and passwords never are. Nothing writes to it yet; settings, accounts and invitations will.
 - The trust guide at `/trust/` on the plain-HTTP port: steps for iPhone and iPad, Android and computers (the device's own first, the others one tap away), the root certificate's fingerprint to compare, what the device will trust, and a button to open the library over HTTPS. With the owner's own certificate it says no step is needed. It uses the bundled fonts and loads nothing from another host.
 - `JL_BIND_ADDRESS` (`--bind`) sets the IP address the server listens on, for both listeners; the default is every interface, as before. A bad value stops start-up and names the setting. In `JL_HTTP_ONLY` mode without it, the server logs a warning that the app is served over plain HTTP on every interface.
 - Foundations for the catalog, not yet on a screen or in the API: books with ordered authors, ISBN-10 and ISBN-13 entry stored as ISBN-13, copies numbered within each book, named locations (a new library has "Main shelf"), and search by title, author or ISBN. Removing a book or copy keeps its history.
