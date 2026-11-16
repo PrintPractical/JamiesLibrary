@@ -18,6 +18,11 @@ export type AdminSettings = Library & {
   loan_period_days: number;
   max_loans: number;
   max_renewals: number;
+  session_idle_minutes: number;
+  self_checkout: boolean;
+  copy_id_mode: CopyIdMode;
+  /** The local CA's root, SHA-256, as AB:CD:… Absent when the library has no local CA. */
+  ca_fingerprint?: string;
 };
 
 export const getAdminSettings = (signal?: AbortSignal) => api<AdminSettings>("/api/admin/settings", { signal });
@@ -55,3 +60,17 @@ export type Invitation = { id: number; code: string | null; role: string; status
 
 export const createInvitation = (role: string) =>
   api<Invitation>("/api/admin/invitations", { method: "POST", body: { role } });
+
+/** What the switches and the session timeout change (PUT /api/admin/settings takes any of these alone). */
+export type SettingsChange = Partial<{
+  session_idle_minutes: number;
+  self_checkout: boolean;
+  public_catalog: boolean;
+}>;
+
+export const putSettings = (body: SettingsChange) => api<AdminSettings>("/api/admin/settings", { method: "PUT", body });
+
+export type CopyIdMode = "isbn" | "own";
+
+export const putCopyIdMode = (mode: CopyIdMode) =>
+  api<{ mode: CopyIdMode }>("/api/admin/copy-id-mode", { method: "PUT", body: { mode } });

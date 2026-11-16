@@ -6,8 +6,9 @@ import { InlineError } from "../../components/Errors";
 import { Field } from "../../components/Field";
 import { Icon, Logo } from "../../components/Icon";
 import { useSubmit } from "../account/forms";
-import { Preview } from "./Preview";
 import { SetupFrame } from "./SetupFrame";
+import { Preview } from "./Preview";
+import "./setup.css";
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
 const FIELDS = ["name", "scheme", "accent"] as const;
@@ -24,14 +25,25 @@ function refusal(check: BrandingCheck, accent: string): string {
   return `${parts.join(", and ")}. It needs at least 4.5 : 1.`;
 }
 
-export function BrandStep({
+/**
+ * The name, logo and colour parts of branding with their live preview, used by
+ * the setup wizard and by the settings screen. `onDone` runs after a save;
+ * `onSkip`, where given, adds a Skip button (the wizard's).
+ */
+export function BrandingForm({
   settings,
   onSaved,
-  onNext,
+  onDone,
+  onSkip,
+  submitLabel,
+  arrow,
 }: {
   settings: AdminSettings;
   onSaved: (s: AdminSettings) => void;
-  onNext: () => void;
+  onDone: () => void;
+  onSkip?: () => void;
+  submitLabel: string;
+  arrow?: boolean;
 }) {
   const { reloadLibrary } = useSession();
   const [name, setName] = useState(settings.name);
@@ -98,13 +110,13 @@ export function BrandStep({
     await run(async () => {
       onSaved(await putBranding({ name: name.trim(), scheme, accent: accent.toUpperCase() }));
       await reloadLibrary();
-      onNext();
+      onDone();
     });
   }
 
   const accentError = !accentOk ? "Enter a colour like #8A5A12, or leave it empty." : fieldErrors.accent;
   return (
-    <SetupFrame step={2} title="Make it yours" intro="You can change all of this later in Settings.">
+    <>
       <form onSubmit={submit} noValidate>
         <div className="layout">
           <section className="card setup-card">
@@ -227,17 +239,27 @@ export function BrandStep({
         <div className="foot">
           <span />
           <div className="row">
-            <button type="button" className="btn btn-quiet" onClick={onNext}>
-              Skip
-            </button>
+            {onSkip && (
+              <button type="button" className="btn btn-quiet" onClick={onSkip}>
+                Skip
+              </button>
+            )}
             <button type="submit" className="btn btn-primary" disabled={busy || !accentOk || refused}>
-              {busy ? "Saving…" : "Continue to borrowing rules"}
-              <Icon name="right" />
+              {busy ? "Saving…" : submitLabel}
+              {arrow && <Icon name="right" />}
             </button>
           </div>
         </div>
       </form>
-    </SetupFrame>
+    </>
   );
 }
 
+/** Step 2 of the wizard. */
+export function BrandStep({ settings, onSaved, onNext }: { settings: AdminSettings; onSaved: (s: AdminSettings) => void; onNext: () => void }) {
+  return (
+    <SetupFrame step={2} title="Make it yours" intro="You can change all of this later in Settings.">
+      <BrandingForm settings={settings} onSaved={onSaved} onDone={onNext} onSkip={onNext} submitLabel="Continue to borrowing rules" arrow />
+    </SetupFrame>
+  );
+}

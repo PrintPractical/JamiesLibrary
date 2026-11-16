@@ -9,6 +9,7 @@ import { SignIn } from "../features/account/SignIn";
 import { Overdue } from "../features/patrons/Overdue";
 import { PatronPage } from "../features/patrons/PatronPage";
 import { Patrons } from "../features/patrons/Patrons";
+import { Settings } from "../features/settings/Settings";
 import { Setup } from "../features/setup/Setup";
 import { NotFound } from "../features/placeholder/NotFound";
 import { Placeholder } from "../features/placeholder/Placeholder";
@@ -130,7 +131,7 @@ export const routeTable: RouteObject[] = [
           { path: "desk/overdue", element: <Allow any={["circ.desk"]}><Overdue /></Allow> },
           { path: "catalog", element: gated(["catalog.manage"], "Catalog") },
           { path: "catalog/new", element: gated(["catalog.manage"], "Add a book") },
-          { path: "admin/settings", element: gated(["settings.manage"], "Settings") },
+          { path: "admin/settings", element: <Allow any={["settings.manage"]}><Settings /></Allow> },
           {
             path: "admin/people",
             element: gated(["users.manage", "users.permissions", "invitations.manage"], "People & invites"),
