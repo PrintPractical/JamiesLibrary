@@ -27,6 +27,9 @@
   line-height: 1.15;
   overflow: hidden;
   overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
 }
 .cover .ca {
   font-size: 8px;
@@ -52,9 +55,6 @@
 }
 .cover-card .ct {
   font-size: 10px;
-  display: -webkit-box;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
 }
 .cover-mini {
   width: 44px;
