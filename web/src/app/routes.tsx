@@ -1,4 +1,4 @@
-import type { ReactElement, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Navigate, Outlet, useLocation, useRoutes, type RouteObject } from "react-router";
 import { PatronLayout, StaffLayout, StaffMore } from "../components/Layouts";
 import type { ShellUser } from "../components/Shell";
@@ -8,6 +8,7 @@ import { Register } from "../features/account/Register";
 import { SignIn } from "../features/account/SignIn";
 import { Card } from "../features/card/Card";
 import { CheckIn } from "../features/desk/CheckIn";
+import { Desk } from "../features/desk/Desk";
 import { Checkout } from "../features/desk/Checkout";
 import { BookPage } from "../features/catalog/BookPage";
 import { Browse } from "../features/catalog/Browse";
@@ -29,11 +30,8 @@ import { UserPage } from "../features/people/UserPage";
 import { Settings } from "../features/settings/Settings";
 import { Setup } from "../features/setup/Setup";
 import { NotFound } from "../features/placeholder/NotFound";
-import { Placeholder } from "../features/placeholder/Placeholder";
 import { allowed, adminItems, isStaff, patronItems, staffFooterItems, staffItems } from "./navigation";
 import { useSession } from "./session";
-
-const page = (title: string): ReactElement => <Placeholder title={title} />;
 
 /** Every route's own check, shown as the page it guards. Display only: the server decides. */
 function Allow({ any, children }: { any: readonly string[]; children: ReactNode }) {
@@ -140,7 +138,7 @@ export const routeTable: RouteObject[] = [
       {
         element: <StaffArea />,
         children: [
-          { path: "desk", element: page("Desk") },
+          { path: "desk", element: <Desk /> },
           { path: "desk/checkout", element: <Allow any={["circ.desk"]}><Checkout /></Allow> },
           { path: "desk/checkin", element: <Allow any={["circ.desk"]}><CheckIn /></Allow> },
           { path: "desk/patrons", element: <Allow any={["patrons.lookup"]}><Patrons /></Allow> },

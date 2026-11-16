@@ -35,6 +35,7 @@ const PATHS = {
   renew: ["M20 11a8 8 0 0 0-14.7-4.3M4 13a8 8 0 0 0 14.7 4.3", "M4 4v4h4M20 20v-4h-4"],
   pin: ["M12 21s7-6.2 7-12a7 7 0 0 0-14 0c0 5.8 7 12 7 12z", "circle:12,9,2.5"],
   close: ["M6 6l12 12M18 6 6 18"],
+  plus: ["M12 5v14M5 12h14"],
 } as const;
 
 export type IconName = keyof typeof PATHS;

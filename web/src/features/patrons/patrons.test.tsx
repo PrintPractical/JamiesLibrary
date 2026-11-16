@@ -227,3 +227,25 @@ describe("CARD-1 Digital library card", () => {
     expect(screen.queryByRole("button", { name: "Re-issue card" })).toBeNull();
   });
 });
+
+describe("CIRC-3 Patron lookup from an address", () => {
+  test("arriving with ?q= searches at once and shows the matches", async () => {
+    const calls = fakeServer({
+      "GET /api/me": { body: meOf("librarian") },
+      "GET /api/patrons?q=maya": { body: { patrons: [maya] } },
+    });
+    await renderApp("/desk/patrons?q=maya");
+    expect(await screen.findByRole("link", { name: /Maya Okafor/ })).toBeInTheDocument();
+    expect(calls.filter((c) => c.path === "/api/patrons?q=maya")).toHaveLength(1);
+  });
+
+  test("arriving with ?q= that fails shows the error and stops looking", async () => {
+    fakeServer({
+      "GET /api/me": { body: meOf("librarian") },
+      "GET /api/patrons?q=boom": apiError(500, "internal", "Something went wrong. (request abc)"),
+    });
+    await renderApp("/desk/patrons?q=boom");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Something went wrong");
+    expect(screen.queryByText("Looking…")).toBeNull();
+  });
+});

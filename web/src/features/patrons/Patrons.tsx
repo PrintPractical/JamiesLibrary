@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link } from "react-router";
+import { useEffect, useState } from "react";
+import { Link, useLocation } from "react-router";
 import { findPatrons, type Patron } from "../../api/patrons";
 import { InlineError } from "../../components/Errors";
 import { Icon } from "../../components/Icon";
@@ -13,11 +13,11 @@ type Result = { q: string; patrons: Patron[] };
 export function Patrons() {
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState<unknown>(null);
-  const [busy, setBusy] = useState(false);
+  // The Desk's lookup box arrives with its search in the address.
+  const first = new URLSearchParams(useLocation().search).get("q")?.trim() ?? "";
+  const [busy, setBusy] = useState(first !== "");
 
-  async function search(q: string) {
-    setBusy(true);
-    setError(null);
+  async function run(q: string) {
     try {
       setResult({ q, patrons: (await findPatrons(q)).patrons });
     } catch (err) {
@@ -26,6 +26,19 @@ export function Patrons() {
       setBusy(false);
     }
   }
+
+  function search(q: string) {
+    setBusy(true);
+    setError(null);
+    return run(q);
+  }
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (first) void run(first);
+    // Only the search the page was opened with.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="stack patrons">
@@ -38,6 +51,7 @@ export function Patrons() {
           help="Type part of a name, or scan or type a card number."
           hint="Point at the patron's card"
           onScan={(code) => void search(code)}
+          defaultValue={first || undefined}
           autoFocus
         />
         <InlineError error={error} />
