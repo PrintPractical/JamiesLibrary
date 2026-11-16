@@ -526,7 +526,13 @@ func TestSearchOver20000BooksIsFast(t *testing.T) {
 			t.Fatal(err)
 		}
 		t.Logf("search %q: %d found in %v", q, r.Total, took)
-		if took > 200*time.Millisecond {
+		if want := map[string]int{"collected": 20000, "zzz": 0}; q == "collected" || q == "zzz" {
+			if r.Total != want[q] {
+				t.Errorf("search %q found %d, want %d", q, r.Total, want[q])
+			}
+		}
+		// The race detector slows the code several times, so wall time is only asserted without it.
+		if !raceEnabled && took > 200*time.Millisecond {
 			t.Errorf("search %q (%d found) took %v, over 200ms", q, r.Total, took)
 		}
 	}
