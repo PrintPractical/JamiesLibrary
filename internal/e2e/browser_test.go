@@ -44,6 +44,22 @@ type visitReport struct {
 		Seconds float64
 	}
 	Seconds float64
+	Evals   []any
+	Console []string // errors the page reported: uncaught, console.error, failed loads
+	Shot    string   // PNG, base64, when the step asked for one
+	Layout  *layoutReport
+}
+
+// layoutReport is what visit.mjs measured in the page (see LAYOUT there).
+type layoutReport struct {
+	VW              int // the page's width, without a scroll bar
+	IW              int // the window's
+	ScrollWidth     int
+	BodyScrollWidth int
+	SticksOut       []string
+	InnerScroll     []string
+	Covered         []string
+	Controls        int
 }
 
 type browserReport struct {
@@ -58,6 +74,13 @@ type browserStep struct {
 	Path    string           `json:"path,omitempty"`
 	Actions []map[string]any `json:"actions,omitempty"`
 	Probes  []string         `json:"probes,omitempty"`
+	Layout  bool             `json:"layout,omitempty"` // measure the page's width and reach
+	Shot    bool             `json:"shot,omitempty"`   // take a picture (kept when JL_SHOTS names a folder)
+}
+
+// browseOpts is the window the browser opens: 1280x900 by default.
+type browseOpts struct {
+	Width, Height int
 }
 
 func findChrome() string {
@@ -89,6 +112,11 @@ func findChrome() string {
 // recorded in Blocked and refused.
 func browse(t *testing.T, base, user string, steps []browserStep) browserReport {
 	t.Helper()
+	return browseAt(t, base, user, browseOpts{}, steps)
+}
+
+func browseAt(t *testing.T, base, user string, o browseOpts, steps []browserStep) browserReport {
+	t.Helper()
 	if testing.Short() {
 		t.Skip("browser tests are skipped with -short")
 	}
@@ -101,24 +129,33 @@ func browse(t *testing.T, base, user string, steps []browserStep) browserReport 
 		t.Skip("browser test needs Chromium: set JL_CHROME")
 	}
 	sc := map[string]any{"chrome": chrome, "base": base, "steps": steps}
+	if o.Width > 0 {
+		sc["width"] = o.Width
+	}
+	if o.Height > 0 {
+		sc["height"] = o.Height
+	}
 	if user != "" {
 		sc["signIn"] = map[string]string{"username": user, "password": adminPassword}
 	}
-	b, _ := json.Marshal(sc)
 	dir := t.TempDir()
+	sc["out"] = filepath.Join(dir, "report.json")
+	b, _ := json.Marshal(sc)
 	file := filepath.Join(dir, "scenario.json")
 	if err := os.WriteFile(file, b, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	var out, errb bytes.Buffer
+	var errb bytes.Buffer
 	cmd := exec.Command(node, filepath.Join("browser", "visit.mjs"), file)
-	cmd.Stdout, cmd.Stderr = &out, &errb
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("the browser driver failed: %v\n%s\n%s", err, errb.String(), out.String())
+	cmd.Stderr = &errb
+	runErr := cmd.Run()
+	out, readErr := os.ReadFile(filepath.Join(dir, "report.json"))
+	if runErr != nil && readErr != nil {
+		t.Fatalf("the browser driver failed: %v\n%s", runErr, errb.String())
 	}
 	var rep browserReport
-	if err := json.Unmarshal(out.Bytes(), &rep); err != nil {
-		t.Fatalf("the driver's report: %v\n%s", err, out.String())
+	if err := json.Unmarshal(out, &rep); err != nil {
+		t.Fatalf("the driver's report: %v\n%.2000s", err, out)
 	}
 	if len(rep.Errors) > 0 {
 		t.Fatalf("the driver reported: %v", rep.Errors)
