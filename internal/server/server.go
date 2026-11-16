@@ -25,6 +25,7 @@ import (
 	"jamieslibrary/internal/store"
 	"jamieslibrary/internal/testhooks"
 	"jamieslibrary/internal/tlsca"
+	"jamieslibrary/internal/useradmin"
 	"jamieslibrary/internal/users"
 	"jamieslibrary/internal/webui"
 )
@@ -137,6 +138,7 @@ func Run(ctx context.Context, o Options) error {
 		Clients: ratelimit.NewClients(cfg.TrustedProxies), Limiter: limiter,
 		TrustPort: trustPort, Version: o.Version, Logger: log, Static: webui.Handler(),
 		Auth: authSvc, Users: usersSvc, Settings: set, Activity: activity.New(st), Store: st, Media: images,
+		UserAdmin:       useradmin.New(st, usersSvc, authSvc),
 		PublicCatalogOn: func() bool { return set.Get().PublicCatalog },
 	})
 	if err != nil {
