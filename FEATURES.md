@@ -42,12 +42,12 @@ What Jamie's Library does today, by area. Each entry names the requirements it c
 
 ## Catalog
 
-- Books with title, authors, description, ISBN (10 or 13, checked and stored as 13) and cover; several numbered copies of each, each with a condition and a named location; search by title, author or ISBN with a location filter; removing a book or copy keeps its history (CAT-1, CAT-2, CAT-3, CAT-5, CAT-8). Browsing and search have a screen (`/browse`); adding and managing books does not yet.
+- Books with title, authors, description, ISBN (10 or 13, checked and stored as 13) and cover; several numbered copies of each, each with a condition and a named location; search by title, author or ISBN with a location filter; removing a book or copy keeps its history (CAT-1, CAT-2, CAT-3, CAT-5, CAT-8). Browsing and search have a screen (`/browse`), and librarians can add a book, or more copies of one already in the catalog, on the Add a book screen (`/catalog/new`); changing or removing a book or copy has no screen yet.
 - Browse, search and book pages: the Browse screen lists books with their availability, searches by title, author or whole ISBN and filters by location; a book's page shows the cover, average rating, each copy's location and due date, and the description (CAT-2, CAT-4, CAT-8). See [Finding books](docs/guide-browsing.md).
-- Look up a book's details and cover by ISBN from Open Library, with a clear message when it can't be reached; covers are kept on the installation (SCAN-2, CAT-T1). API only so far.
+- Look up a book's details and cover by ISBN from Open Library, with a clear message when it can't be reached; covers are kept on the installation (SCAN-2, CAT-T1). Used by the Add a book screen: scan or type an ISBN, check the details found, and add the book.
 - Ratings of 1 to 5 and reviews of up to 2,000 characters, one per person per book; librarians can remove a review, and its author can't repost it (CAT-6). Written and removed on the book's page.
 - Optional public catalog: with the setting on, anyone can search and see availability and the average rating, never who has a book or where each copy is, on the same Browse and book screens, and a visitor is asked to sign in to read reviews (ACCESS-4).
-- Copy labels as PDF (Avery 5160, Avery L7160 or a single 62 x 29 mm label, up to 5,000 labels), with contents that suit the library's way of identifying copies (CAT-7, CAT-9). API only so far.
+- Copy labels as PDF (Avery 5160, Avery L7160 or a single 62 x 29 mm label, up to 5,000 labels), with contents that suit the library's way of identifying copies (CAT-7, CAT-9). The Add a book screen offers to print the labels of the copies just added.
 
 ## First-run setup
 

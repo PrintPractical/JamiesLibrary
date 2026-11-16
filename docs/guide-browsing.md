@@ -1,6 +1,6 @@
 # Finding books: browsing, search and book pages
 
-This guide is for anyone who looks through the library's catalog: patrons, librarians, and, if the administrator has turned the public catalog on, visitors without an account. To add or change books, see the librarian's guides.
+This guide is for anyone who looks through the library's catalog: patrons, librarians, and, if the administrator has turned the public catalog on, visitors without an account. Librarians add books on the Add a book screen (`/catalog/new`); there is no guide for it yet.
 
 You need the **Browse** permission (`catalog.browse`) to browse while signed in. Patrons, librarians and administrators have it by default.
 
