@@ -88,7 +88,8 @@ func TestStaffHomeIsOneTapFromCheckOutAndCheckIn(t *testing.T) {
 	for _, user := range []string{"lib-l", "root"} {
 		for _, width := range widths {
 			click := func(label string) []map[string]any {
-				return []map[string]any{{"clickText": label}, {"waitFor": `location.pathname !== "/desk"`, "seconds": 5}}
+				// Wait for the new screen's own heading, not just the new address: the old heading stays until it draws.
+				return []map[string]any{{"clickText": label}, {"waitFor": fmt.Sprintf(`%s === %q`, heading, label), "seconds": 10}}
 			}
 			rep := browseAt(t, w.s.URL, user, browseOpts{Width: width, Height: 800}, []browserStep{
 				{Actions: []map[string]any{{"eval": navLinks}}}, // where signing in left them
