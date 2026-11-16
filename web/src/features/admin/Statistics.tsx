@@ -4,6 +4,7 @@ import { ApiError, errorMessage } from "../../api/client";
 import { InlineError, PageError } from "../../components/Errors";
 import { Icon } from "../../components/Icon";
 import { useSession } from "../../app/session";
+import { dueText } from "../patrons/loans";
 import { useLoad } from "../patrons/useLoad";
 import { dayText } from "./zone";
 import "./admin.css";
@@ -81,7 +82,7 @@ function CirculationReport() {
       {result && (
         <div role="status" className="result">
           <p className="muted small">
-            {result.from} to {result.to}, both days included
+            {dueText(result.from)} to {dueText(result.to)}, both days included
           </p>
           <dl className="stats">
             <div className="card stat">

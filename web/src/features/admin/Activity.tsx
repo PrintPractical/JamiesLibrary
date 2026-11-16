@@ -1,39 +1,13 @@
 import { useState } from "react";
-import { getActivity, type ActivityEntry } from "../../api/admin";
+import { getActivity } from "../../api/admin";
 import { PageError } from "../../components/Errors";
 import { useSession } from "../../app/session";
 import { Pager } from "../patrons/Pager";
 import { useLoad } from "../patrons/useLoad";
+import { actionText, detailText, subjectText } from "./words";
 import { timeText } from "./zone";
 import "../patrons/patrons.css";
 import "./admin.css";
-
-const ACTIONS: Record<string, string> = {
-  "settings.changed": "Changed settings",
-  "user.role_changed": "Changed a role",
-  "user.permission_changed": "Changed a permission",
-  "user.deactivated": "Deactivated an account",
-  "user.reactivated": "Reactivated an account",
-  "user.password_reset": "Reset a password",
-  "invitation.created": "Created an invitation",
-  "invitation.revoked": "Revoked an invitation",
-  "card.reissued": "Reissued a card",
-  "review.removed": "Removed a review",
-};
-
-/** "user:7" as "user 7". */
-const targetText = (target: string) => target.replace(":", " ");
-
-const str = (v: unknown) => (typeof v === "string" || typeof v === "number" ? String(v) : "");
-
-/** A short sentence about what changed, for the actions whose details say it; "" otherwise. */
-function detailText(e: ActivityEntry): string {
-  const d = e.details ?? {};
-  if (e.action === "user.role_changed" && d.from && d.to) return `${str(d.from)} to ${str(d.to)}`;
-  if (e.action === "user.permission_changed" && d.permission) return `${str(d.permission)} ${d.on ? "granted" : "removed"}`;
-  if (e.action === "invitation.created" && d.role) return `for ${str(d.role)}`;
-  return "";
-}
 
 /** The administrative activity log, newest first (ADMIN-4). */
 export function Activity() {
@@ -56,11 +30,9 @@ export function Activity() {
             {state.data.entries.map((e) => (
               <li key={e.id} className="entry">
                 <div className="entry-main">
-                  <b>{ACTIONS[e.action] ?? e.action}</b>
+                  <b>{actionText(e.action)}</b>
                   <span className="small">
-                    {e.actor.display_name}
-                    {e.target && <span className="muted"> · {targetText(e.target)}</span>}
-                    {detailText(e) && <span className="muted"> · {detailText(e)}</span>}
+                    {[`by ${e.actor.display_name}`, subjectText(e), detailText(e)].filter(Boolean).join(" · ")}
                   </span>
                 </div>
                 <time className="small muted" dateTime={e.at}>

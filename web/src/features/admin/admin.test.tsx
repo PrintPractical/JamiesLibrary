@@ -2,6 +2,7 @@ import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ActivityEntry } from "../../api/admin";
 import { apiError, fakeServer, meOf, renderApp } from "../../testing";
+import { dueText } from "../patrons/loans";
 import { dayText, timeText } from "./zone";
 
 afterEach(() => {
@@ -37,7 +38,7 @@ describe("ADMIN-3 Statistics and circulation reports", () => {
     await userEvent.type(screen.getByLabelText("To"), "2026-01-31");
     await userEvent.click(screen.getByRole("button", { name: "Show report" }));
     const result = await screen.findByRole("status");
-    expect(result).toHaveTextContent("2026-01-01 to 2026-01-31");
+    expect(result).toHaveTextContent(`${dueText("2026-01-01")} to ${dueText("2026-01-31")}`);
     expect(within(result).getByText("Checkouts").parentElement).toHaveTextContent("412");
     expect(within(result).getByText("Returns").parentElement).toHaveTextContent("398");
     expect(calls.filter((c) => c.path.startsWith("/api/admin/reports/circulation"))).toHaveLength(1);
@@ -81,6 +82,7 @@ const entry = (id: number, over: Partial<ActivityEntry> = {}): ActivityEntry => 
   actor: { id: 1, display_name: "Ada Admin" },
   action: "user.role_changed",
   target: "user:7",
+  target_name: "Sam Lee",
   details: { from: "patron", to: "librarian" },
   ...over,
 });
@@ -89,16 +91,45 @@ describe("ADMIN-4 Administrative activity log", () => {
   test("Role change logged: the entry shows who did it, what, to whom and when in the library's zone", async () => {
     fakeServer({
       "GET /api/me": { body: admin() },
-      "GET /api/admin/activity?page=1": { body: { entries: [entry(2), entry(1, { action: "settings.changed", target: "settings", details: {} })], page: 1, per_page: 50, total: 2 } },
+      "GET /api/admin/activity?page=1": { body: { entries: [entry(2), entry(1, { action: "settings.changed", target: "settings", details: { changes: { loan_period_days: { from: 14, to: 21 }, max_loans: { from: 5, to: 7 }, self_checkout: { from: false, to: true } } } })], page: 1, per_page: 50, total: 2 } },
     });
     await renderApp("/admin/activity");
     const rows = await screen.findAllByRole("listitem");
     const first = rows.find((r) => r.textContent?.includes("Changed a role"))!;
-    expect(first).toHaveTextContent("Ada Admin");
-    expect(first).toHaveTextContent("user 7");
-    expect(first).toHaveTextContent("patron to librarian");
+    expect(first).toHaveTextContent("by Ada Admin · Sam Lee · Patron → Librarian");
+    expect(first).not.toHaveTextContent("user");
     expect(within(first).getByText(/9:30|09:30/)).toBeInTheDocument(); // 14:30Z is 09:30 in New York
     expect(rows.findIndex((r) => r === first)).toBeLessThan(rows.findIndex((r) => r.textContent?.includes("Changed settings")));
+  });
+
+  test("settings, permissions and unknown actions are written in words, never codes", async () => {
+    fakeServer({
+      "GET /api/me": { body: admin() },
+      "GET /api/admin/activity?page=1": {
+        body: {
+          entries: [
+            entry(4, { action: "setup.completed", target: "user:1", target_name: "Ada Admin", details: {} }),
+            entry(3, { action: "user.permission_changed", target_name: "Sam Lee", details: { permission: "reports.view", on: true, role: "patron" } }),
+            entry(2, { action: "settings.changed", target: "settings", target_name: "", details: { changes: { loan_period_days: { from: 14, to: 21 }, max_loans: { from: 5, to: 7 } } } }),
+            entry(1, { action: "future.thing", target: "thing:9", target_name: "", details: {} }),
+          ],
+          page: 1,
+          per_page: 50,
+          total: 4,
+        },
+      },
+    });
+    await renderApp("/admin/activity");
+    const rows = await screen.findAllByRole("listitem");
+    const text = (s: string) => rows.find((r) => r.textContent?.includes(s))!;
+    expect(text("Set up the library")).toHaveTextContent("by Ada Admin");
+    expect(text("Set up the library")).not.toHaveTextContent("Ada Admin · Ada Admin");
+    expect(text("Changed a permission")).toHaveTextContent("Sam Lee · See statistics: granted");
+    expect(text("Changed settings")).toHaveTextContent("Loan period 14 → 21 days, Most loans 5 → 7");
+    expect(text("Changed settings")).not.toHaveTextContent("· settings");
+    expect(text("Made a change")).toHaveTextContent("by Ada Admin");
+    const all = document.body.textContent ?? "";
+    for (const code of ["setup.completed", "reports.view", "future.thing", "thing:9", "user:"]) expect(all).not.toContain(code);
   });
 
   test("the server console is named and the log pages", async () => {
@@ -110,7 +141,7 @@ describe("ADMIN-4 Administrative activity log", () => {
       "GET /api/admin/activity?page=2": { body: { entries: [entry(8, { action: "invitation.created", target: "invitation:3", details: { role: "librarian" } })], page: 2, per_page: 1, total: 2 } },
     });
     await renderApp("/admin/activity");
-    expect(await screen.findByText("Server console")).toBeInTheDocument();
+    expect(await screen.findByText(/by Server console/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Next" }));
     expect(await screen.findByText("Created an invitation")).toBeInTheDocument();
     expect(calls.map((c) => c.path)).toContain("/api/admin/activity?page=2");

@@ -11,6 +11,8 @@ export type ActivityEntry = {
   actor: { id: number | null; display_name: string };
   action: string;
   target: string;
+  /** The person a `user:N` target is, by display name; empty for any other target. */
+  target_name: string;
   details: Record<string, unknown> | null;
 };
 
