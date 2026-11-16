@@ -21,6 +21,10 @@ What Jamie's Library does today, by area. Each entry names the requirements it c
 - Check in by copy barcode or ISBN; with several copies out, choose the loan or scan the patron's card; returned loans stay in history (CIRC-2).
 - A copy or book on loan can't be removed from the catalog.
 
+## Reports
+
+- Library statistics (books, copies, active patrons, current and overdue loans) and a count of checkouts and returns over a chosen date range of up to 5 years, in the library's time zone, with no patron names (ADMIN-3). API only so far.
+
 ## Web app
 
 - Patron and staff layouts that work at phone width and on a desktop, with placeholder pages until each feature is built (UX-1, UX-2).

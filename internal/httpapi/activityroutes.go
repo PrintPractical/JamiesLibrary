@@ -25,12 +25,14 @@ type activityActor struct {
 }
 
 type activityEntry struct {
-	ID      int64           `json:"id"`
-	At      time.Time       `json:"at"`
-	Actor   activityActor   `json:"actor"`
-	Action  string          `json:"action"`
-	Target  string          `json:"target"`
-	Details json.RawMessage `json:"details"`
+	ID     int64         `json:"id"`
+	At     time.Time     `json:"at"`
+	Actor  activityActor `json:"actor"`
+	Action string        `json:"action"`
+	Target string        `json:"target"`
+	// TargetName is the display name when the target is a person ("" otherwise).
+	TargetName string          `json:"target_name"`
+	Details    json.RawMessage `json:"details"`
 }
 
 type activityPage struct {
@@ -76,7 +78,7 @@ func toActivityPage(p activity.Page) activityPage {
 			id := e.ActorID
 			actor.ID = &id
 		}
-		out.Entries = append(out.Entries, activityEntry{ID: e.ID, At: e.At, Actor: actor, Action: e.Action, Target: e.Target, Details: e.Details})
+		out.Entries = append(out.Entries, activityEntry{ID: e.ID, At: e.At, Actor: actor, Action: e.Action, Target: e.Target, TargetName: e.TargetName, Details: e.Details})
 	}
 	return out
 }

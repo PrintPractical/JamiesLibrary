@@ -36,7 +36,7 @@ describe("UX-2 Separate patron and staff experiences", () => {
     fakeServer({ "GET /api/me": { body: meOf("administrator") } });
     await renderApp("/desk");
     const side = navs()[0]!;
-    expect(links(side)).toEqual(expect.arrayContaining(["Settings", "People & invites", "Statistics"]));
+    expect(links(side)).toEqual(expect.arrayContaining(["Settings", "People & invites", "Statistics", "Activity log"]));
   });
 
   test("Patron navigation: patrons get the patron tabs and no staff items", async () => {
