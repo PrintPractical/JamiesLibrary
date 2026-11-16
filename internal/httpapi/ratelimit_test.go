@@ -235,3 +235,22 @@ func TestOwnPasswordChangeFailuresAreResetOnlyByTheirOwnSignIn(t *testing.T) {
 		t.Fatalf("the block did not start: %d", rec.Code)
 	}
 }
+
+// Security design §12: a failed sign-in is logged with the client's address, not the proxy's.
+func TestFailedSignInLogsTheClientBehindAProxy(t *testing.T) {
+	s := newSite(t, func(o *Options) {
+		trusted, _ := ratelimit.ParseTrusted("10.0.0.0/8")
+		o.Clients = ratelimit.NewClients(trusted)
+	})
+	s.addUser("ann", goodPassword, perm.Patron)
+	s.remote = "10.1.2.3:5555"
+	s.logs.Reset()
+	s.req("POST", "/api/auth/signin", "", signInBody("ann", "wrong password"), "X-Forwarded-For", "1.1.1.1, 203.0.113.50")
+	out := s.logs.String()
+	if !strings.Contains(out, "sign-in failed") || !strings.Contains(out, "remote=203.0.113.50") {
+		t.Fatalf("log does not carry the client address: %s", out)
+	}
+	if strings.Contains(out, `msg="sign-in failed" remote=10.1.2.3`) {
+		t.Fatalf("logged the proxy: %s", out)
+	}
+}

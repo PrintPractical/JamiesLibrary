@@ -221,3 +221,27 @@ func TestResetOfAMemberAndMakeAdmin(t *testing.T) {
 		t.Fatalf("activity: %d %s", st2, body)
 	}
 }
+
+// --make-admin on a running server whose setup is still open closes setup at once.
+func TestMakeAdminClosesOpenSetupOnARunningServer(t *testing.T) {
+	s := testutil.StartServer(t, testutil.Options{})
+	ctx := context.Background()
+	st, err := store.Open(ctx, s.DataDir, store.Options{NoLock: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := users.New(st).Create(ctx, users.NewUser{Username: "ann", DisplayName: "Ann", PasswordHash: "x", Role: perm.Patron}); err != nil {
+		t.Fatal(err)
+	}
+	st.Close()
+	c := s.Client()
+	if st, _ := do(t, c, "GET", s.URL+"/api/setup/status", nil); st != 200 {
+		t.Fatalf("status before: %d", st)
+	}
+	if code, _, errOut := admin("reset-password", "--data", s.DataDir, "--make-admin", "ann"); code != 0 {
+		t.Fatalf("exit %d: %s", code, errOut)
+	}
+	if st, _ := do(t, c, "GET", s.URL+"/api/setup/status", nil); st != 404 {
+		t.Fatalf("status after: %d", st)
+	}
+}

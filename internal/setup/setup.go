@@ -87,6 +87,23 @@ func (s *Service) Open() bool {
 	return s.code != ""
 }
 
+// IsOpen is Open that also asks the database: when an administrator has appeared
+// since start-up (the recovery command's --make-admin on a running server),
+// setup closes and its code is forgotten.
+func (s *Service) IsOpen(ctx context.Context) (bool, error) {
+	if !s.Open() {
+		return false, nil
+	}
+	has, err := HasAdministrator(ctx, s.st.DB())
+	if err != nil {
+		return false, err
+	}
+	if has {
+		s.clear()
+	}
+	return !has, nil
+}
+
 // CodeMatches compares a typed code with the setup code in constant time. It
 // is false when setup is closed.
 func (s *Service) CodeMatches(typed string) bool {

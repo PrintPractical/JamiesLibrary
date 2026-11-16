@@ -60,6 +60,6 @@ func runAdmin(args []string, getenv func(string) string, stdout, stderr io.Write
 		fmt.Fprintf(stdout, "%s is now an administrator.\n", res.Username)
 	}
 	fmt.Fprintf(stdout, "Temporary password for %s: %s\n", res.Username, res.TemporaryPassword)
-	fmt.Fprintln(stdout, "It works once: they must choose a new password when they sign in. All their sessions have ended.")
+	fmt.Fprintln(stdout, "They must choose a new password at their first sign-in. All their sessions have ended.")
 	return 0
 }

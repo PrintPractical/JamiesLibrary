@@ -26,16 +26,14 @@ type setupRoutes struct {
 }
 
 func (s *setupRoutes) status(w http.ResponseWriter, r *http.Request) {
-	if !s.setup.Open() {
-		WriteError(w, r, setup.ErrClosed())
+	if !s.open(w, r) {
 		return
 	}
 	WriteJSON(w, http.StatusOK, map[string]bool{"open": true})
 }
 
 func (s *setupRoutes) createAdmin(w http.ResponseWriter, r *http.Request) {
-	if !s.setup.Open() {
-		WriteError(w, r, setup.ErrClosed())
+	if !s.open(w, r) {
 		return
 	}
 	var in struct {
@@ -83,4 +81,16 @@ func (s *setupRoutes) createAdmin(w http.ResponseWriter, r *http.Request) {
 	}
 	auth.SetCookie(w, token)
 	WriteJSON(w, http.StatusOK, body)
+}
+
+// open answers 404 itself, and returns false, when setup is closed.
+func (s *setupRoutes) open(w http.ResponseWriter, r *http.Request) bool {
+	open, err := s.setup.IsOpen(r.Context())
+	if err == nil && !open {
+		err = setup.ErrClosed()
+	}
+	if err != nil {
+		WriteError(w, r, err)
+	}
+	return err == nil
 }
