@@ -7,6 +7,8 @@ import (
 	"bytes"
 	"context"
 	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
@@ -14,6 +16,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -21,6 +24,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -436,9 +440,53 @@ func TestKeysAre0600OnlyInTheDataDirectoryAndNeverLogged(t *testing.T) {
 	}
 }
 
+var quotedToken = regexp.MustCompile(`"(?:[^"\\]|\\.)*"`)
+
+// A raw DER key file, as the data-directory scan meets one, is read as a key,
+// and a key logged the ordinary slog way is recovered by the log scan.
+func TestKeyScanReadsRawDER(t *testing.T) {
+	k, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p8, _ := x509.MarshalPKCS8PrivateKey(k)
+	sec1, _ := x509.MarshalECPrivateKey(k)
+	for name, der := range map[string][]byte{"pkcs8": p8, "sec1": sec1} {
+		got, err := parseKey(&pem.Block{Bytes: der})
+		if err != nil || !got.Equal(k) {
+			t.Errorf("%s: raw DER not read as the key: %v", name, err)
+		}
+	}
+	if _, err := parseKey(&pem.Block{Bytes: []byte("not a key")}); err == nil {
+		t.Error("garbage read as a key")
+	}
+	var buf bytes.Buffer
+	slog.New(slog.NewTextHandler(&buf, nil)).Info("loaded", "k", p8)
+	logs := buf.String()
+	if strings.Contains(logs, string(p8)) {
+		t.Fatalf("slog did not escape the bytes: the test proves nothing")
+	}
+	found := false
+	for _, q := range quotedToken.FindAllString(logs, -1) {
+		if u, err := strconv.Unquote(q); err == nil && strings.Contains(u, string(p8)) {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("the quoted-token scan does not recover a []byte logged through slog")
+	}
+}
+
 // assertKeyNotIn fails if the text carries the key in any common spelling.
 func assertKeyNotIn(t *testing.T, logs string, k *ecdsa.PrivateKey, der []byte) {
 	t.Helper()
+	// slog's text handler writes a []byte as a Go-quoted string: search what
+	// each quoted token says as well as the text itself.
+	for _, q := range quotedToken.FindAllString(logs, -1) {
+		if u, err := strconv.Unquote(q); err == nil {
+			logs += "\n" + u
+		}
+	}
 	scalar := k.D.FillBytes(make([]byte, (k.Curve.Params().BitSize+7)/8))
 	for _, raw := range [][]byte{scalar, der} {
 		for name, form := range map[string]string{
