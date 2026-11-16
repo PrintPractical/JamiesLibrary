@@ -22,6 +22,13 @@ const deskLinks = `[...document.querySelectorAll('a[href="/desk"]')]
   .filter((a) => { const r = a.getBoundingClientRect(), s = getComputedStyle(a); return r.width > 0 && r.height > 0 && s.visibility !== "hidden"; })
   .map((a) => a.textContent.trim())`
 
+// clickVisibleDeskLink taps the Desk link a user can see: a hidden one (the other width's) must not stand in for it.
+const clickVisibleDeskLink = `(() => {
+  const a = [...document.querySelectorAll('a[href="/desk"]')].find((a) => { const r = a.getBoundingClientRect(); return r.width > 0 && r.height > 0; });
+  if (!a) throw new Error("no visible Desk link");
+  a.click();
+})()`
+
 // everyHref lists every link on the page, shown or not.
 const everyHref = `[...document.querySelectorAll("a[href]")].map((a) => a.getAttribute("href"))`
 
@@ -137,7 +144,7 @@ func TestStaffHaveOneLinkBackToTheDeskOnThePatronSide(t *testing.T) {
 				steps = append(steps, browserStep{Path: p, Actions: []map[string]any{{"eval": deskLinks}, {"eval": navLinks}}})
 			}
 			steps = append(steps, browserStep{Path: "/card", Actions: []map[string]any{
-				{"clickText": "Desk"}, {"waitFor": fmt.Sprintf(`%s === "Desk"`, heading), "seconds": 10}, {"eval": heading},
+				{"eval": clickVisibleDeskLink}, {"waitFor": fmt.Sprintf(`%s === "Desk"`, heading), "seconds": 10}, {"eval": heading},
 			}})
 			rep := browseAt(t, w.s.URL, user, browseOpts{Width: width, Height: 800}, steps)
 			for _, v := range rep.Visits[:5] {
