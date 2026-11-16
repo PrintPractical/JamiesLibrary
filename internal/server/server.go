@@ -26,6 +26,8 @@ import (
 	"jamieslibrary/internal/metadata"
 	"jamieslibrary/internal/ratelimit"
 	"jamieslibrary/internal/settings"
+	"jamieslibrary/internal/setup"
+	"jamieslibrary/internal/setupcode"
 	"jamieslibrary/internal/store"
 	"jamieslibrary/internal/testhooks"
 	"jamieslibrary/internal/tlsca"
@@ -148,10 +150,14 @@ func Run(ctx context.Context, o Options) error {
 	}
 	limiter := ratelimit.New()
 	go limiter.Run(ctx)
+	setupSvc := setup.New(st, usersSvc, authSvc)
+	if err := announceSetup(ctx, o.Stdout, setupSvc, cfg, trustPort); err != nil {
+		return err
+	}
 	h, err := httpapi.NewHandler(httpapi.Options{
 		Clients: ratelimit.NewClients(cfg.TrustedProxies), Limiter: limiter,
 		TrustPort: trustPort, Version: o.Version, Logger: log, Static: webui.Handler(),
-		Auth: authSvc, Users: usersSvc, Settings: set, Activity: activity.New(st), Store: st, Media: images,
+		Setup: setupSvc, Auth: authSvc, Users: usersSvc, Settings: set, Activity: activity.New(st), Store: st, Media: images,
 		Catalog: catalogSvc, Metadata: lookup,
 		Circ:            circ.New(st, circ.Options{Settings: set, Catalog: catalogSvc, Users: usersSvc}),
 		UserAdmin:       useradmin.New(st, usersSvc, authSvc),
@@ -194,6 +200,28 @@ func Run(ctx context.Context, o Options) error {
 		cancel()
 	}
 	return first
+}
+
+// announceSetup opens first-run setup when no administrator exists and prints
+// its one-time code, with the trust guide's address when there is one. The
+// code goes to standard output only: it is never logged, stored or served.
+func announceSetup(ctx context.Context, out io.Writer, s *setup.Service, cfg config.Config, trustPort int) error {
+	code, err := s.Start(ctx)
+	if err != nil || code == "" {
+		return err
+	}
+	fmt.Fprintln(out, "No administrator exists yet. To create the first one, open the app in a browser and enter this one-time code.")
+	if trustPort != 0 {
+		host := "localhost"
+		switch {
+		case len(cfg.Hostnames) > 0:
+			host = cfg.Hostnames[0]
+		case len(cfg.Addresses) > 0:
+			host = cfg.Addresses[0].String()
+		}
+		fmt.Fprintf(out, "On a phone or another computer, first follow the trust guide: http://%s/trust/\n", net.JoinHostPort(host, strconv.Itoa(trustPort)))
+	}
+	return setupcode.Print(out, code)
 }
 
 // tlsSetup chooses how the app is served: with no TLS configuration (plain

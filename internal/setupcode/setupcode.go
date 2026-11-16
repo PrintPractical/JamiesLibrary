@@ -3,10 +3,50 @@
 package setupcode
 
 import (
+	"crypto/rand"
 	"fmt"
 	"io"
 	"regexp"
+	"strings"
 )
+
+// alphabet is Crockford's base32: 32 symbols, so a random byte masked to five
+// bits picks one without bias.
+const alphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+
+// New draws a code from crypto/rand: 16 symbols (80 bits) as XXXX-XXXX-XXXX-XXXX.
+func New() (string, error) {
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", fmt.Errorf("drawing a setup code: %w", err)
+	}
+	var sb strings.Builder
+	for i, v := range b {
+		if i > 0 && i%4 == 0 {
+			sb.WriteByte('-')
+		}
+		sb.WriteByte(alphabet[v&31])
+	}
+	return sb.String(), nil
+}
+
+// Normalize is how a typed code is compared: upper case, without dashes and
+// spaces, with Crockford's O read as 0 and I or L as 1.
+func Normalize(typed string) string {
+	var sb strings.Builder
+	for _, r := range strings.ToUpper(typed) {
+		switch r {
+		case '-', ' ':
+			continue
+		case 'O':
+			r = '0'
+		case 'I', 'L':
+			r = '1'
+		}
+		sb.WriteRune(r)
+	}
+	return sb.String()
+}
 
 // Prefix starts the line; the code follows it.
 const Prefix = "SETUP CODE: "

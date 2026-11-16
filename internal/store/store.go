@@ -34,6 +34,11 @@ type Options struct {
 	Migrations fs.FS
 	// Now replaces the clock, which is clock.Now by default (tests).
 	Now func() time.Time
+	// NoLock opens the directory without taking its lock file, for a command
+	// that works beside a running server through SQLite's own locking.
+	NoLock bool
+	// MustExist refuses a directory that holds no database, rather than making one.
+	MustExist bool
 }
 
 // Tx is the transaction a WithTx function works in.
@@ -56,12 +61,19 @@ func Open(ctx context.Context, dir string, opts Options) (*Store, error) {
 		return nil, fmt.Errorf("cannot use the data directory %q: %w", dir, err)
 	}
 	dir = abs
+	if opts.MustExist {
+		if _, err := os.Stat(filepath.Join(dir, "library.db")); err != nil {
+			return nil, fmt.Errorf("there is no library in the data directory %q (no library.db): check --data or JL_DATA_DIR", dir)
+		}
+	}
 	if err := prepareDir(dir); err != nil {
 		return nil, err
 	}
-	lock, err := lockDir(dir)
-	if err != nil {
-		return nil, err
+	var lock *os.File
+	if !opts.NoLock {
+		if lock, err = lockDir(dir); err != nil {
+			return nil, err
+		}
 	}
 	s := &Store{dir: dir, lock: lock, now: opts.Now}
 	if s.now == nil {
