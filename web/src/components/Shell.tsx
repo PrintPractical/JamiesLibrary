@@ -26,6 +26,8 @@ export type ShellProps = {
   tabCount?: number;
   /** A link shown in the phone's top bar (the staff layout's way back to the patron side). */
   mode?: NavItem;
+  /** One link to the other side, in the side bar's foot and the phone's top bar. Unlike footerItems it never adds a More tab. */
+  crossLink?: NavItem;
   user?: ShellUser;
 };
 
@@ -62,6 +64,7 @@ export function Shell({
   footerItems = [],
   tabCount = items.length,
   mode,
+  crossLink,
   user,
 }: ShellProps) {
   const tabs = items.slice(0, tabCount);
@@ -92,6 +95,7 @@ export function Shell({
         {footerItems.map((item) => (
           <SideLink key={item.to} item={item} />
         ))}
+        {crossLink && <SideLink item={crossLink} />}
         {user && <Who user={user} />}
       </nav>
       <div className="main">
@@ -99,10 +103,10 @@ export function Shell({
           <Logo url={logoUrl} />
           <span className="name">{libraryName}</span>
           <span className="sp" />
-          {mode && (
-            <NavLink className="mode" to={mode.to}>
-              <Icon name={mode.icon} />
-              {mode.label}
+          {(mode ?? crossLink) && (
+            <NavLink className="mode" to={(mode ?? crossLink)!.to}>
+              <Icon name={(mode ?? crossLink)!.icon} />
+              {(mode ?? crossLink)!.label}
             </NavLink>
           )}
         </header>

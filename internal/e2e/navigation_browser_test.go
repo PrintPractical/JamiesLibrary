@@ -17,6 +17,18 @@ const navLinks = `[...document.querySelectorAll('nav[aria-label="Main"] a')]
   .filter((a) => { const r = a.getBoundingClientRect(), s = getComputedStyle(a); return r.width > 0 && r.height > 0 && s.visibility !== "hidden"; })
   .map((a) => a.textContent.trim() + ">" + a.getAttribute("href"))`
 
+// deskLinks lists the visible links to the staff Desk anywhere on the page (the side bar's foot or the phone's top bar).
+const deskLinks = `[...document.querySelectorAll('a[href="/desk"]')]
+  .filter((a) => { const r = a.getBoundingClientRect(), s = getComputedStyle(a); return r.width > 0 && r.height > 0 && s.visibility !== "hidden"; })
+  .map((a) => a.textContent.trim())`
+
+// clickVisibleDeskLink taps the Desk link a user can see: a hidden one (the other width's) must not stand in for it.
+const clickVisibleDeskLink = `(() => {
+  const a = [...document.querySelectorAll('a[href="/desk"]')].find((a) => { const r = a.getBoundingClientRect(); return r.width > 0 && r.height > 0; });
+  if (!a) throw new Error("no visible Desk link");
+  a.click();
+})()`
+
 // everyHref lists every link on the page, shown or not.
 const everyHref = `[...document.querySelectorAll("a[href]")].map((a) => a.getAttribute("href"))`
 
@@ -117,6 +129,51 @@ func TestStaffHomeIsOneTapFromCheckOutAndCheckIn(t *testing.T) {
 				// On a phone the admin items are under More; on a desktop only an administrator has them.
 				t.Errorf("%s: navigation %v shows the admin group wrongly", where, nav)
 			}
+		}
+	}
+}
+
+func TestStaffHaveOneLinkBackToTheDeskOnThePatronSide(t *testing.T) {
+	w := newWorld(t)
+	w.account("librarian", "lib-l")
+	patronNav := []string{"Home>/", "Browse>/browse", "My card>/card", "My books>/loans", "Account>/account"}
+	for _, user := range []string{"lib-l", "root"} {
+		for _, width := range widths {
+			var steps []browserStep
+			for _, p := range []string{"/", "/browse", "/card", "/loans", "/account"} {
+				steps = append(steps, browserStep{Path: p, Actions: []map[string]any{{"eval": deskLinks}, {"eval": navLinks}}})
+			}
+			steps = append(steps, browserStep{Path: "/card", Actions: []map[string]any{
+				{"eval": clickVisibleDeskLink}, {"waitFor": fmt.Sprintf(`%s === "Desk"`, heading), "seconds": 10}, {"eval": heading},
+			}})
+			rep := browseAt(t, w.s.URL, user, browseOpts{Width: width, Height: 800}, steps)
+			for _, v := range rep.Visits[:5] {
+				where := fmt.Sprintf("%s at %d px, %s", user, width, v.Path)
+				if got := strs(v.Evals[0]); !reflect.DeepEqual(got, []string{"Desk"}) {
+					t.Errorf("%s: visible links to the Desk are %v, want exactly one", where, got)
+				}
+				// The link is the only staff item: the tab bar and side bar's patron items are unchanged.
+				var got []string
+				for _, l := range strs(v.Evals[1]) {
+					if l != "Desk>/desk" {
+						got = append(got, l)
+					}
+				}
+				if !reflect.DeepEqual(got, patronNav) {
+					t.Errorf("%s: navigation is %v, want %v and the Desk", where, got, patronNav)
+				}
+			}
+			last := rep.Visits[5]
+			if last.URL != "/desk" {
+				t.Errorf("%s at %d px: one tap on Desk led to %s, want /desk", user, width, last.URL)
+			}
+		}
+	}
+	// A patron is shown no Desk link at either width.
+	for _, width := range widths {
+		rep := browseAt(t, w.s.URL, "alice-a", browseOpts{Width: width, Height: 800}, []browserStep{{Path: "/", Actions: []map[string]any{{"eval": deskLinks}}}})
+		if got := strs(rep.Visits[0].Evals[0]); len(got) != 0 {
+			t.Errorf("patron at %d px sees Desk links %v", width, got)
 		}
 	}
 }
