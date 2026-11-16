@@ -220,7 +220,7 @@ func TestGuideOpensTheIPhoneStepsForAMacUserAgent(t *testing.T) {
 func TestGuideDoesNotMakeItsOwnFingerprintTheCheck(t *testing.T) {
 	h, _ := plainHandler(t)
 	page := guideAs(h, uaIPhone)
-	for _, want := range []string{"for reference only", "could have been changed", "Capitals, spaces and colons don't matter", "server console"} {
+	for _, want := range []string{"for reference only", "could have been changed", "Capitals, spaces and colons don't matter", "server console", "another device that already trusts the library", "Never sign in on the device you are setting up"} {
 		if !strings.Contains(page, want) {
 			t.Errorf("missing %q", want)
 		}
@@ -251,8 +251,14 @@ func TestEachSystemsStepsNameWhereTheDeviceShowsTheFingerprint(t *testing.T) {
 				t.Errorf("%s steps lack %q", tc.key, want)
 			}
 		}
-		if !strings.Contains(text, "server console or Settings page") && !strings.Contains(text, "console or Settings page") {
+		if !strings.Contains(text, "console, or on the Settings page") {
 			t.Errorf("%s steps don't say what to compare with", tc.key)
+		}
+		// The Settings page is a trusted copy only on a device that already trusts the library (T13).
+		for _, step := range sec.Steps {
+			if strings.Contains(step, "Settings page") && (!strings.Contains(step, "another device that already trusts") || !strings.Contains(step, "never sign in on the device you are setting up")) {
+				t.Errorf("%s step names the Settings page without saying to use another trusting device: %q", tc.key, step)
+			}
 		}
 	}
 }
