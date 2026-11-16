@@ -3,6 +3,7 @@ package activity
 import (
 	"context"
 	"errors"
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -128,7 +129,7 @@ func TestSameSecondKeepsInsertionOrder(t *testing.T) {
 
 func TestListRefusesBadPaging(t *testing.T) {
 	f := newFixture(t)
-	for _, c := range []struct{ page, size int }{{0, 10}, {-1, 10}, {1, 101}, {1, -5}} {
+	for _, c := range []struct{ page, size int }{{0, 10}, {-1, 10}, {1, 101}, {1, -5}, {MaxPage + 1, 10}, {math.MaxInt, 10}} {
 		_, err := f.svc.List(ctx, c.page, c.size)
 		if e, ok := apperr.As(err); !ok || e.Code != apperr.Invalid {
 			t.Errorf("page %d size %d: %v", c.page, c.size, err)
@@ -149,6 +150,8 @@ func TestRecordRefusesWhatItMustNotStore(t *testing.T) {
 	}{
 		"password":    {ByUser(1), UserPasswordReset, "user:1", map[string]any{"new_password": "x"}},
 		"code":        {ByUser(1), InvitationCreated, "invitation:1", map[string]any{"Code": "ABCD"}},
+		"nested map":  {ByUser(1), SettingsChanged, "settings", map[string]any{"changes": map[string]any{"smtp_password": "hunter2"}}},
+		"in a list":   {ByUser(1), SettingsChanged, "settings", map[string]any{"changes": []any{map[string]any{"token": "t"}}}},
 		"no actor":    {Actor{}, SettingsChanged, "settings", nil},
 		"no action":   {ByUser(1), "", "settings", nil},
 		"long target": {ByUser(1), SettingsChanged, strings.Repeat("x", MaxTargetLength+1), nil},

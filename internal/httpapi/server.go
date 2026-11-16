@@ -11,6 +11,7 @@ import (
 	"jamieslibrary/internal/apperr"
 	"jamieslibrary/internal/auth"
 	"jamieslibrary/internal/settings"
+	"jamieslibrary/internal/store"
 	"jamieslibrary/internal/users"
 )
 
@@ -28,6 +29,9 @@ type Options struct {
 	Auth     *auth.Service
 	Users    *users.Service
 	Settings *settings.Service
+	// Store lets a route compose services and the activity log in one
+	// transaction; the card routes need it as well as Users.
+	Store *store.Store
 	// Activity is the administrative activity log; when set its route is registered.
 	Activity *activity.Service
 	// Authenticate, when set, wraps the routes and puts the caller in the
@@ -88,6 +92,9 @@ func registerAPI(rt *Router, o Options) {
 	}
 	if o.Activity != nil {
 		registerActivityRoutes(rt, o)
+	}
+	if o.Users != nil && o.Store != nil {
+		registerCardRoutes(rt, o)
 	}
 }
 
