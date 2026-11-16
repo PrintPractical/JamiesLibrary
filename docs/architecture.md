@@ -22,6 +22,7 @@ internal/apperr/          the typed error services return, and its HTTP status
 internal/httpapi/         the router, request logging, JSON and error helpers, the server and its timeouts
 internal/webui/           go:embed of the built web app (dist/)
 internal/catalog/         books, authors, copies, locations, scannable codes, search, copy-ID mode (see below)
+internal/circ/            loans: resolving scanned codes, check-out, check-in (see below)
 internal/settings/        the library's settings, colour schemes, the contrast check (see below)
 internal/barcode/         SVG codes and PDF label sheets (see below)
 web/                      the web app: React, TypeScript, Vite
@@ -89,7 +90,7 @@ None of the catalog, the settings or the barcode package is wired to an API rout
 
 **Removal is soft.** Removing a book or copy sets `removed_at`; the row stays so loans and reports keep their history. A removed book or copy no longer appears in lookups, search or scanning. Removing a book removes its copies, and both are refused while a copy is on loan. A copy's number is never reused, so the next copy of a book is numbered after the highest number it has ever had.
 
-**Loans.** Loans belong to circulation, which is not built yet. The catalog asks a small `Loans` interface (`LoanedCopies`, `OnLoan`); until circulation provides it, `NoLoans` answers that nothing is on loan.
+**Loans.** Loans belong to circulation (`internal/circ`, below). The catalog asks a small `Loans` interface (`LoanedCopies`, `OnLoan`), which the server satisfies with `circ.Loans`. `NoLoans` ("nothing is on loan") remains only as the default for a catalog made without one, as in tests.
 
 **Limits** (counted in characters; control and text-direction characters are refused; text is trimmed): title 500, author name 200, 50 authors, description 10,000, location name 100. A book needs a title and at least one author.
 
@@ -126,6 +127,28 @@ The mode is the `copy_id_mode` setting (`isbn`, the default, or `own`).
 - **Switching to `own`** happens in one transaction: the setting changes and every live copy without a code gets a generated one. Copies and loans are untouched.
 - **Switching back to `isbn`** changes only the setting. Every copy keeps its code, and scanning it still finds that copy.
 - A copy's code is changed by updating the copy with a new sticker; leaving the sticker empty keeps the current code.
+
+## Circulation
+
+`internal/circ` owns loans, in `0007_loans.sql`. It reads books, copies and codes through the catalog service and cards through the users service.
+
+| table | holds |
+|---|---|
+| `loans` | id, `copy_id`, `patron_id`, `checked_out_at`, `checked_out_by`, `due_date`, `renewals`, `returned_at`, `returned_by` |
+
+A loan is open while `returned_at` is empty, and stays as history after the return. A partial unique index on `copy_id` where `returned_at IS NULL` allows one open loan per copy. `due_date` is a calendar date (`YYYY-MM-DD`) in the library's time zone: today there plus the loan period. A loan is overdue when today's date in that zone is after it, worked out when read.
+
+**Resolving a code** (`Resolve(code, step)`). At the `patron` step only a library card matches ("No such patron" otherwise). At the `item` step a copy's code matches first; then, in ISBN mode, a valid ISBN matches a book; in own-barcode mode a valid ISBN is refused with "Scan the copy's own barcode"; anything else is "Nothing matches". Codes are normalised as everywhere (trimmed, upper-cased); ISBNs may be ISBN-10 or -13 with hyphens.
+
+**Checkout** is one transaction (`BEGIN IMMEDIATE`, so concurrent checkouts queue). It refuses a deactivated patron, a copy that is removed or already out (the message says who has it and to check it in first), and a patron already at the maximum number of loans ("Limit reached"). In ISBN mode it lends the book's lowest-numbered copy that is in, and says which copy; with none in it is refused.
+
+**Check-in** takes a copy code or, in ISBN mode, an ISBN. Its result has a status:
+
+- `returned`: the loan was closed (with days late and where the copy goes back);
+- `choose`: several copies of the book are out; `choices` lists each open loan (patron name, copy number). Send the same code again with `loan_id` (one of them) or `card` (a patron's card, to narrow the list);
+- `not_out`: nothing was out, so nothing changed.
+
+**Routes** (all need `circ.desk`): `POST /api/desk/resolve {code, step}`, `POST /api/desk/checkout {patron, code}` (`patron` is a card number), `POST /api/desk/checkin {code, loan_id?, card?}`. Refusals are the usual API errors (404 unknown code or patron, 409 already out, no copy available, limit reached or deactivated patron, 422 ISBN in own-barcode mode).
 
 ## Settings
 

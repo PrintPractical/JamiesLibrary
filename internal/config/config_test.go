@@ -146,6 +146,12 @@ func TestTrustedProxies(t *testing.T) {
 	if err != nil || len(c.TrustedProxies) != 2 {
 		t.Fatalf("%v %v", c.TrustedProxies, err)
 	}
+	for _, all := range []string{"0.0.0.0/0", "::/0"} {
+		_, err = Parse(nil, env(map[string]string{"JL_TRUSTED_PROXIES": all}))
+		if err == nil || !strings.Contains(err.Error(), "JL_TRUSTED_PROXIES") || !strings.Contains(err.Error(), all) {
+			t.Fatalf("%s accepted: %v", all, err)
+		}
+	}
 	_, err = Parse(nil, env(map[string]string{"JL_TRUSTED_PROXIES": "10.0.0.0/8, my-proxy"}))
 	if err == nil || !strings.Contains(err.Error(), "JL_TRUSTED_PROXIES") || !strings.Contains(err.Error(), "my-proxy") {
 		t.Fatalf("a bad entry must be named: %v", err)

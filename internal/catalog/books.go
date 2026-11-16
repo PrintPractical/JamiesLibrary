@@ -198,7 +198,12 @@ func plural(n int, one, many string) string {
 
 // GetBook returns a book that is in the catalog; a removed one is not found.
 func (s *Service) GetBook(ctx context.Context, id int64) (Book, error) {
-	books, err := queryBooks(ctx, s.st.DB(), `SELECT id, item_type, title, description, isbn13, cover, created_at FROM books WHERE id = ? AND removed_at IS NULL`, id)
+	return s.GetBookIn(ctx, s.st.DB(), id)
+}
+
+// GetBookIn is GetBook inside the caller's transaction.
+func (s *Service) GetBookIn(ctx context.Context, q DB, id int64) (Book, error) {
+	books, err := queryBooks(ctx, q, `SELECT id, item_type, title, description, isbn13, cover, created_at FROM books WHERE id = ? AND removed_at IS NULL`, id)
 	if err != nil {
 		return Book{}, err
 	}
@@ -206,6 +211,16 @@ func (s *Service) GetBook(ctx context.Context, id int64) (Book, error) {
 		return Book{}, errBookNotFound
 	}
 	return books[0], nil
+}
+
+// BookByISBNIn finds the book in the catalog with this ISBN-13 (as ParseISBN
+// returns it), inside the caller's transaction.
+func (s *Service) BookByISBNIn(ctx context.Context, q DB, isbn13 string) (Book, bool, error) {
+	books, err := queryBooks(ctx, q, `SELECT id, item_type, title, description, isbn13, cover, created_at FROM books WHERE isbn13 = ? AND removed_at IS NULL`, isbn13)
+	if err != nil || len(books) == 0 {
+		return Book{}, false, err
+	}
+	return books[0], true, nil
 }
 
 var errBookNotFound = apperr.New(apperr.NotFound, "That book is not in the catalog.")

@@ -17,9 +17,13 @@ import (
 
 	"jamieslibrary/internal/activity"
 	"jamieslibrary/internal/auth"
+	"jamieslibrary/internal/catalog"
+	"jamieslibrary/internal/circ"
+	"jamieslibrary/internal/clock"
 	"jamieslibrary/internal/config"
 	"jamieslibrary/internal/httpapi"
 	"jamieslibrary/internal/invitations"
+	"jamieslibrary/internal/media"
 	"jamieslibrary/internal/ratelimit"
 	"jamieslibrary/internal/settings"
 	"jamieslibrary/internal/store"
@@ -121,6 +125,10 @@ func Run(ctx context.Context, o Options) error {
 	if err != nil {
 		return err
 	}
+	images, err := media.Open(cfg.DataDir)
+	if err != nil {
+		return err
+	}
 	trustPort := 0
 	if plainLn != nil {
 		trustPort = plainLn.Addr().(*net.TCPAddr).Port
@@ -128,12 +136,14 @@ func Run(ctx context.Context, o Options) error {
 	usersSvc := users.New(st)
 	authSvc := auth.NewService(st, usersSvc,
 		func() time.Duration { return time.Duration(set.Get().SessionIdleMinutes) * time.Minute }, log)
+	catalogSvc := catalog.New(st, catalog.Options{Settings: set, Loans: circ.Loans{}, Now: clock.Now})
 	limiter := ratelimit.New()
 	go limiter.Run(ctx)
 	h, err := httpapi.NewHandler(httpapi.Options{
 		Clients: ratelimit.NewClients(cfg.TrustedProxies), Limiter: limiter,
 		TrustPort: trustPort, Version: o.Version, Logger: log, Static: webui.Handler(),
-		Auth: authSvc, Users: usersSvc, Settings: set, Activity: activity.New(st), Store: st,
+		Auth: authSvc, Users: usersSvc, Settings: set, Activity: activity.New(st), Store: st, Media: images,
+		Circ:            circ.New(st, circ.Options{Settings: set, Catalog: catalogSvc, Users: usersSvc}),
 		UserAdmin:       useradmin.New(st, usersSvc, authSvc),
 		Invitations:     invitations.New(st, usersSvc, authSvc),
 		PublicCatalogOn: func() bool { return set.Get().PublicCatalog },
