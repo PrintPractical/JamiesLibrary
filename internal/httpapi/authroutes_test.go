@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"jamieslibrary/internal/activity"
 	"jamieslibrary/internal/auth"
 	"jamieslibrary/internal/clock"
 	"jamieslibrary/internal/perm"
@@ -59,7 +60,7 @@ func newSite(t *testing.T, tweak ...func(*Options)) *site {
 		func() time.Duration { return time.Duration(s.set.Get().SessionIdleMinutes) * time.Minute }, log)
 	static := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, "<html>app</html>") })
 	opts := Options{
-		Logger: log, Static: static, Auth: s.auth, Users: s.users, Settings: s.set,
+		Logger: log, Static: static, Auth: s.auth, Users: s.users, Settings: s.set, Activity: activity.New(s.st), Store: s.st,
 		PublicCatalogOn: func() bool { return s.set.Get().PublicCatalog },
 	}
 	for _, f := range tweak {
@@ -385,7 +386,7 @@ func TestDeactivationAndPermissionChangesTakeEffectOnTheNextRequest(t *testing.T
 // and the app's own pages load the app shell, which shows sign-in.
 func TestAnonymousVisitor(t *testing.T) {
 	s := newSite(t)
-	rt, err := buildRouter(Options{Auth: s.auth, Users: s.users, Settings: s.set,
+	rt, err := buildRouter(Options{Auth: s.auth, Users: s.users, Settings: s.set, Store: s.st,
 		Static: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})})
 	if err != nil {
 		t.Fatal(err)
@@ -396,7 +397,7 @@ func TestAnonymousVisitor(t *testing.T) {
 			continue
 		}
 		method, path, _ := strings.Cut(ri.Pattern, " ")
-		path = strings.NewReplacer("{id}", "1", "{...}", "x").Replace(path)
+		path = strings.NewReplacer("{id}", "1", "{code}", "x", "{...}", "x").Replace(path)
 		rec := s.req(method, path, "", "")
 		if rec.Code != 401 {
 			t.Errorf("%s anonymous: %d", ri.Pattern, rec.Code)
