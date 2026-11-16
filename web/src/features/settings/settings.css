@@ -34,5 +34,5 @@
 }
 .fingerprint {
   font: 700 15px/1.5 ui-monospace, monospace;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal; /* breaks only at <wbr>, after a colon: every line holds whole pairs */
 }

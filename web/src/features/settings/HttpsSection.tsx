@@ -21,7 +21,13 @@ export function HttpsSection({ fingerprint }: { fingerprint: string | undefined 
             <p className="help">The library's own certificate authority has this SHA-256 fingerprint:</p>
             <p>
               <code className="fingerprint" data-testid="fingerprint">
-                {fingerprint}
+                {fingerprint.split(":").map((pair, i) => (
+                  <span key={i}>
+                    {i > 0 && ":"}
+                    {i > 0 && <wbr />}
+                    {pair}
+                  </span>
+                ))}
               </code>
             </p>
             <p className="small">
