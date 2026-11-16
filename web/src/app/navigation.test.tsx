@@ -1,5 +1,6 @@
-import { screen, within } from "@testing-library/react";
+import { cleanup, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { homeFor } from "./landing";
 import { apiError, fakeServer, meOf, renderApp } from "../testing";
 
 afterEach(() => {
@@ -10,20 +11,20 @@ const links = (nav: HTMLElement) => within(nav).getAllByRole("link").map((a) => 
 const navs = () => screen.getAllByRole("navigation", { name: "Main" });
 
 describe("UX-2 Separate patron and staff experiences", () => {
-  test("Staff home: Check out and Check in are one tap from the desk, in the side bar and the tab bar", async () => {
+  test("Staff navigation: Check out and Check in are one tap away, in the side bar and the tab bar", async () => {
     fakeServer({ "GET /api/me": { body: meOf("librarian") } });
-    await renderApp("/desk");
+    await renderApp("/desk/checkout");
     for (const nav of navs()) {
       expect(within(nav).getByRole("link", { name: "Check out" })).toHaveAttribute("href", "/desk/checkout");
       expect(within(nav).getByRole("link", { name: "Check in" })).toHaveAttribute("href", "/desk/checkin");
     }
     expect(screen.queryByText("Admin")).toBeNull();
-    expect(links(navs()[0]!)).toEqual(["Desk", "Check out", "Check in", "Catalog", "Patrons", "Overdue", "My library"]);
+    expect(links(navs()[0]!)).toEqual(["Check out", "Check in", "Catalog", "Patrons", "Overdue", "My library"]);
   });
 
-  test("Staff home: the Admin group shows only the items the user's permissions allow", async () => {
+  test("Staff navigation: the Admin group shows only the items the user's permissions allow", async () => {
     fakeServer({ "GET /api/me": { body: meOf("librarian", { permissions: ["circ.desk", "settings.manage"] }) } });
-    await renderApp("/desk");
+    await renderApp("/desk/checkout");
     const side = navs()[0]!;
     expect(within(side).getByText("Admin")).toBeInTheDocument();
     expect(within(side).getByRole("link", { name: "Settings" })).toBeInTheDocument();
@@ -32,9 +33,9 @@ describe("UX-2 Separate patron and staff experiences", () => {
     expect(within(side).queryByRole("link", { name: "Catalog" })).toBeNull();
   });
 
-  test("Staff home: an administrator sees the whole Admin group", async () => {
+  test("Staff navigation: an administrator sees the whole Admin group", async () => {
     fakeServer({ "GET /api/me": { body: meOf("administrator") } });
-    await renderApp("/desk");
+    await renderApp("/desk/checkout");
     const side = navs()[0]!;
     expect(links(side)).toEqual(expect.arrayContaining(["Settings", "People & invites", "Statistics", "Activity log"]));
   });
@@ -46,31 +47,86 @@ describe("UX-2 Separate patron and staff experiences", () => {
     for (const nav of navs()) expect(within(nav).queryByRole("link", { name: /check out|check in|desk|catalog|admin/i })).toBeNull();
   });
 
-  test("Staff return to the Desk: one link on the patron side, and no other staff item", async () => {
+  test("The Staff link: one link on the patron side to the first screen, and no other staff item", async () => {
     for (const role of ["librarian", "administrator"] as const) {
       fakeServer({ "GET /api/me": { body: meOf(role) } });
       const { unmount } = await renderApp("/card");
-      expect(links(navs()[0]!)).toEqual(["Home", "Browse", "My card", "My books", "Account", "Desk"]);
+      expect(links(navs()[0]!)).toEqual(["Home", "Browse", "My card", "My books", "Account", "Staff"]);
       expect(links(navs()[1]!)).toEqual(["Home", "Browse", "My card", "My books", "Account"]);
-      const desk = screen.getAllByRole("link", { name: "Desk" });
-      expect(desk).toHaveLength(2); // the side bar's foot and the phone's top bar
-      for (const a of desk) expect(a).toHaveAttribute("href", "/desk");
-      expect(screen.queryByRole("link", { name: /check out|check in|patrons|catalog|more/i })).toBeNull();
+      const staff = screen.getAllByRole("link", { name: "Staff" });
+      expect(staff).toHaveLength(2); // the side bar's foot and the phone's top bar
+      for (const a of staff) expect(a).toHaveAttribute("href", "/desk/checkout");
+      expect(screen.queryByRole("link", { name: /check out|check in|patrons|catalog|more|desk/i })).toBeNull();
       unmount();
     }
   });
 
-  test("Staff return to the Desk: any staff-area permission is enough, and one tap reaches the Desk", async () => {
+  test("The Staff link opens the user's first screen, whatever it is", async () => {
     fakeServer({ "GET /api/me": { body: meOf("librarian", { permissions: ["reports.view"] }) } });
     await renderApp("/");
-    await userEvent.click(screen.getAllByRole("link", { name: "Desk" })[0]!);
-    expect(await screen.findByRole("heading", { name: /^Desk/ })).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "Staff" })[0]!).toHaveAttribute("href", "/admin/statistics");
   });
 
-  test("Non-staff and the Desk: a patron is shown no link to the Desk", async () => {
+  test.each([
+    [["catalog.manage"], "/catalog"],
+    [["patrons.lookup"], "/desk/patrons"],
+    [["settings.manage"], "/admin/settings"],
+  ])("The Staff link of a user with %j goes to %s", async (permissions, to) => {
+    fakeServer({ "GET /api/me": { body: meOf("librarian", { permissions }) } });
+    await renderApp("/");
+    for (const a of screen.getAllByRole("link", { name: "Staff" })) expect(a).toHaveAttribute("href", to);
+  });
+
+  test.each([["reviews.remove"], ["cards.reissue"]])(
+    "A user whose only staff-area permission is %s is patron-side only: no Staff link, Home after sign-in",
+    async (permission) => {
+      fakeServer({ "GET /api/me": { body: meOf("librarian", { permissions: ["catalog.browse", permission] }) } });
+      const { unmount } = await renderApp("/");
+      expect(screen.queryByRole("link", { name: "Staff" })).toBeNull();
+      expect(homeFor((p) => p.includes(permission))).toBe("/");
+      unmount();
+      for (const path of ["/desk", "/desk/checkout"]) {
+        const view = await renderApp(path);
+        expect(screen.queryByRole("heading", { name: "Check out" })).toBeNull();
+        expect(await screen.findByRole("heading", { name: /^Good (morning|afternoon|evening)/ })).toBeInTheDocument();
+        view.unmount();
+      }
+    },
+  );
+
+  test("Non-staff: a patron is shown no Staff link", async () => {
     fakeServer({ "GET /api/me": { body: meOf("patron") } });
     await renderApp("/");
-    expect(screen.queryByRole("link", { name: "Desk" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Staff" })).toBeNull();
+  });
+
+  test("The old Desk address: /desk opens the first screen", async () => {
+    fakeServer({ "GET /api/me": { body: meOf("librarian") } });
+    await renderApp("/desk");
+    expect(await screen.findByRole("heading", { name: "Check out" })).toBeInTheDocument();
+    cleanup();
+    fakeServer({ "GET /api/me": { body: meOf("librarian", { permissions: ["catalog.manage"] }) } });
+    await renderApp("/desk");
+    expect(await screen.findByRole("heading", { name: /^Catalog/ })).toBeInTheDocument();
+  });
+
+  test("Staff have no Desk page: no Desk item in the navigation", async () => {
+    fakeServer({ "GET /api/me": { body: meOf("administrator") } });
+    await renderApp("/desk/checkout");
+    expect(screen.queryByRole("link", { name: /^Desk$/ })).toBeNull();
+  });
+
+  test.each([
+    [["circ.desk"], "/desk/checkout"],
+    [["catalog.manage"], "/catalog"],
+    [["patrons.lookup"], "/desk/patrons"],
+    [["settings.manage"], "/admin/settings"],
+    [["reviews.remove"], "/"],
+    [["cards.reissue"], "/"],
+    [["circ.desk", "settings.manage"], "/desk/checkout"],
+    [["patrons.lookup", "catalog.manage"], "/catalog"],
+  ])("After signing in, a user with %j arrives at %s", (permissions, to) => {
+    expect(homeFor((wanted) => wanted.some((p) => permissions.includes(p)))).toBe(to);
   });
 
   test("Patron navigation: a patron who opens a staff address is sent to the patron home", async () => {

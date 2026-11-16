@@ -13,7 +13,7 @@ type Result = { q: string; patrons: Patron[] };
 export function Patrons() {
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState<unknown>(null);
-  // The Desk's lookup box arrives with its search in the address.
+  // A look-up may arrive with its search in the address.
   const first = new URLSearchParams(useLocation().search).get("q")?.trim() ?? "";
   const [busy, setBusy] = useState(first !== "");
 

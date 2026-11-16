@@ -1,6 +1,6 @@
-import { render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
-import { adminItems, deskLink, patronItems, staffFooterItems, staffItems } from "../app/navigation";
+import { adminItems, patronItems, staffFooterItems, staffItems } from "../app/navigation";
 import { fakeServer, meOf, renderApp } from "../testing";
 import { PatronLayout, StaffLayout } from "./Layouts";
 
@@ -35,18 +35,18 @@ test("PatronLayout shows the same items in the same order in the side bar and th
   expect(screen.getByText("page body")).toBeInTheDocument();
 });
 
-test("PatronLayout's deskLink is one link in the side bar and the top bar, and adds no tab or More", () => {
-  renderAt("/", <PatronLayout items={patronItems} deskLink={deskLink} />);
+test("PatronLayout's staffLink is one link in the side bar and the top bar, and adds no tab or More", () => {
+  renderAt("/", <PatronLayout items={patronItems} staffLink={{ to: "/desk/checkout", label: "Staff", icon: "switch" }} />);
   const [side, tabs] = screen.getAllByRole("navigation", { name: "Main" });
-  expect(labels(side!)).toEqual(["Home", "Browse", "My card", "My books", "Account", "Desk"]);
+  expect(labels(side!)).toEqual(["Home", "Browse", "My card", "My books", "Account", "Staff"]);
   expect(labels(tabs!)).toEqual(["Home", "Browse", "My card", "My books", "Account"]);
-  expect(screen.getAllByRole("link", { name: "Desk" })).toHaveLength(2);
+  expect(screen.getAllByRole("link", { name: "Staff" })).toHaveLength(2);
   expect(screen.queryByRole("link", { name: "More" })).toBeNull();
 });
 
-test("PatronLayout without a deskLink shows no Desk link", () => {
+test("PatronLayout without a staffLink shows no Staff link", () => {
   renderAt("/", <PatronLayout items={patronItems} />);
-  expect(screen.queryByRole("link", { name: "Desk" })).toBeNull();
+  expect(screen.queryByRole("link", { name: "Staff" })).toBeNull();
 });
 
 test("PatronLayout marks the current page and takes its items as data", () => {
@@ -78,15 +78,37 @@ test("StaffLayout puts an Admin group in the side bar and leaves it out when the
 });
 
 test("StaffLayout's tab bar keeps four items and a More tab for the rest", () => {
-  renderAt("/desk", <StaffLayout items={staffItems} adminItems={adminItems} footerItems={staffFooterItems} />);
+  renderAt("/desk/checkout", <StaffLayout items={staffItems} adminItems={adminItems} footerItems={staffFooterItems} />);
   const tabs = screen.getAllByRole("navigation", { name: "Main" })[1]!;
-  expect(labels(tabs)).toEqual(["Desk", "Check out", "Check in", "Catalog", "More"]);
+  expect(labels(tabs)).toEqual(["Check out", "Check in", "Catalog", "Patrons", "More"]);
+});
+
+test("StaffLayout's tab bar counts admin screens after the staff ones, so Settings alone is a tab", () => {
+  const settings = adminItems.filter((i) => i.label === "Settings");
+  renderAt("/admin/settings", <StaffLayout items={[]} adminItems={settings} footerItems={staffFooterItems} />);
+  const tabs = screen.getAllByRole("navigation", { name: "Main" })[1]!;
+  expect(labels(tabs)).toEqual(["Settings", "More"]);
+});
+
+test("a librarian's phone tabs are Check out, Check in, Catalog, Patrons, with Overdue under More", async () => {
+  fakeServer({ "GET /api/me": { body: meOf("librarian") } });
+  await renderApp("/desk/checkout");
+  expect(labels(screen.getAllByRole("navigation", { name: "Main" })[1]!)).toEqual(["Check out", "Check in", "Catalog", "Patrons", "More"]);
+  cleanup();
+  await renderApp("/more");
+  expect(labels(screen.getByRole("navigation", { name: "More" }))).toEqual(["Overdue", "My library"]);
+});
+
+test("a settings-only user's phone tab bar has a Settings tab", async () => {
+  fakeServer({ "GET /api/me": { body: meOf("librarian", { permissions: ["settings.manage"] }) } });
+  await renderApp("/desk");
+  expect(labels(screen.getAllByRole("navigation", { name: "Main" })[1]!)).toEqual(["Settings", "More"]);
 });
 
 test("the /more page lists what the tab bar left out", async () => {
   await renderApp("/more");
   const more = screen.getByRole("navigation", { name: "More" });
-  expect(labels(more)).toEqual(["Patrons", "Overdue", "Settings", "People & invites", "Statistics", "Activity log", "My library"]);
+  expect(labels(more)).toEqual(["Overdue", "Settings", "People & invites", "Statistics", "Activity log", "My library"]);
 });
 
 test.each([
@@ -106,7 +128,7 @@ test("an address nobody built shows a page inside the content with a way back", 
 });
 
 test("the More tab is current on pages reached through it, and not on the others", async () => {
-  const { unmount } = await renderApp("/desk/patrons");
+  const { unmount } = await renderApp("/desk/overdue");
   const tabs = () => screen.getAllByRole("navigation", { name: "Main" })[1]!;
   expect(within(tabs()).getByRole("link", { name: "More" })).toHaveAttribute("aria-current", "page");
   unmount();
@@ -115,7 +137,7 @@ test("the More tab is current on pages reached through it, and not on the others
   expect(within(tabs()).getByRole("link", { name: "Check out" })).toHaveAttribute("aria-current", "page");
 });
 
-test("/more on a wide window goes to the desk instead of showing an empty page", async () => {
+test("/more on a wide window goes to the first screen instead of showing an empty page", async () => {
   const original = window.matchMedia;
   window.matchMedia = ((q: string) => ({
     matches: true,
@@ -125,7 +147,7 @@ test("/more on a wide window goes to the desk instead of showing an empty page",
   })) as unknown as typeof window.matchMedia;
   try {
     await renderApp("/more");
-    expect(await screen.findByRole("heading", { name: /^Desk/ })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Check out" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "More" })).toBeNull();
   } finally {
     window.matchMedia = original;

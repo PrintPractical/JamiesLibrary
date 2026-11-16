@@ -3,21 +3,6 @@ import type { NavItem } from "../components/Shell";
 /** A nav item and the permissions that show it: any one of them is enough. Display only: the server decides. */
 export type GatedItem = NavItem & { any?: readonly string[] };
 
-// What takes a user into the staff area at all. The Desk (staff home) shows for any of these.
-const STAFF_AREA = [
-  "circ.desk",
-  "patrons.lookup",
-  "catalog.manage",
-  "reviews.remove",
-  "cards.reissue",
-  "reports.view",
-  "activity.view",
-  "settings.manage",
-  "invitations.manage",
-  "users.manage",
-  "users.permissions",
-] as const;
-
 export const patronItems: GatedItem[] = [
   { to: "/", label: "Home", icon: "home", end: true },
   { to: "/browse", label: "Browse", icon: "search", any: ["catalog.browse"] },
@@ -27,7 +12,6 @@ export const patronItems: GatedItem[] = [
 ];
 
 export const staffItems: GatedItem[] = [
-  { to: "/desk", label: "Desk", icon: "home", end: true, any: STAFF_AREA },
   { to: "/desk/checkout", label: "Check out", icon: "checkout", any: ["circ.desk"] },
   { to: "/desk/checkin", label: "Check in", icon: "checkin", any: ["circ.desk"] },
   { to: "/catalog", label: "Catalog", icon: "catalog", any: ["catalog.manage"] },
@@ -42,9 +26,6 @@ export const adminItems: GatedItem[] = [
   { to: "/admin/activity", label: "Activity log", icon: "log", any: ["activity.view"] },
 ];
 
-/** Staff's one way back to the Desk from the patron side. */
-export const deskLink: NavItem = { to: "/desk", label: "Desk", icon: "switch" };
-
 export const staffFooterItems: NavItem[] = [{ to: "/", label: "My library", icon: "switch", end: true }];
 
 /** Whether a user holding `canAny`'s permissions may see an item. */
@@ -57,5 +38,15 @@ export function allowed(items: GatedItem[], canAny: (permissions: readonly strin
   return items.filter((i) => visible(i, canAny));
 }
 
-/** Whether the user has any part of the staff area. */
-export const isStaff = (canAny: (permissions: readonly string[]) => boolean) => canAny(STAFF_AREA);
+/** The staff screens a user may use, in the order UX-2 gives: staff screens, then admin screens. */
+export function staffScreens(canAny: (permissions: readonly string[]) => boolean): NavItem[] {
+  return allowed([...staffItems, ...adminItems], canAny);
+}
+
+/** Where a staff user starts: the first screen they may use, or undefined when they have none. */
+export function firstScreen(canAny: (permissions: readonly string[]) => boolean): string | undefined {
+  return staffScreens(canAny)[0]?.to;
+}
+
+/** Whether the user has any staff screen. A permission with no screen of its own doesn't count. */
+export const isStaff = (canAny: (permissions: readonly string[]) => boolean) => firstScreen(canAny) !== undefined;
