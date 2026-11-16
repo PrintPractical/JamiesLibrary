@@ -1,5 +1,6 @@
 import { type FormEvent, type ReactNode, useCallback, useEffect, useId, useRef, useState } from "react";
 import { type DetectorFactory } from "./barcodeDetector";
+import { api } from "../api/client";
 import { Icon } from "./Icon";
 import "./ScanField.css";
 
@@ -21,11 +22,12 @@ const PROBLEMS: Record<Problem, string> = {
 
 const loadDetector: DetectorFactory = () => import("./barcodeDetector").then((m) => m.createDetector());
 
-// Where the installation serves its one-time trust step: plain HTTP on its own port, same host.
-function trustGuideUrl(): string {
+// Where the installation serves its one-time trust step: plain HTTP on its own port (the server
+// says which), same host.
+function trustGuideUrl(port: number): string {
   const url = new URL("/trust/", window.location.href);
   url.protocol = "http:";
-  url.port = "8080";
+  url.port = String(port);
   return url.href;
 }
 
@@ -80,6 +82,8 @@ export function ScanField({
   const onScanRef = useRef(onScan);
   const [problem, setProblem] = useState<Problem | null>(cameraProblem);
   const [camera, setCamera] = useState<"off" | "starting" | "on">("off");
+  // The plain-HTTP port of the setup guide; 0 or null until the server has said (or when it has none).
+  const [trustPort, setTrustPort] = useState<number | null>(null);
   const [torch, setTorch] = useState<boolean | null>(null); // null: this camera has none
 
   useEffect(() => {
@@ -116,6 +120,18 @@ export function ScanField({
       live = false;
     };
   }, []);
+
+  // The guide is only linked when something is wrong, so only then ask where it is.
+  const needsGuide = problem !== null;
+  useEffect(() => {
+    if (!needsGuide) return;
+    const ctl = new AbortController();
+    api<{ trust_port?: number }>("/api/client-config", { signal: ctl.signal }).then(
+      (c) => setTrustPort(typeof c.trust_port === "number" ? c.trust_port : 0),
+      () => {}, // no link rather than a wrong one; typing still works
+    );
+    return () => ctl.abort();
+  }, [needsGuide]);
 
   // The camera is off when the component goes, and when the page is hidden.
   useEffect(() => {
@@ -285,7 +301,13 @@ export function ScanField({
         {help && <span className="help">{help}</span>}
         {problem !== null && (
           <p className="scan-note" role="status">
-            {PROBLEMS[problem]} You can still type the code. <a href={trustGuideUrl()}>Camera setup guide</a>
+            {PROBLEMS[problem]} You can still type the code.
+            {trustPort ? (
+              <>
+                {" "}
+                <a href={trustGuideUrl(trustPort)}>Camera setup guide</a>
+              </>
+            ) : null}
           </p>
         )}
       </form>
