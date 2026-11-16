@@ -25,7 +25,7 @@ func (s *site) invite(cookie string, role perm.Role) (int64, string) {
 	if rec.Code != 201 || json.Unmarshal(rec.Body.Bytes(), &b) != nil {
 		s.t.Fatalf("create invitation: %d %s", rec.Code, rec.Body)
 	}
-	return b.ID, b.Code
+	return b.ID, *b.Code
 }
 
 func (s *site) register(code, username string) *httptest.ResponseRecorder {
@@ -227,7 +227,7 @@ func TestListShowsCodesToHoldersOnly(t *testing.T) {
 		Total       int              `json:"total"`
 	}
 	if json.Unmarshal(rec.Body.Bytes(), &page); rec.Code != 200 || page.Total != 2 || len(page.Invitations) != 1 ||
-		page.Invitations[0].Code != b || page.Invitations[0].Status != "unused" {
+		page.Invitations[0].Code == nil || *page.Invitations[0].Code != b || page.Invitations[0].Status != "unused" {
 		t.Fatalf("%d %s", rec.Code, rec.Body)
 	}
 	_ = a
@@ -416,5 +416,58 @@ func TestRegisteringReplacesTheOldSession(t *testing.T) {
 	}
 	if rec := s.req("GET", "/api/me", admin, ""); rec.Code != 401 {
 		t.Fatalf("the old session lives: %d", rec.Code)
+	}
+}
+
+// ACCESS-3 / sec §4(a): a librarian who may manage invitations sees no code, and can't revoke one, for a role above theirs.
+func TestLibrarianCannotUseOrRevokeAnAdministratorsCode(t *testing.T) {
+	s := newSite(t)
+	s.addUser("ada", goodPassword, perm.Administrator)
+	lib := s.addUser("lib", goodPassword, perm.Librarian)
+	s.users.SetPermission(ctxBG, lib.ID, perm.InvitationsManage, true)
+	adminID, adminCode := s.invite(s.signIn("ada", goodPassword), perm.Administrator)
+	libCookie := s.signIn("lib", goodPassword)
+	libID, libCode := s.invite(libCookie, perm.Librarian)
+	patID, patCode := s.invite(libCookie, perm.Patron)
+
+	rec := s.req("GET", "/api/admin/invitations", libCookie, "")
+	var page struct {
+		Invitations []invitationBody `json:"invitations"`
+	}
+	if json.Unmarshal(rec.Body.Bytes(), &page); rec.Code != 200 || len(page.Invitations) != 3 {
+		t.Fatalf("%d %s", rec.Code, rec.Body)
+	}
+	if strings.Contains(rec.Body.String(), adminCode) || strings.Contains(rec.Body.String(), strings.ReplaceAll(adminCode, "-", "")) {
+		t.Fatalf("the administrator's code is in the response: %s", rec.Body)
+	}
+	for _, i := range page.Invitations {
+		switch i.ID {
+		case adminID:
+			if i.Code != nil || i.Role != perm.Administrator {
+				t.Fatalf("administrator row: %+v", i)
+			}
+		case libID, patID:
+			if i.Code == nil || (*i.Code != libCode && *i.Code != patCode) {
+				t.Fatalf("row %+v", i)
+			}
+		}
+	}
+	if rec := s.req("POST", fmt.Sprintf("/api/admin/invitations/%d/revoke", adminID), libCookie, ""); rec.Code != 403 {
+		t.Fatalf("revoking: %d %s", rec.Code, rec.Body)
+	}
+	var revoked *string
+	s.st.DB().QueryRow(`SELECT revoked_at FROM invitations WHERE id = ?`, adminID).Scan(&revoked)
+	if revoked != nil {
+		t.Fatal("the code was revoked")
+	}
+	for _, id := range []int64{libID, patID} {
+		if rec := s.req("POST", fmt.Sprintf("/api/admin/invitations/%d/revoke", id), libCookie, ""); rec.Code != 200 {
+			t.Fatalf("revoking own-level code: %d", rec.Code)
+		}
+	}
+	// the administrator still sees every code
+	rec = s.req("GET", "/api/admin/invitations", s.signIn("ada", goodPassword), "")
+	if !strings.Contains(rec.Body.String(), adminCode) || !strings.Contains(rec.Body.String(), libCode) {
+		t.Fatalf("administrator's list: %s", rec.Body)
 	}
 }

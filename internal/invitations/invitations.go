@@ -137,6 +137,9 @@ func (s *Service) Revoke(ctx context.Context, actorID, id int64) (Invitation, er
 		if err != nil {
 			return err
 		}
+		if !perm.Preset(inv.Role).SubsetOf(actor.Permissions) {
+			return apperr.New(apperr.Forbidden, "You can't revoke an invitation for a role with permissions you don't have yourself.")
+		}
 		switch inv.Status() {
 		case "revoked":
 			return nil
@@ -165,8 +168,18 @@ type Page struct {
 	Total       int
 }
 
-// List returns page number page (from 1), newest first. A size of 0 means DefaultPageSize.
-func (s *Service) List(ctx context.Context, page, size int) (Page, error) {
+// List returns page number page (from 1), newest first, for the viewer. A size
+// of 0 means DefaultPageSize. An invitation for a role whose preset the viewer
+// doesn't wholly hold is listed with an empty Code: knowing it would let them
+// register with permissions they lack (security design §5).
+func (s *Service) List(ctx context.Context, viewerID int64, page, size int) (Page, error) {
+	viewer, err := s.users.Get(ctx, viewerID)
+	if err != nil || !viewer.Active || !viewer.Permissions.Has(perm.InvitationsManage) {
+		if err != nil && !isNotFound(err) {
+			return Page{}, err
+		}
+		return Page{}, errNotAllowed
+	}
 	if size == 0 {
 		size = DefaultPageSize
 	}
@@ -189,6 +202,9 @@ func (s *Service) List(ctx context.Context, page, size int) (Page, error) {
 		inv, err := scan(rows)
 		if err != nil {
 			return Page{}, err
+		}
+		if !perm.Preset(inv.Role).SubsetOf(viewer.Permissions) {
+			inv.Code = ""
 		}
 		out.Invitations = append(out.Invitations, inv)
 	}

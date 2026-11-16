@@ -32,7 +32,7 @@ func TestNormalise(t *testing.T) {
 			t.Errorf("Normalise(%q) = %q, %v; want %q", in, got, ok, want)
 		}
 	}
-	for _, bad := range []string{"", "ABCD", "ABCD-EFGH-JKMN-PQR", "ABCD-EFGH-JKMN-PQRSS", "ABCD-EFGH-JKMN-PQRU", "ABCD-EFGH-JKMN-PQéS", "ABCD-EFGH-JKMN-PQR\x00"} {
+	for _, bad := range []string{"", "ABCD", "ABCD-EFGH-JKMN-PQR", "ABCD-EFGH-JKMN-PQRSS", "ABCD-EFGH-JKMN-PQRU", "ABCD-EFGH-JKMN-PQéS", "ABCD-EFGH-JKMN-PQıS", "ABCD-EFGH-JKMN-PQſS", "ABCD-EFGH-JKMN-PQR\x00"} {
 		if got, ok := Normalise(bad); ok {
 			t.Errorf("Normalise(%q) = %q, accepted", bad, got)
 		}

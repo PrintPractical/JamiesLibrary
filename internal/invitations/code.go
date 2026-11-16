@@ -36,7 +36,10 @@ func Normalise(typed string) (string, bool) {
 	}
 	var sb strings.Builder
 	n := 0
-	for _, r := range strings.ToUpper(typed) {
+	for _, r := range typed {
+		if r >= 'a' && r <= 'z' { // ASCII only: ToUpper would also fold ı and ſ into letters
+			r -= 'a' - 'A'
+		}
 		switch {
 		case r == '-' || r == ' ':
 			continue

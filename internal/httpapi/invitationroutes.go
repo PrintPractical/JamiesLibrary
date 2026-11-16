@@ -38,7 +38,7 @@ type invitationRoutes struct {
 // invitationBody carries the code: only the routes that need invitations.manage send it.
 type invitationBody struct {
 	ID        int64      `json:"id"`
-	Code      string     `json:"code"`
+	Code      *string    `json:"code"` // null when the viewer lacks permissions the role gives
 	Role      perm.Role  `json:"role"`
 	CreatorID int64      `json:"creator_id"`
 	CreatedAt time.Time  `json:"created_at"`
@@ -49,7 +49,10 @@ type invitationBody struct {
 }
 
 func toInvitationBody(i invitations.Invitation) invitationBody {
-	b := invitationBody{ID: i.ID, Code: i.Code, Role: i.Role, CreatorID: i.CreatorID, CreatedAt: i.CreatedAt, Status: i.Status()}
+	b := invitationBody{ID: i.ID, Role: i.Role, CreatorID: i.CreatorID, CreatedAt: i.CreatedAt, Status: i.Status()}
+	if i.Code != "" {
+		b.Code = &i.Code
+	}
 	if i.UsedBy != 0 {
 		b.UsedBy = &i.UsedBy
 	}
@@ -86,7 +89,7 @@ func (a *invitationRoutes) list(w http.ResponseWriter, r *http.Request) {
 	}
 	var p invitations.Page
 	if err == nil {
-		p, err = a.inv.List(r.Context(), page, size)
+		p, err = a.inv.List(r.Context(), auth.Caller(r.Context()).UserID, page, size)
 	}
 	if err != nil {
 		WriteError(w, r, err)
