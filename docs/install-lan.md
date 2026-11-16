@@ -23,7 +23,7 @@ The log ends with the fingerprint of the local certificate and a one-time setup 
 ```
 Local CA root SHA-256 fingerprint: FF:F0:19:F1:4F:61:28:05:46:D3:32:B8:F6:EA:1F:A6:BF:CC:5D:77:4F:95:56:A7:B4:5E:DF:2D:C5:E1:59:D5
 No administrator exists yet. To create the first one, open the app in a browser and enter this one-time code.
-On a phone or another computer, first follow the trust guide: http://localhost:8080/trust/
+On a phone or another computer, first follow the trust guide: http://192.168.1.20:8080/trust/
 SETUP CODE: VD0Y-CKSB-WK71-0NZM
 ```
 
@@ -101,9 +101,9 @@ By default the server listens on every network interface. To listen on one addre
 
 A device that hasn't done the step opens the library with a browser warning, and the camera stays off. Typing codes, or a USB or Bluetooth barcode scanner, work without the step.
 
-On each phone or computer, open `http://ADDRESS:8080/trust/` and follow the steps for that device (iPhone and iPad, Android, or Windows, Mac and Linux computers). The guide works from the first start; the address in the setup message is `localhost` unless you set `JL_HOSTNAMES` or `JL_ADDRESSES`, so use the machine's real address.
+On each phone or computer, open `http://ADDRESS:8080/trust/` and follow the steps for that device (iPhone and iPad, Android, or Windows, Mac and Linux computers). The guide works from the first start; the setup message names this machine's own network address (a list of up to three when it has several: use the one on the same network as your phone), or the one name or address you set in `JL_HOSTNAMES` or `JL_ADDRESSES`. It names `localhost` only when the machine has no private network address; then use the machine's real address.
 
-**Check that it is the right certificate.** Anyone on the network could swap the file you download for another. The steps tell you to compare the SHA-256 fingerprint your device shows for the certificate with the fingerprint printed on the server's console, in the line
+**Check that it is the right certificate.** Anyone on the network could swap the file you download for another. The steps tell you to compare the SHA-256 fingerprint your device shows for the certificate with the fingerprint printed on the server's console, or shown on the Settings page opened on another device that already trusts the library (never sign in on the device you are setting up). The console line is
 
 ```
 Local CA root SHA-256 fingerprint: FF:F0:19:F1:...
