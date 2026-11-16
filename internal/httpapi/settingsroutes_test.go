@@ -459,3 +459,36 @@ func TestLibraryBodyHoldsOnlyBranding(t *testing.T) {
 		}
 	}
 }
+
+// The local CA's fingerprint is on the administrator's settings (for the trust
+// guide to point at), is read-only, and a librarian cannot read it.
+func TestAdminSettingsShowTheCAFingerprint(t *testing.T) {
+	const fp = "AB:CD:EF:01:23:45:67:89"
+	s := settingsSite{site: newSite(t, func(o *Options) { o.CAFingerprint = fp })}
+	s.addUser("ada", goodPassword, perm.Administrator)
+	s.addUser("lib", goodPassword, perm.Librarian)
+	s.admin, s.lib = s.signIn("ada", goodPassword), s.signIn("lib", goodPassword)
+
+	if got := s.adminSettings().CAFingerprint; got != fp {
+		t.Fatalf("GET fingerprint = %q, want %q", got, fp)
+	}
+	if rec := s.req("PUT", "/api/admin/settings", s.admin, `{"ca_fingerprint":"00"}`); rec.Code != 400 {
+		t.Errorf("PUT with ca_fingerprint = %d, want 400 (read-only)", rec.Code)
+	}
+	rec := s.req("GET", "/api/admin/settings", s.lib, "")
+	if rec.Code != 403 || strings.Contains(rec.Body.String(), fp) {
+		t.Errorf("librarian GET = %d %s", rec.Code, rec.Body)
+	}
+	if rec := s.req("GET", "/api/library", "", ""); strings.Contains(rec.Body.String(), fp) {
+		t.Errorf("public library body shows the fingerprint: %s", rec.Body)
+	}
+}
+
+// Without the local CA there is no fingerprint to show.
+func TestAdminSettingsOmitTheFingerprintWithoutTheCA(t *testing.T) {
+	s := newSettingsSite(t)
+	rec := s.req("GET", "/api/admin/settings", s.admin, "")
+	if strings.Contains(rec.Body.String(), "ca_fingerprint") {
+		t.Errorf("body: %s", rec.Body)
+	}
+}
