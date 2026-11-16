@@ -12,6 +12,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- The accounts guide, [`docs/accounts.md`](docs/accounts.md): signing in, registering with an invitation code, changing your password, the 16 permissions and the three roles, inviting and managing people, the rules that stop anyone giving more than they hold or removing the last administrator, resetting a password, and recovering a locked-out administrator from the server (`jamieslibrary admin reset-password`, also through `docker compose exec`), with the messages you may meet and what each means.
+- The architecture document now describes accounts, sessions and the route guard.
 - The administrator's guide, [`docs/guide-admin.md`](docs/guide-admin.md): first-run setup, every setting with its default and range, the readability rule for accent colours, and reading the statistics, the circulation report and the activity log.
 - The first-run setup wizard at `/setup`: the administrator's account with the console's setup code, then the library's name, logo and colours, the borrowing rules and time zone (filled in from the browser), and invitations. Each later step can be skipped and changed in Settings. Once an administrator exists, `/setup` sends visitors to sign in.
 - The Statistics screen (`/admin/statistics`): the library's counts, and checkouts and returns for a range of dates, the last 30 days to begin with.

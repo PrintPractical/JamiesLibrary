@@ -176,4 +176,4 @@ On the server, with the same version that is running:
 docker compose -p jamieslibrary -f deploy/compose.lan.yml exec jamieslibrary /usr/local/bin/jamieslibrary admin reset-password USERNAME
 ```
 
-or `./jamieslibrary admin reset-password --data DIR USERNAME` for the program. It prints a temporary password of 16 characters, which that person must change when they next sign in, and ends their sessions. Add `--make-admin` to also give the account the administrator role (for an owner who was demoted).
+or `./jamieslibrary admin reset-password --data DIR USERNAME` for the program. It prints a temporary password of 16 characters, which that person must change when they next sign in, and ends their sessions. Add `--make-admin` to also give the account the administrator role (for an owner who was demoted). The steps, what is printed and what to do next are in [Accounts](accounts.md#locked-out-recovering-the-only-administrator).

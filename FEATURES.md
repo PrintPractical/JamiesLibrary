@@ -13,7 +13,7 @@ What Jamie's Library does today, by area. Each entry names the requirements it c
 - Works with no internet connection: the web app bundles its fonts and scripts (DEPLOY-T5).
 - Written guides for a home or office network and for the public internet, each with installation, configuration, network access, security, and backup and upgrade (DEPLOY-2).
 - The first administrator is created with a one-time setup code shown only on the server's console, and only until an administrator exists (DEPLOY-3).
-- `jamieslibrary admin reset-password USERNAME` recovers a locked-out administrator from the server itself (DEPLOY-4).
+- `jamieslibrary admin reset-password USERNAME` (with `--make-admin` to restore the administrator role) recovers a locked-out administrator from the server itself, also through `docker compose exec`; it prints a one-time temporary password and is recorded in the activity log as the server console (DEPLOY-4). See [accounts](docs/accounts.md#locked-out-recovering-the-only-administrator).
 
 ## Circulation
 
@@ -32,8 +32,8 @@ What Jamie's Library does today, by area. Each entry names the requirements it c
 - Sessions end after a time unused that an administrator sets, 8 hours to begin with (SEC-T1, ADMIN-1). Repeated wrong sign-ins block an address for 15 minutes without locking any account.
 - Nothing is shown to signed-out visitors unless an administrator turns the public catalog on (ACCESS-1).
 - 16 separate permissions, grouped into the roles patron, librarian and administrator, which are starting sets: an administrator can switch single permissions for a person, and the user list marks anyone who differs from their role (ROLE-1, ROLE-2, ROLE-3, ADMIN-2). A person is never given more than the administrator granting it holds.
-- Administrators list users, change roles and permissions, deactivate and reactivate accounts (which ends their sessions) and reset passwords, with a temporary password shown once; there is no email in this version (ADMIN-2, ACCESS-7). API only so far.
-- Invitation codes, one use each, for a role; administrators create, list and revoke them (ACCESS-2, ACCESS-3). API only so far, apart from creating them in first-run setup.
+- On **People & invites** (`/admin/people`), people who may manage users list everyone and open a person's page to set their role, switch single permissions, deactivate and reactivate them (which ends their sessions) and reset their password, with a temporary password shown once; there is no email in this version (ADMIN-2, ACCESS-7). Nobody can give or change more than they hold, and the last administrator can't be removed (ROLE-1, ROLE-2, ROLE-3, ADMIN-2). See [accounts](docs/accounts.md).
+- Invitation codes, one use each, for a role; people who may manage invitations make, see and revoke them on **People & invites**, and a code that gives permissions the viewer lacks is hidden from them (ACCESS-2, ACCESS-3).
 - Navigation and screens follow the person's permissions: patrons and staff see different layouts (UX-2). The patron and staff pages for browsing, borrowing and people are placeholders until their features are built.
 
 ## Library cards
