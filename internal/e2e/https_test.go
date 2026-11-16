@@ -7,6 +7,8 @@ import (
 	"bytes"
 	"context"
 	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
@@ -14,6 +16,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -21,6 +24,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -231,6 +235,7 @@ func TestCAIsNameConstrainedAndAPublicNameSignedWithItsKeyIsRejected(t *testing.
 		{"www.bank.org", "DNS:www.bank.org"},
 		{"8.8.8.8", "IP:8.8.8.8"},
 		{"mixed local and public", "DNS:shop.local,DNS:example.com"},
+		{"2001:4860:4860::8888", "IP:2001:4860:4860::8888"},
 	} {
 		leaf := sign(tc.name, tc.san)
 		host := strings.TrimPrefix(strings.Split(tc.san, ",")[0], "DNS:")
@@ -246,6 +251,9 @@ func TestCAIsNameConstrainedAndAPublicNameSignedWithItsKeyIsRejected(t *testing.
 		{"shop.local", "DNS:shop.local", "shop.local"},
 		{"192.168.9.9", "IP:192.168.9.9", "192.168.9.9"},
 		{"10.1.2.3", "IP:10.1.2.3", "10.1.2.3"},
+		{"fd00::1", "IP:fd00::1", "fd00::1"},
+		{"fe80::1", "IP:fe80::1", "fe80::1"},
+		{"::1", "IP:::1", "::1"},
 	} {
 		out, err := verify(sign(tc.name, tc.san), tc.host)
 		if err != nil {
@@ -362,32 +370,39 @@ func TestKeysAre0600OnlyInTheDataDirectoryAndNeverLogged(t *testing.T) {
 			return err
 		}
 		data, _ := os.ReadFile(p)
-		if !bytes.Contains(data, []byte("PRIVATE KEY")) {
-			return nil
-		}
 		rel, _ := filepath.Rel(dir, p)
+		var found []*pem.Block
+		for rest := data; ; {
+			var blk *pem.Block
+			blk, rest = pem.Decode(rest)
+			if blk == nil {
+				break
+			}
+			if strings.Contains(blk.Type, "PRIVATE KEY") {
+				found = append(found, blk)
+			}
+		}
+		// A key stored as raw DER, with no PEM around it, is a key too.
+		if len(found) == 0 {
+			if _, err := parseKey(&pem.Block{Bytes: data}); err != nil {
+				return nil
+			}
+			found = append(found, &pem.Block{Type: "PRIVATE KEY", Bytes: data})
+		}
 		if !strings.HasPrefix(rel, "tls"+string(filepath.Separator)) {
 			t.Errorf("private key material outside tls/: %s", rel)
 		}
 		if info, _ := d.Info(); info.Mode().Perm() != 0o600 {
 			t.Errorf("%s has mode %o, want 600", rel, info.Mode().Perm())
 		}
-		for rest := data; ; {
-			var b *pem.Block
-			b, rest = pem.Decode(rest)
-			if b == nil {
-				break
-			}
-			if !strings.Contains(b.Type, "PRIVATE KEY") {
-				continue
-			}
-			k, err := parseKey(b)
+		for _, blk := range found {
+			k, err := parseKey(blk)
 			if err != nil {
 				t.Errorf("%s: unreadable private key: %v", rel, err)
 				continue
 			}
 			keys = append(keys, k)
-			keyDERs = append(keyDERs, b.Bytes)
+			keyDERs = append(keyDERs, blk.Bytes)
 		}
 		return nil
 	})
@@ -421,28 +436,78 @@ func TestKeysAre0600OnlyInTheDataDirectoryAndNeverLogged(t *testing.T) {
 		t.Error("a log contains PEM private key text")
 	}
 	for i, k := range keys {
-		scalar := k.D.FillBytes(make([]byte, (k.Curve.Params().BitSize+7)/8))
-		for _, raw := range [][]byte{scalar, keyDERs[i]} {
-			for name, form := range map[string]string{
-				"hex":       hex.EncodeToString(raw),
-				"HEX":       strings.ToUpper(hex.EncodeToString(raw)),
-				"base64":    base64.StdEncoding.EncodeToString(raw),
-				"rawbase64": base64.RawStdEncoding.EncodeToString(raw),
-				"url64":     base64.URLEncoding.EncodeToString(raw),
-				"rawurl64":  base64.RawURLEncoding.EncodeToString(raw),
-				"raw":       string(raw),
-			} {
-				if strings.Contains(logs, form) {
-					t.Errorf("a log contains a private key (%s form)", name)
-				}
+		assertKeyNotIn(t, logs, k, keyDERs[i])
+	}
+}
+
+var quotedToken = regexp.MustCompile(`"(?:[^"\\]|\\.)*"`)
+
+// A raw DER key file, as the data-directory scan meets one, is read as a key,
+// and a key logged the ordinary slog way is recovered by the log scan.
+func TestKeyScanReadsRawDER(t *testing.T) {
+	k, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p8, _ := x509.MarshalPKCS8PrivateKey(k)
+	sec1, _ := x509.MarshalECPrivateKey(k)
+	for name, der := range map[string][]byte{"pkcs8": p8, "sec1": sec1} {
+		got, err := parseKey(&pem.Block{Bytes: der})
+		if err != nil || !got.Equal(k) {
+			t.Errorf("%s: raw DER not read as the key: %v", name, err)
+		}
+	}
+	if _, err := parseKey(&pem.Block{Bytes: []byte("not a key")}); err == nil {
+		t.Error("garbage read as a key")
+	}
+	var buf bytes.Buffer
+	slog.New(slog.NewTextHandler(&buf, nil)).Info("loaded", "k", p8)
+	logs := buf.String()
+	if strings.Contains(logs, string(p8)) {
+		t.Fatalf("slog did not escape the bytes: the test proves nothing")
+	}
+	found := false
+	for _, q := range quotedToken.FindAllString(logs, -1) {
+		if u, err := strconv.Unquote(q); err == nil && strings.Contains(u, string(p8)) {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("the quoted-token scan does not recover a []byte logged through slog")
+	}
+}
+
+// assertKeyNotIn fails if the text carries the key in any common spelling.
+func assertKeyNotIn(t *testing.T, logs string, k *ecdsa.PrivateKey, der []byte) {
+	t.Helper()
+	// slog's text handler writes a []byte as a Go-quoted string: search what
+	// each quoted token says as well as the text itself.
+	for _, q := range quotedToken.FindAllString(logs, -1) {
+		if u, err := strconv.Unquote(q); err == nil {
+			logs += "\n" + u
+		}
+	}
+	scalar := k.D.FillBytes(make([]byte, (k.Curve.Params().BitSize+7)/8))
+	for _, raw := range [][]byte{scalar, der} {
+		for name, form := range map[string]string{
+			"hex":       hex.EncodeToString(raw),
+			"HEX":       strings.ToUpper(hex.EncodeToString(raw)),
+			"base64":    base64.StdEncoding.EncodeToString(raw),
+			"rawbase64": base64.RawStdEncoding.EncodeToString(raw),
+			"url64":     base64.URLEncoding.EncodeToString(raw),
+			"rawurl64":  base64.RawURLEncoding.EncodeToString(raw),
+			"raw":       string(raw),
+		} {
+			if strings.Contains(logs, form) {
+				t.Errorf("a log contains a private key (%s form)", name)
 			}
 		}
-		if strings.Contains(logs, k.D.String()) {
-			t.Error("a log contains a private scalar in decimal")
-		}
-		if strings.Contains(logs, strings.ToLower(k.D.Text(16))) || strings.Contains(logs, strings.ToUpper(k.D.Text(16))) {
-			t.Error("a log contains a private scalar in hex")
-		}
+	}
+	if strings.Contains(logs, k.D.String()) {
+		t.Error("a log contains a private scalar in decimal")
+	}
+	if strings.Contains(logs, strings.ToLower(k.D.Text(16))) || strings.Contains(logs, strings.ToUpper(k.D.Text(16))) {
+		t.Error("a log contains a private scalar in hex")
 	}
 }
 
@@ -507,10 +572,34 @@ func TestOwnCertificateModeIsServedAndMakesNoLocalCA(t *testing.T) {
 		}
 	}
 
-	t.Run("behind a proxy: plain HTTP only, no CA", func(t *testing.T) {
+	t.Run("the owner's key never reaches a log", func(t *testing.T) {
 		if err := s.Stop(); err != nil {
 			t.Fatal(err)
 		}
+		logs := s.Stdout() + s.Log()
+		if len(logs) < 100 {
+			t.Fatalf("logs are suspiciously short (%d bytes): the scan proves nothing", len(logs))
+		}
+		kb, err := os.ReadFile(key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		blk, _ := pem.Decode(kb)
+		if blk == nil {
+			t.Fatal("the owner's key is not PEM")
+		}
+		k, err := parseKey(blk)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(logs, "PRIVATE KEY") {
+			t.Error("a log contains PEM private key text")
+		}
+		assertKeyNotIn(t, logs, k, blk.Bytes)
+	})
+
+	t.Run("behind a proxy: plain HTTP only, no CA", func(t *testing.T) {
+		_ = s.Stop()
 		p := testutil.StartServer(t, testutil.Options{DataDir: t.TempDir()})
 		resp, err := http.Get(p.URL + "/api/health")
 		if err != nil || resp.StatusCode != 200 {

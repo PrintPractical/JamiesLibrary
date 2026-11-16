@@ -21,13 +21,14 @@ var ctx = context.Background()
 const isbnA, isbnB = "9780306406157", "9780140328721"
 
 type rig struct {
-	t   *testing.T
-	st  *store.Store
-	set *settings.Service
-	cat *catalog.Service
-	us  *users.Service
-	svc *Service
-	now time.Time
+	t     *testing.T
+	st    *store.Store
+	set   *settings.Service
+	cat   *catalog.Service
+	us    *users.Service
+	svc   *Service
+	now   time.Time
+	desks int
 }
 
 func newRig(t *testing.T) *rig {
