@@ -1,5 +1,5 @@
 import type { ReactElement, ReactNode } from "react";
-import { Navigate, Outlet, Route, Routes, useLocation } from "react-router";
+import { Navigate, Outlet, useLocation, useRoutes, type RouteObject } from "react-router";
 import { PatronLayout, StaffLayout, StaffMore } from "../components/Layouts";
 import type { ShellUser } from "../components/Shell";
 import { Account } from "../features/account/Account";
@@ -9,6 +9,9 @@ import { SignIn } from "../features/account/SignIn";
 import { History } from "../features/patron/History";
 import { Home } from "../features/patron/Home";
 import { SelfCheckout } from "../features/patron/SelfCheckout";
+import { Overdue } from "../features/patrons/Overdue";
+import { PatronPage } from "../features/patrons/PatronPage";
+import { Patrons } from "../features/patrons/Patrons";
 import { Setup } from "../features/setup/Setup";
 import { NotFound } from "../features/placeholder/NotFound";
 import { Placeholder } from "../features/placeholder/Placeholder";
@@ -102,41 +105,51 @@ function StaffArea() {
   );
 }
 
-/** The routes of architecture §14. Each page is a placeholder until its feature is built. */
+/** The route table of architecture §14. Each page is a placeholder until its feature is built. */
+export const routeTable: RouteObject[] = [
+  {
+    element: <Guard />,
+    children: [
+      {
+        element: <PatronArea />,
+        children: [
+          { index: true, element: <Home /> },
+          { path: "browse", element: gated(["catalog.browse"], "Browse") },
+          { path: "card", element: page("My card") },
+          { path: "loans", element: <Allow any={["loans.own.view"]}><History /></Allow> },
+          { path: "checkout", element: <Allow any={["circ.self_checkout"]}><SelfCheckout /></Allow> },
+          { path: "account", element: <Account /> },
+          { path: "books/:id", element: gated(["catalog.browse"], "Book") },
+          { path: "*", element: <NotFound /> },
+        ],
+      },
+      {
+        element: <StaffArea />,
+        children: [
+          { path: "desk", element: page("Desk") },
+          { path: "desk/checkout", element: gated(["circ.desk"], "Check out") },
+          { path: "desk/checkin", element: gated(["circ.desk"], "Check in") },
+          { path: "desk/patrons", element: <Allow any={["patrons.lookup"]}><Patrons /></Allow> },
+          { path: "desk/patrons/:id", element: <Allow any={["patrons.lookup"]}><PatronPage /></Allow> },
+          { path: "desk/overdue", element: <Allow any={["circ.desk"]}><Overdue /></Allow> },
+          { path: "catalog", element: gated(["catalog.manage"], "Catalog") },
+          { path: "catalog/new", element: gated(["catalog.manage"], "Add a book") },
+          { path: "admin/settings", element: gated(["settings.manage"], "Settings") },
+          {
+            path: "admin/people",
+            element: gated(["users.manage", "users.permissions", "invitations.manage"], "People & invites"),
+          },
+          { path: "admin/statistics", element: gated(["reports.view"], "Statistics") },
+          { path: "more", element: <More /> },
+        ],
+      },
+    ],
+  },
+  { path: "setup", element: <Setup /> },
+  { path: "signin", element: <SignIn /> },
+  { path: "register", element: <Register /> },
+];
+
 export function AppRoutes() {
-  return (
-    <Routes>
-      <Route element={<Guard />}>
-        <Route element={<PatronArea />}>
-          <Route index element={<Home />} />
-          <Route path="browse" element={gated(["catalog.browse"], "Browse")} />
-          <Route path="card" element={page("My card")} />
-          <Route path="loans" element={<Allow any={["loans.own.view"]}><History /></Allow>} />
-          <Route path="checkout" element={<Allow any={["circ.self_checkout"]}><SelfCheckout /></Allow>} />
-          <Route path="account" element={<Account />} />
-          <Route path="books/:id" element={gated(["catalog.browse"], "Book")} />
-          <Route path="*" element={<NotFound />} />
-        </Route>
-        <Route element={<StaffArea />}>
-          <Route path="desk" element={page("Desk")} />
-          <Route path="desk/checkout" element={gated(["circ.desk"], "Check out")} />
-          <Route path="desk/checkin" element={gated(["circ.desk"], "Check in")} />
-          <Route path="desk/patrons" element={gated(["patrons.lookup"], "Patrons")} />
-          <Route path="desk/overdue" element={gated(["circ.desk"], "Overdue")} />
-          <Route path="catalog" element={gated(["catalog.manage"], "Catalog")} />
-          <Route path="catalog/new" element={gated(["catalog.manage"], "Add a book")} />
-          <Route path="admin/settings" element={gated(["settings.manage"], "Settings")} />
-          <Route
-            path="admin/people"
-            element={gated(["users.manage", "users.permissions", "invitations.manage"], "People & invites")}
-          />
-          <Route path="admin/statistics" element={gated(["reports.view"], "Statistics")} />
-          <Route path="more" element={<More />} />
-        </Route>
-      </Route>
-      <Route path="setup" element={<Setup />} />
-      <Route path="signin" element={<SignIn />} />
-      <Route path="register" element={<Register />} />
-    </Routes>
-  );
+  return useRoutes(routeTable);
 }
