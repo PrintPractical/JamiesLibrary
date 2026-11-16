@@ -6,6 +6,7 @@ import { Account } from "../features/account/Account";
 import { ForcedChange } from "../features/account/ForcedChange";
 import { Register } from "../features/account/Register";
 import { SignIn } from "../features/account/SignIn";
+import { AddBook } from "../features/catalog/AddBook";
 import { Overdue } from "../features/patrons/Overdue";
 import { PatronPage } from "../features/patrons/PatronPage";
 import { Patrons } from "../features/patrons/Patrons";
@@ -124,7 +125,7 @@ export function AppRoutes() {
           <Route path="desk/patrons/:id" element={<Allow any={["patrons.lookup"]}><PatronPage /></Allow>} />
           <Route path="desk/overdue" element={<Allow any={["circ.desk"]}><Overdue /></Allow>} />
           <Route path="catalog" element={gated(["catalog.manage"], "Catalog")} />
-          <Route path="catalog/new" element={gated(["catalog.manage"], "Add a book")} />
+          <Route path="catalog/new" element={<Allow any={["catalog.manage"]}><AddBook /></Allow>} />
           <Route path="admin/settings" element={gated(["settings.manage"], "Settings")} />
           <Route
             path="admin/people"
