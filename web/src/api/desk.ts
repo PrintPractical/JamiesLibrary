@@ -53,6 +53,25 @@ export async function resolvePatron(card: string): Promise<DeskPatron> {
   return got.patron;
 }
 
+/** One account a name search found. `card` is "" when it has none. */
+export type PatronMatch = {
+  id: number;
+  display_name: string;
+  username: string;
+  card: string;
+  active: boolean;
+  out: number;
+  overdue: number;
+};
+
+/** A card number selects its patron at once; anything else is a name search, listed for the librarian to choose from. */
+export type DeskFind =
+  | { kind: "patron"; patron: DeskPatron }
+  | { kind: "matches"; patrons: PatronMatch[]; more: boolean };
+
+/** Looks for a patron by card number, name or username. The search is in the body, never in the address. */
+export const deskFind = (q: string) => api<DeskFind>("/api/desk/find", { method: "POST", body: { q } });
+
 /** Checks a copy (or, in ISBN mode, a book's ISBN) out to the patron with that card, at once. */
 export function checkout(card: string, code: string): Promise<DeskLoan> {
   return api<DeskLoan>("/api/desk/checkout", { method: "POST", body: { patron: card, code } });
