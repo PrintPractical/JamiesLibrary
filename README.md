@@ -37,7 +37,7 @@ Everything the library keeps is in one Docker volume, `jamieslibrary-data`, moun
 
 The container runs as user 65532 with a read-only root filesystem; only `/data` is writable. If you replace the volume with a folder on the host, the folder must be owned by user 65532. The image is built for `linux/amd64` and `linux/arm64`: `docker buildx build -f deploy/Dockerfile --platform linux/amd64,linux/arm64 -t jamieslibrary .` (add `--build-arg VERSION=1.0.0` to stamp the version).
 
-**On the internet, behind a reverse proxy:** `deploy/compose.public.yml` runs the app over plain HTTP on a private network, with Caddy in front getting the HTTPS certificate. Put your domain name in `deploy/Caddyfile`, open ports 80 and 443, and run `docker compose -f deploy/compose.public.yml up -d --build`. It sets `JL_HTTP_ONLY=1`, `JL_BIND_ADDRESS` and `JL_TRUSTED_PROXIES` for you; if you use another proxy, set them to match it (see the settings table). The app offers the same functions in both setups.
+**On the internet, behind a reverse proxy:** `deploy/compose.public.yml` runs the app over plain HTTP on a private network, with Caddy in front getting the HTTPS certificate. Put your domain name in `deploy/Caddyfile`, open ports 80 and 443, and run `docker compose -f deploy/compose.public.yml up -d --build`. It sets `JL_HTTP_ONLY=1`, `JL_BIND_ADDRESS` and `JL_TRUSTED_PROXIES` for you; `JL_TRUSTED_PROXIES` lists only the proxy's own fixed address (`172.30.0.2/32`), never the whole network, whose gateway is the host itself: if you use another proxy, list only that proxy's address (see the settings table). The app offers the same functions in both setups.
 
 ## Release binaries
 

@@ -21,8 +21,9 @@ services:
       JL_HTTP_PORT: "8080"
       # Listen on the proxy network's address only (fixed below).
       JL_BIND_ADDRESS: 172.30.0.10
-      # Whose X-Forwarded-For is believed: the proxy network, where only Caddy runs.
-      JL_TRUSTED_PROXIES: 172.30.0.0/24
+      # Whose X-Forwarded-For is believed: Caddy's own address only (fixed below). Never the
+      # whole network: that includes the gateway, which is the host itself.
+      JL_TRUSTED_PROXIES: 172.30.0.2/32
       GOMEMLIMIT: 400MiB
     volumes:
       - jamieslibrary-data:/data
@@ -46,13 +47,14 @@ services:
       - caddy-config:/config
     depends_on: [jamieslibrary]
     networks:
-      proxy: {}
+      proxy:
+        ipv4_address: 172.30.0.2
 
 networks:
   proxy:
     ipam:
       config:
-        # Fixed so JL_TRUSTED_PROXIES can name it.
+        # Fixed so the two addresses above can be named.
         - subnet: 172.30.0.0/24
 
 volumes:
