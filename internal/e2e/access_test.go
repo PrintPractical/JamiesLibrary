@@ -204,7 +204,7 @@ func TestSetupCodeWrongMissingAndDeadAfterTheFirstAdministrator(t *testing.T) {
 	body := func(code string) map[string]string {
 		return map[string]string{"code": code, "username": "mallory", "display_name": "M", "password": adminPassword}
 	}
-	for name, c := range map[string]string{"missing": "", "wrong": "AAAA-AAAA-AAAA-AAAA", "lower-cased right code with a character changed": strings.ToLower(code[:len(code)-1]) + "0", "garbage": "' OR 1=1 --"} {
+	for name, c := range map[string]string{"missing": "", "wrong": "AAAA-AAAA-AAAA-AAAA", "lower-cased right code with a character changed": strings.ToLower(code[:len(code)-1]) + otherThan(code[len(code)-1]), "garbage": "' OR 1=1 --"} {
 		if r := v.do("POST", "/api/setup/admin", body(c)); r.Status != 403 {
 			t.Errorf("%s code: want 403, got %d %s", name, r.Status, r.Raw)
 		}
@@ -708,6 +708,14 @@ func TestOneInvitationCannotMakeTwoAccounts(t *testing.T) {
 	if r := newWho(t, s).do("POST", "/api/register", map[string]string{"code": code, "username": "late", "display_name": "L", "password": adminPassword}); r.Status == 201 {
 		t.Fatalf("a used code registered again %v", r.Raw)
 	}
+}
+
+// otherThan returns a character that differs from c however the case is compared.
+func otherThan(c byte) string {
+	if c == '0' {
+		return "1"
+	}
+	return "0"
 }
 
 // ACCESS-2 "Invalid code": revoked, used, unknown and malformed codes make no account.

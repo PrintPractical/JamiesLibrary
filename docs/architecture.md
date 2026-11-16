@@ -209,10 +209,19 @@ The PDF has a fixed creation date, so the same labels produce the same file.
 
 `web/src/` is laid out as:
 
-- `api/client.ts`: a typed `fetch` wrapper. A failed call throws `ApiError` (the server answered with an error body) or `NetworkError` (no answer).
-- `app/`: the router (`routes.tsx`), navigation lists (`navigation.ts`) and theme (`theme.ts`, `ThemeProvider.tsx`).
-- `components/`: `Layouts.tsx` (the patron layout and the staff layout, each with a phone tab bar and a desktop side bar), `Shell.tsx`, `Icon.tsx`, `Errors.tsx`.
-- `features/`: one folder per area. Today it holds only a placeholder page and the not-found page.
+- `api/`: the typed client. `client.ts` is a `fetch` wrapper: a failed call throws `ApiError` (the server answered with an error body) or `NetworkError` (no answer). The other files hold one area's calls each: `auth.ts` (sign-in, `/api/me`, the library's public settings), `catalog.ts`, `desk.ts`, `patrons.ts`, `admin.ts` and `setup.ts`.
+- `app/`: the router (`routes.tsx`, with its guard for visitors and for users who must change their password), the signed-in user and library settings (`session.tsx`), navigation lists (`navigation.ts`), where a user lands (`landing.ts`), the label for each permission (`permissions.ts`) and theme (`theme.ts`, `ThemeProvider.tsx`).
+- `components/`: `Layouts.tsx` (the patron layout and the staff layout, each with a phone tab bar and a desktop side bar), `Shell.tsx`, `ScanField.tsx` (the one way a screen reads a code; `barcodeDetector.ts` loads the camera decoder and its bundled wasm on first use), `Field.tsx`, `Icon.tsx`, `Errors.tsx`.
+- `features/`: one folder per area. Each holds its screens, their styles and their tests.
+  - `account/`: sign-in, registration with an invitation code, the account page, changing a password, and the screen that holds a user who must change theirs.
+  - `catalog/`: browsing and searching, the book page with its copies and reviews, and the add-book flow.
+  - `desk/`: the staff checkout and check-in screens.
+  - `patrons/`: the staff patron list, a patron's page with their loans, and the overdue list.
+  - `people/`: administration of users and their permissions, and invitations.
+  - `settings/`: library settings (branding, loan rules, copy-ID mode, patron switches, sessions, HTTPS).
+  - `setup/`: the first-run wizard.
+  - `admin/`: the statistics and activity-log screens, and the wording and time-zone helpers they share.
+  - `placeholder/`: the not-found page, and a placeholder for routes whose screen isn't built yet (patron home, My card, My books, the desk home and the catalog management page).
 - `styles/`: `tokens.css` (design tokens as CSS custom properties), `fonts.css`, `base.css`. There is no CSS framework.
 
 Fonts (Fraunces, Nunito Sans) are bundled from `@fontsource` packages. The app makes no request to any other host, so it works with no internet connection; `web/src/build.test.ts` fails if the build refers to an external host.

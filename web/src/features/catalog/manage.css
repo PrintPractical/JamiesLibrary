@@ -1,0 +1,143 @@
+/* Managing the catalog: books, copies, locations and labels (add-book and book-detail mockups' look). */
+.mg-narrow {
+  max-width: 720px;
+}
+.mg-tools {
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.mg-tools .btn {
+  text-decoration: none;
+}
+.mg-list,
+.mg-copies,
+.mg-chosen {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.mg-list > li {
+  padding: 14px 18px;
+}
+.mg-list > li + li,
+.mg-copies > li + li {
+  border-top: 1px solid var(--line);
+}
+.card.mg-list {
+  padding: 0;
+}
+.mg-loc {
+  display: grid;
+  gap: 12px;
+}
+.mg-loc-head,
+.mg-copy-main {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+.mg-loc-name {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.mg-copy {
+  display: grid;
+  gap: 10px;
+  padding: 14px 0;
+}
+.mg-copy-main {
+  justify-content: flex-start;
+}
+.mg-copy-main .small {
+  flex: 1 1 140px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.mg-form {
+  display: grid;
+  gap: 10px;
+}
+.mg-chosen li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  overflow-wrap: anywhere;
+}
+.mg-chosen li > span {
+  min-width: 0;
+}
+.mg-pick {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 4px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  color: var(--primary);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.mg-pick:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 2px;
+}
+.mg-copies-pick {
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  padding: 8px 14px;
+  margin: 0;
+  min-width: 0;
+}
+.mg-copies-pick legend {
+  font-weight: 700;
+  padding: 0 6px;
+  overflow-wrap: anywhere;
+}
+.mg-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  overflow-wrap: anywhere;
+}
+.mg-check input {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  accent-color: var(--primary);
+}
+.mg-loc > *,
+.mg-copy > *,
+.mg-loc .alert > div {
+  min-width: 0;
+}
+.mg-loc select.input {
+  width: 100%;
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--ink-2) 50%), linear-gradient(135deg, var(--ink-2) 50%, transparent 50%);
+  background-position:
+    calc(100% - 20px) 50%,
+    calc(100% - 14px) 50%;
+  background-size: 6px 6px;
+  background-repeat: no-repeat;
+  padding-right: 36px;
+}
+/* Rows of buttons wrap, and in the narrow warning box each button may use the full width. */
+.addbook .row {
+  flex-wrap: wrap;
+}
+.mg-loc .alert .row .btn {
+  max-width: 100%;
+  white-space: normal;
+  text-align: center;
+}

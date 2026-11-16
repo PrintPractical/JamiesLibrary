@@ -180,7 +180,8 @@ export type BookInput = {
   cover?: File;
 };
 
-export type CopyInput = { location_id: number; condition: string; sticker?: string };
+/** A copy to save. A location is named by ID or, to make one in the same step, by `new_location`. */
+export type CopyInput = { location_id: number; new_location?: string; condition: string; sticker?: string };
 
 export const CONDITIONS = ["new", "good", "fair", "worn", "poor", "damaged"] as const;
 
@@ -195,8 +196,8 @@ export const lookupIsbn = (isbn: string, signal?: AbortSignal) =>
 
 export const createLocation = (name: string) => api<Location>("/api/locations", { method: "POST", body: { name } });
 
-/** Saves a new book. A cover the librarian chose goes as a multipart form, anything else as JSON. */
-export function createBook(input: BookInput): Promise<{ id: number; title: string }> {
+/** Sends a book as a multipart form when the librarian chose a cover file, anything else as JSON. */
+function bookRequest(method: "POST" | "PUT", path: string, input: BookInput): Promise<{ id: number; title: string }> {
   if (input.cover) {
     const form = new FormData();
     form.append("title", input.title);
@@ -204,10 +205,10 @@ export function createBook(input: BookInput): Promise<{ id: number; title: strin
     if (input.isbn) form.append("isbn", input.isbn);
     form.append("description", input.description);
     form.append("cover", input.cover);
-    return api("/api/books", { method: "POST", body: form });
+    return api(path, { method, body: form });
   }
-  return api("/api/books", {
-    method: "POST",
+  return api(path, {
+    method,
     body: {
       title: input.title,
       authors: input.authors,
@@ -217,6 +218,26 @@ export function createBook(input: BookInput): Promise<{ id: number; title: strin
     },
   });
 }
+
+/** Saves a new book. */
+export const createBook = (input: BookInput) => bookRequest("POST", "/api/books", input);
+
+/** Replaces a book's details; its cover only when one is given. */
+export const updateBook = (id: number, input: BookInput) => bookRequest("PUT", `/api/books/${id}`, input);
+
+/** Removes a book from the catalog. Its past loans stay in histories and reports (CAT-5). */
+export const removeBook = (id: number) => api(`/api/books/${id}`, { method: "DELETE" });
+
+export const updateCopy = (id: number, copy: CopyInput) => api<StaffCopy>(`/api/copies/${id}`, { method: "PUT", body: copy });
+
+/** Refused while the copy is on loan (CAT-5). */
+export const removeCopy = (id: number) => api(`/api/copies/${id}`, { method: "DELETE" });
+
+export const renameLocation = (id: number, name: string) => api<Location>(`/api/locations/${id}`, { method: "PUT", body: { name } });
+
+/** Deletes a location; with `moveTo` its copies move there first, in one step (CAT-8). */
+export const deleteLocation = (id: number, moveTo?: number) =>
+  api(`/api/locations/${id}${moveTo ? `?move_to=${moveTo}` : ""}`, { method: "DELETE" });
 
 export const addCopy = (bookId: number, copy: CopyInput) =>
   api<StaffCopy>(`/api/books/${bookId}/copies`, { method: "POST", body: copy });
