@@ -175,3 +175,51 @@
   height: 20px;
   flex: none;
 }
+.checkout .matches ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.checkout .matches li {
+  border-top: 1px solid var(--line);
+}
+.checkout .matches li:first-child {
+  border-top: 0;
+}
+.checkout .match {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  width: 100%;
+  min-height: 44px;
+  padding: 12px 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+.checkout button.match {
+  cursor: pointer;
+}
+.checkout button.match:hover .m b {
+  color: var(--primary);
+  text-decoration: underline;
+}
+.checkout button.match:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 2px;
+}
+.checkout .match .m {
+  flex: 1 1 12em;
+  min-width: 0;
+}
+.checkout .match .m b,
+.checkout .match .m span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.checkout .match.off {
+  opacity: 0.85;
+}
