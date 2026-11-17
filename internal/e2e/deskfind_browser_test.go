@@ -83,20 +83,7 @@ type shop struct {
 // newShop: Ann Lee (one book out) and Anna Ko; two Sam Readers; a librarian, Marla Staff;
 // a deactivated Dee Gone; Nora Nocard, who has no card; the searchers: "deskonly" (circ.desk
 // and nothing else), "lib" (a librarian) and the administrator "root".
-//
-// These tests share the package's ten minutes with everything else, so they run side by side
-// (a few at a time: each is a server and a browser). The test that depends on timing does not.
 func newShop(t *testing.T) *shop {
-	t.Helper()
-	t.Parallel()
-	shopSlots <- struct{}{}
-	t.Cleanup(func() { <-shopSlots })
-	return newShopNow(t)
-}
-
-var shopSlots = make(chan struct{}, 4)
-
-func newShopNow(t *testing.T) *shop {
 	t.Helper()
 	s, root := install(t, nil)
 	d := &deskFindWorld{t: t, s: s, root: root, ids: map[string]int64{}, web: map[string]*who{}, card: map[string]string{}}
@@ -121,6 +108,11 @@ func newShopNow(t *testing.T) *shop {
 		t.Fatalf("making a user with no card: %v", err)
 	}
 	sh := &shop{d}
+	for i := 1; i <= 60; i++ {
+		d.add("patron", fmt.Sprintf("bulk%02d", i), fmt.Sprintf("Bulk %02d", i))
+	}
+	d.add("patron", "markup", `<img src=x onerror="window.__pwned=1"><b>Bold</b>`)
+	root.want(200, "PUT", "/api/admin/settings", map[string]any{"self_checkout": true})
 	// Ann Lee has a book out.
 	d.web["deskonly"].want(200, "POST", "/api/desk/checkout", map[string]string{"patron": d.card["alee"], "code": d.copyCode("Already out")})
 	return sh
@@ -139,7 +131,18 @@ func (sh *shop) at(t *testing.T, user string, width int, rules []map[string]any,
 	return rep
 }
 
+// forWidths runs f at each width, the two browsers at once (the server is shared and they only read from it).
 func (sh *shop) forWidths(t *testing.T, f func(t *testing.T, width int)) {
+	t.Helper()
+	t.Run("widths", func(t *testing.T) {
+		for _, w := range widths {
+			t.Run(fmt.Sprintf("%dpx", w), func(t *testing.T) { t.Parallel(); f(t, w) })
+		}
+	})
+}
+
+// forWidthsInTurn is for a test that changes the library: one width after the other.
+func (sh *shop) forWidthsInTurn(t *testing.T, f func(t *testing.T, width int)) {
 	t.Helper()
 	for _, w := range widths {
 		t.Run(fmt.Sprintf("%dpx", w), func(t *testing.T) { f(t, w) })
@@ -162,9 +165,8 @@ const checkout = "/desk/checkout"
 
 // "Find by name": both are listed with name, username, card and books out; choosing
 // Ann Lee selects her exactly as scanning her card does, and a checkout then works.
-func TestBrowserFindByNameListsBothAndChoosingSelectsLikeAScan(t *testing.T) {
-	sh := newShop(t)
-	sh.forWidths(t, func(t *testing.T, width int) {
+func (sh *shop) testBrowserFindByNameListsBothAndChoosingSelectsLikeAScan(t *testing.T) {
+	sh.forWidthsInTurn(t, func(t *testing.T, width int) {
 		before := openLoansOfPatron(t, openRO(t, sh.s.DataDir), sh.ids["alee"])
 		copyCode := sh.copyCode(fmt.Sprintf("Checked out at %d", width))
 		rep := sh.at(t, "deskonly", width, nil,
@@ -222,8 +224,7 @@ func TestBrowserFindByNameListsBothAndChoosingSelectsLikeAScan(t *testing.T) {
 
 // "Search runs on Enter": typing shows no list and asks the server nothing; Enter, and the
 // Find button, do.
-func TestBrowserNoListWhileTypingOnlyOnEnterOrFind(t *testing.T) {
-	sh := newShop(t)
+func (sh *shop) testBrowserNoListWhileTypingOnlyOnEnterOrFind(t *testing.T) {
 	sh.forWidths(t, func(t *testing.T, width int) {
 		typing := sh.at(t, "deskonly", width, nil,
 			at(checkout, typeOnly("ann"), sleepMs(1200), eval("head", matchHead), eval("rows", matchRows), eval("busy", `document.body.innerText.includes("Searching")`)))
@@ -248,8 +249,7 @@ func TestBrowserNoListWhileTypingOnlyOnEnterOrFind(t *testing.T) {
 }
 
 // "Find by username".
-func TestBrowserFindByUsername(t *testing.T) {
-	sh := newShop(t)
+func (sh *shop) testBrowserFindByUsername(t *testing.T) {
 	sh.forWidths(t, func(t *testing.T, width int) {
 		rep := sh.at(t, "deskonly", width, nil, at(checkout, search("alee"), waitText("Matches for"), eval("rows", matchRows)))
 		rows := rep.Visits[0].rows(t, "rows")
@@ -260,8 +260,7 @@ func TestBrowserFindByUsername(t *testing.T) {
 }
 
 // "One match is still chosen deliberately".
-func TestBrowserOneMatchIsListedNotSelectedAndNothingCanBeCheckedOutUntilChosen(t *testing.T) {
-	sh := newShop(t)
+func (sh *shop) testBrowserOneMatchIsListedNotSelectedAndNothingCanBeCheckedOutUntilChosen(t *testing.T) {
 	sh.forWidths(t, func(t *testing.T, width int) {
 		rep := sh.at(t, "deskonly", width, nil,
 			at(checkout, search("lee"), waitText("Matches for"), sleepMs(800), eval("rows", matchRows), eval("panel", patronPanel), eval("copy", copyField),
@@ -283,8 +282,7 @@ func TestBrowserOneMatchIsListedNotSelectedAndNothingCanBeCheckedOutUntilChosen(
 }
 
 // "Same name": two Sam Readers told apart by username and card; each is the one chosen.
-func TestBrowserSameNameIsToldApartByUsernameAndCard(t *testing.T) {
-	sh := newShop(t)
+func (sh *shop) testBrowserSameNameIsToldApartByUsernameAndCard(t *testing.T) {
 	sh.forWidths(t, func(t *testing.T, width int) {
 		rep := sh.at(t, "deskonly", width, nil,
 			at(checkout, search("sam reader"), waitText("Matches for"), eval("rows", matchRows), chooseMatch("sam.r2"), waitText("Copy barcode"), eval("panel", patronPanel)))
@@ -308,8 +306,7 @@ func TestBrowserSameNameIsToldApartByUsernameAndCard(t *testing.T) {
 }
 
 // "No match".
-func TestBrowserNoMatchSaysSoAndSelectsNobody(t *testing.T) {
-	sh := newShop(t)
+func (sh *shop) testBrowserNoMatchSaysSoAndSelectsNobody(t *testing.T) {
 	sh.forWidths(t, func(t *testing.T, width int) {
 		rep := sh.at(t, "deskonly", width, nil,
 			at(checkout, search("zzz"), waitText("No patron matches ‘zzz’."), eval("rows", matchRows), eval("panel", patronPanel), eval("copy", copyField)))
@@ -322,11 +319,7 @@ func TestBrowserNoMatchSaysSoAndSelectsNobody(t *testing.T) {
 }
 
 // "Too many matches": 60 match, 50 are shown, and the librarian is told to type more.
-func TestBrowserSixtyMatchesShowFiftyAndSayThereAreMore(t *testing.T) {
-	sh := newShop(t)
-	for i := 1; i <= 60; i++ {
-		sh.add("patron", fmt.Sprintf("bulk%02d", i), fmt.Sprintf("Bulk %02d", i))
-	}
+func (sh *shop) testBrowserSixtyMatchesShowFiftyAndSayThereAreMore(t *testing.T) {
 	const more = "More than 50 patrons match. Type more of the name."
 	sh.forWidths(t, func(t *testing.T, width int) {
 		rep := sh.at(t, "deskonly", width, nil,
@@ -355,8 +348,7 @@ func TestBrowserSixtyMatchesShowFiftyAndSayThereAreMore(t *testing.T) {
 }
 
 // "A scanned or typed card still selects at once": no list in between.
-func TestBrowserTypedOrScannedCardSelectsAtOnce(t *testing.T) {
-	sh := newShop(t)
+func (sh *shop) testBrowserTypedOrScannedCardSelectsAtOnce(t *testing.T) {
 	sh.forWidths(t, func(t *testing.T, width int) {
 		for name, enter := range map[string]func(string) map[string]any{
 			"scanner": func(c string) map[string]any { return wedge(scanInput, c) },
@@ -373,8 +365,7 @@ func TestBrowserTypedOrScannedCardSelectsAtOnce(t *testing.T) {
 }
 
 // "Staff account": another librarian's search lists a librarian, who can be chosen.
-func TestBrowserStaffAccountIsListedAndChoosable(t *testing.T) {
-	sh := newShop(t)
+func (sh *shop) testBrowserStaffAccountIsListedAndChoosable(t *testing.T) {
 	sh.forWidths(t, func(t *testing.T, width int) {
 		rep := sh.at(t, "deskonly", width, nil,
 			at(checkout, search("marla"), waitText("Matches for"), eval("rows", matchRows), chooseMatch("Marla Staff"), waitText("Copy barcode"), eval("panel", patronPanel)))
@@ -389,8 +380,7 @@ func TestBrowserStaffAccountIsListedAndChoosable(t *testing.T) {
 }
 
 // "Deactivated patron" and "Patron with no card": listed, with the reason, and nothing to press.
-func TestBrowserDeactivatedAndCardlessMatchesAreShownButCannotBeChosen(t *testing.T) {
-	sh := newShop(t)
+func (sh *shop) testBrowserDeactivatedAndCardlessMatchesAreShownButCannotBeChosen(t *testing.T) {
 	sh.forWidths(t, func(t *testing.T, width int) {
 		for _, c := range []struct{ q, name, why string }{{"dee gone", "Dee Gone", "Deactivated"}, {"nora", "Nora Nocard", "No library card"}} {
 			rep := sh.at(t, "deskonly", width, nil,
@@ -417,8 +407,7 @@ func TestBrowserDeactivatedAndCardlessMatchesAreShownButCannotBeChosen(t *testin
 }
 
 // "Permission to check out only": the same list as any librarian, and as the administrator.
-func TestBrowserCircDeskOnlyLibrarianSeesWhatAnyLibrarianSees(t *testing.T) {
-	sh := newShop(t)
+func (sh *shop) testBrowserCircDeskOnlyLibrarianSeesWhatAnyLibrarianSees(t *testing.T) {
 	sh.forWidths(t, func(t *testing.T, width int) {
 		var seen = map[string][]matchRow{}
 		for _, user := range []string{"deskonly", "lib", "root"} {
@@ -439,8 +428,7 @@ func TestBrowserCircDeskOnlyLibrarianSeesWhatAnyLibrarianSees(t *testing.T) {
 // ---- hard cases ---------------------------------------------------------------------
 
 // The server unreachable after submit: an error to act on, and nobody selected.
-func TestBrowserSearchWithTheServerGoneSaysSoAndSelectsNobody(t *testing.T) {
-	sh := newShop(t)
+func (sh *shop) testBrowserSearchWithTheServerGoneSaysSoAndSelectsNobody(t *testing.T) {
 	gone := []map[string]any{{"url": "/api/desk/find", "fail": true}}
 	sh.forWidths(t, func(t *testing.T, width int) {
 		for _, q := range []string{"ann", sh.card["annko"]} {
@@ -465,8 +453,7 @@ func TestBrowserSearchWithTheServerGoneSaysSoAndSelectsNobody(t *testing.T) {
 // Two searches in quick succession: the earlier one's late answer never replaces the later.
 // The first answer is held 1.5 s and the second 3 s, so for a while only the first has been
 // answered: that is when a broken screen would show its list.
-func TestBrowserALateAnswerNeverReplacesALaterSearch(t *testing.T) {
-	sh := newShopNow(t)
+func (sh *shop) testBrowserALateAnswerNeverReplacesALaterSearch(t *testing.T) {
 	slow := []map[string]any{
 		{"url": "/api/desk/find", "body": `"q":"ann"`, "delayMs": 1500},
 		{"url": "/api/desk/find", "body": `"q":"lee"`, "delayMs": 3000},
@@ -492,10 +479,8 @@ func TestBrowserALateAnswerNeverReplacesALaterSearch(t *testing.T) {
 }
 
 // Names with markup are text on this screen: the list and the selected patron.
-func TestBrowserMarkupInANameIsShownAsText(t *testing.T) {
-	sh := newShop(t)
+func (sh *shop) testBrowserMarkupInANameIsShownAsText(t *testing.T) {
 	const hostile = `<img src=x onerror="window.__pwned=1"><b>Bold</b>`
-	sh.add("patron", "markup", hostile)
 	sh.forWidths(t, func(t *testing.T, width int) {
 		rep := sh.at(t, "deskonly", width, nil,
 			at(checkout, search("markup"), waitText("Matches for"), eval("rows", matchRows), eval("pwned", `window.__pwned ?? null`),
@@ -517,9 +502,7 @@ func TestBrowserMarkupInANameIsShownAsText(t *testing.T) {
 }
 
 // A patron's own self-checkout screen has no search and never calls the find route.
-func TestBrowserSelfCheckoutAsAPatronHasNoNameSearch(t *testing.T) {
-	sh := newShop(t)
-	sh.root.want(200, "PUT", "/api/admin/settings", map[string]any{"self_checkout": true})
+func (sh *shop) testBrowserSelfCheckoutAsAPatronHasNoNameSearch(t *testing.T) {
 	sh.forWidths(t, func(t *testing.T, width int) {
 		rep := sh.at(t, "alee", width, nil,
 			at("/checkout", eval("labels", `[...document.querySelectorAll("label")].map((l) => l.textContent.trim())`),
@@ -556,4 +539,32 @@ func strs2(v any) []string {
 		return nil
 	}
 	return strs(v)
+}
+
+// TestBrowserFindPatronByName runs every scenario against one library: the server is one at a time
+// in a process, and filling a library with people is the slow part.
+func TestBrowserFindPatronByName(t *testing.T) {
+	sh := newShop(t)
+	for _, c := range []struct {
+		name string
+		run  func(*testing.T)
+	}{
+		{"FindByNameListsBothAndChoosingSelectsLikeAScan", sh.testBrowserFindByNameListsBothAndChoosingSelectsLikeAScan},
+		{"NoListWhileTypingOnlyOnEnterOrFind", sh.testBrowserNoListWhileTypingOnlyOnEnterOrFind},
+		{"FindByUsername", sh.testBrowserFindByUsername},
+		{"OneMatchIsListedNotSelectedAndNothingCanBeCheckedOutUntilChosen", sh.testBrowserOneMatchIsListedNotSelectedAndNothingCanBeCheckedOutUntilChosen},
+		{"SameNameIsToldApartByUsernameAndCard", sh.testBrowserSameNameIsToldApartByUsernameAndCard},
+		{"NoMatchSaysSoAndSelectsNobody", sh.testBrowserNoMatchSaysSoAndSelectsNobody},
+		{"SixtyMatchesShowFiftyAndSayThereAreMore", sh.testBrowserSixtyMatchesShowFiftyAndSayThereAreMore},
+		{"TypedOrScannedCardSelectsAtOnce", sh.testBrowserTypedOrScannedCardSelectsAtOnce},
+		{"StaffAccountIsListedAndChoosable", sh.testBrowserStaffAccountIsListedAndChoosable},
+		{"DeactivatedAndCardlessMatchesAreShownButCannotBeChosen", sh.testBrowserDeactivatedAndCardlessMatchesAreShownButCannotBeChosen},
+		{"CircDeskOnlyLibrarianSeesWhatAnyLibrarianSees", sh.testBrowserCircDeskOnlyLibrarianSeesWhatAnyLibrarianSees},
+		{"SearchWithTheServerGoneSaysSoAndSelectsNobody", sh.testBrowserSearchWithTheServerGoneSaysSoAndSelectsNobody},
+		{"ALateAnswerNeverReplacesALaterSearch", sh.testBrowserALateAnswerNeverReplacesALaterSearch},
+		{"MarkupInANameIsShownAsText", sh.testBrowserMarkupInANameIsShownAsText},
+		{"SelfCheckoutAsAPatronHasNoNameSearch", sh.testBrowserSelfCheckoutAsAPatronHasNoNameSearch},
+	} {
+		t.Run(c.name, c.run)
+	}
 }
