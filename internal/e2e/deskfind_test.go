@@ -306,11 +306,9 @@ func TestDeskFindListsEveryKindOfAccount(t *testing.T) {
 
 func TestDeskFindHostileInput(t *testing.T) {
 	d := newDeskFindWorld(t)
-	d.root.want(201, "POST", "/api/admin/invitations", map[string]string{"role": "patron"})
-	for i, n := range []struct{ user, name string }{
+	for _, n := range []struct{ user, name string }{
 		{"pct", "100% Pure"}, {"und", "Pure_Gold"}, {"bsl", `Back\slash`}, {"emo", "Zoë 😀 Quinn"}, {"sql", `Robert'); DROP TABLE users;--`}, {"plain", "PureXGold Back slash"},
 	} {
-		_ = i
 		d.add("patron", n.user, n.name)
 	}
 	desk := d.web["deskonly"]
@@ -445,8 +443,9 @@ func TestChoosingAMatchCannotBorrowOnADeactivatedOrReissuedCard(t *testing.T) {
 		t.Fatalf("the deactivated patron shows as active: %v", gone)
 	}
 	r := desk.do("POST", "/api/desk/checkout", map[string]string{"patron": gone["card"].(string), "code": d.copyCode("For the gone")})
-	if r.Status < 400 || r.Status >= 500 || d.openLoans(d.ids["ann.gone"]) != 0 {
-		t.Errorf("checkout to a deactivated patron: %d %.200s (loans %d)", r.Status, r.Raw, d.openLoans(d.ids["ann.gone"]))
+	// 409 and the deactivated wording are the active re-check's own answer, not some other refusal.
+	if r.Status != 409 || !strings.Contains(r.Raw, "is deactivated") || d.openLoans(d.ids["ann.gone"]) != 0 {
+		t.Errorf("checkout to a deactivated patron: %d %.200s (loans %d), want 409 saying the account is deactivated and none", r.Status, r.Raw, d.openLoans(d.ids["ann.gone"]))
 	}
 
 	// choose a match, then the card is re-issued before the checkout

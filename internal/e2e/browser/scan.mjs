@@ -9,6 +9,9 @@
 // enter:false), burst {selector, codes, delayMs} (codes one after another with no
 // pause, as a scanner makes them), waitText, absentText, sleepMs, eval {expr, as}.
 // Anything outside the installation's origin is recorded and refused.
+// rules [{url, body, delayMs, fail}]: a request whose address contains url and whose body
+// contains body (each optional) is held for delayMs, or refused as if the server were gone.
+// calls lists every request to the installation as "METHOD path body".
 import { spawn } from "node:child_process";
 import { mkdtempSync, readFileSync, existsSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -23,7 +26,7 @@ const chrome = spawn(
     `--user-data-dir=${profile}`, "--remote-debugging-port=0", ...(sc.args ?? []), "about:blank"],
   { stdio: "ignore" },
 );
-const report = { requests: [], blocked: [], console: [], dialogs: [], visits: [], errors: [] };
+const report = { requests: [], calls: [], blocked: [], console: [], dialogs: [], visits: [], errors: [] };
 const done = (code) => {
   try { chrome.kill("SIGKILL"); } catch {}
   try { rmSync(profile, { recursive: true, force: true }); } catch {}
@@ -84,7 +87,16 @@ try {
       const same = url.startsWith(origin + "/") || url === origin || url.startsWith("data:") || url.startsWith("blob:") || url === "about:blank";
       report.requests.push(url);
       if (!same) report.blocked.push(url);
-      cmd(same ? "Fetch.continueRequest" : "Fetch.failRequest", same ? { requestId: m.params.requestId } : { requestId: m.params.requestId, errorReason: "BlockedByClient" }).catch(() => {});
+      const body = m.params.request.postData ?? "";
+      if (same) report.calls.push(`${m.params.request.method} ${url.slice(origin.length)} ${body}`);
+      const rule = same && (sc.rules ?? []).find((r) => (!r.url || url.includes(r.url)) && (!r.body || body.includes(r.body)));
+      if (rule?.fail) {
+        cmd("Fetch.failRequest", { requestId: m.params.requestId, errorReason: "ConnectionRefused" }).catch(() => {});
+        return;
+      }
+      const go = () => cmd(same ? "Fetch.continueRequest" : "Fetch.failRequest", same ? { requestId: m.params.requestId } : { requestId: m.params.requestId, errorReason: "BlockedByClient" }).catch(() => {});
+      if (rule?.delayMs) setTimeout(go, rule.delayMs);
+      else go();
     }
     if (m.method === "Page.javascriptDialogOpening") {
       report.dialogs.push(m.params.message);

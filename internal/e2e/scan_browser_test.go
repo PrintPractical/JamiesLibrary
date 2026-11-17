@@ -51,6 +51,7 @@ type scanVisit struct {
 
 type scanReport struct {
 	Requests []string
+	Calls    []string // each request to the installation: "METHOD path body"
 	Blocked  []string
 	Console  []string
 	Dialogs  []string
@@ -102,6 +103,12 @@ const scanInput = "input.input"
 
 func scanBrowse(t *testing.T, base, user string, cam camera, steps ...step) scanReport {
 	t.Helper()
+	return scanBrowseWith(t, base, user, cam, nil, steps...)
+}
+
+// scanBrowseWith adds to the scenario what the driver also understands: width, height and rules (see scan.mjs).
+func scanBrowseWith(t *testing.T, base, user string, cam camera, extra map[string]any, steps ...step) scanReport {
+	t.Helper()
 	if testing.Short() {
 		t.Skip("browser tests are skipped with -short")
 	}
@@ -126,6 +133,9 @@ func scanBrowse(t *testing.T, base, user string, cam camera, steps ...step) scan
 		}
 	}
 	sc := map[string]any{"chrome": chrome, "base": base, "steps": steps, "args": args, "noNativeDetector": true, "timeoutSeconds": 150}
+	for k, v := range extra {
+		sc[k] = v
+	}
 	if user != "" {
 		sc["signIn"] = map[string]string{"username": user, "password": adminPassword}
 	}
