@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Navigate, Outlet, useLocation, useRoutes, type RouteObject } from "react-router";
-import { PatronLayout, StaffLayout, StaffMore } from "../components/Layouts";
+import { PatronLayout, STAFF_TABS, StaffLayout, StaffMore } from "../components/Layouts";
 import type { ShellUser } from "../components/Shell";
 import { Account } from "../features/account/Account";
 import { ForcedChange } from "../features/account/ForcedChange";
@@ -8,7 +8,6 @@ import { Register } from "../features/account/Register";
 import { SignIn } from "../features/account/SignIn";
 import { Card } from "../features/card/Card";
 import { CheckIn } from "../features/desk/CheckIn";
-import { Desk } from "../features/desk/Desk";
 import { Checkout } from "../features/desk/Checkout";
 import { BookPage } from "../features/catalog/BookPage";
 import { Browse } from "../features/catalog/Browse";
@@ -31,7 +30,7 @@ import { Settings } from "../features/settings/Settings";
 import { Setup } from "../features/setup/Setup";
 import { SetupGate } from "../features/setup/SetupGate";
 import { NotFound } from "../features/placeholder/NotFound";
-import { allowed, adminItems, deskLink, isStaff, patronItems, staffFooterItems, staffItems } from "./navigation";
+import { allowed, adminItems, firstScreen, patronItems, staffFooterItems, staffItems, staffScreens } from "./navigation";
 import { useSession } from "./session";
 
 /** Every route's own check, shown as the page it guards. Display only: the server decides. */
@@ -90,20 +89,28 @@ function PatronArea() {
   const { me, library, canAny } = useSession();
   const user = useShellUser();
   const items = me ? allowed(patronItems, canAny) : visitorItems;
-  return <PatronLayout items={items} libraryName={library.name} logoUrl={library.logo_url || undefined} user={user} deskLink={me && isStaff(canAny) ? deskLink : undefined} />;
+  const first = me ? firstScreen(canAny) : undefined;
+  const staffLink = first === undefined ? undefined : { to: first, label: "Staff", icon: "switch" as const };
+  return <PatronLayout items={items} libraryName={library.name} logoUrl={library.logo_url || undefined} user={user} staffLink={staffLink} />;
 }
 
 function More() {
   const { canAny } = useSession();
-  // What the staff tab bar has no room for: its first four items stay in it.
-  const items = [...allowed(staffItems, canAny).slice(4), ...allowed(adminItems, canAny), ...staffFooterItems];
-  return <StaffMore items={items} />;
+  // What the staff tab bar has no room for: its first four screens stay in it.
+  const items = [...staffScreens(canAny).slice(STAFF_TABS), ...staffFooterItems];
+  return <StaffMore items={items} first={firstScreen(canAny)} />;
+}
+
+/** The old Desk address: it has no page now, and goes to the user's first staff screen. */
+function ToFirstScreen() {
+  const { canAny } = useSession();
+  return <Navigate to={firstScreen(canAny) ?? "/"} replace />;
 }
 
 function StaffArea() {
   const { library, canAny } = useSession();
   const user = useShellUser();
-  if (!isStaff(canAny)) return <Navigate to="/" replace />;
+  if (firstScreen(canAny) === undefined) return <Navigate to="/" replace />;
   const items = allowed(staffItems, canAny);
   const admin = allowed(adminItems, canAny);
   return (
@@ -118,7 +125,7 @@ function StaffArea() {
   );
 }
 
-/** The route table of architecture §14. Each page is a placeholder until its feature is built. */
+/** The route table of architecture §14. */
 export const routeTable: RouteObject[] = [
   {
     element: <Guard />,
@@ -139,7 +146,7 @@ export const routeTable: RouteObject[] = [
       {
         element: <StaffArea />,
         children: [
-          { path: "desk", element: <Desk /> },
+          { path: "desk", element: <ToFirstScreen /> },
           { path: "desk/checkout", element: <Allow any={["circ.desk"]}><Checkout /></Allow> },
           { path: "desk/checkin", element: <Allow any={["circ.desk"]}><CheckIn /></Allow> },
           { path: "desk/patrons", element: <Allow any={["patrons.lookup"]}><Patrons /></Allow> },

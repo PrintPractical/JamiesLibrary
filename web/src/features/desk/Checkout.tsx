@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
-import { ApiError, errorMessage } from "../../api/client";
-import { checkout, currentLoans, resolvePatron, type DeskLoan, type DeskPatron } from "../../api/desk";
+import { ApiError, NetworkError, errorMessage } from "../../api/client";
+import { checkout, currentLoans, deskFind, resolvePatron, type DeskLoan, type DeskPatron, type PatronMatch } from "../../api/desk";
 import { useSession } from "../../app/session";
 import { colourClass } from "../../components/Cover";
 import { Icon } from "../../components/Icon";
@@ -9,7 +9,8 @@ import { ScanField } from "../../components/ScanField";
 import { books, dueLabel, initials } from "./format";
 import "./Checkout.css";
 
-type Refusal = { message: string; checkIn: boolean };
+type Refusal = { message: string; checkIn: boolean; title?: string };
+type Matches = { q: string; patrons: PatronMatch[]; more: boolean };
 
 function Cover({ id, title }: { id: number; title: string }) {
   return <span className={`mini-cover ${colourClass(id)}`} role="img" aria-label={`Cover of ${title}`} />;
@@ -25,6 +26,66 @@ function LoanRow({ loan, trailing }: { loan: DeskLoan; trailing: React.ReactNode
       </div>
       {trailing}
     </>
+  );
+}
+
+/** Why a match can't be chosen, or null when it can. */
+function whyNot(m: PatronMatch): string | null {
+  if (!m.active) return "Deactivated";
+  if (!m.card) return "No library card";
+  return null;
+}
+
+function MatchBody({ m }: { m: PatronMatch }) {
+  return (
+    <>
+      <span className="m">
+        <b>{m.display_name}</b>
+        <span className="small muted">{m.username}</span>
+      </span>
+      <span className="facts">
+        {m.card && <span className="code">{m.card}</span>}
+        <span className="badge b-plain">{books(m.out)} out</span>
+      </span>
+    </>
+  );
+}
+
+function MatchList({ found, onChoose }: { found: Matches; onChoose: (card: string) => void }) {
+  return (
+    <section className="card matches" aria-labelledby="matches-h">
+      <h3 id="matches-h">Matches for ‘{found.q}’</h3>
+      {found.more && <p className="small more">More than 50 patrons match. Type more of the name.</p>}
+      {found.patrons.length === 0 ? (
+        <p className="small muted">No patron matches ‘{found.q}’.</p>
+      ) : (
+        <ul>
+          {found.patrons.map((m) => {
+            const why = whyNot(m);
+            return (
+              <li key={m.id}>
+                {why ? (
+                  <div className="match off">
+                    <MatchBody m={m} />
+                    <span className="badge b-err">
+                      <Icon name="alert" />
+                      {why}
+                    </span>
+                  </div>
+                ) : (
+                  <button type="button" className="match" onClick={() => onChoose(m.card)}>
+                    <MatchBody m={m} />
+                    <span className="go" aria-hidden="true">
+                      <Icon name="right" />
+                    </span>
+                  </button>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
   );
 }
 
@@ -69,11 +130,14 @@ export function Checkout() {
   const [refusal, setRefusal] = useState<Refusal | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [found, setFound] = useState<Matches | null>(null);
 
   // Scans are handled one at a time, in order, so the limit and the list agree with the server.
   const queue = useRef<Promise<void>>(Promise.resolve());
   // Bumped when a session ends: an answer that arrives after it belongs to nobody.
   const session = useRef(0);
+  // Bumped by each search and each choice: a list or a choice answered after a later one is stale.
+  const latest = useRef(0);
   const canLookup = can("patrons.lookup");
 
   useEffect(() => {
@@ -96,6 +160,7 @@ export function Checkout() {
       setLoans([]);
       setBefore(null);
       setRefusal(null);
+      setFound(null);
       setDone(summary);
     },
     [],
@@ -108,28 +173,60 @@ export function Checkout() {
     setRefusal({ message, checkIn: err instanceof ApiError && err.status === 409 && patron?.active !== false });
   };
 
-  function scanCard(code: string) {
+  // Reads what was submitted in the patron field: a card selects its patron, a name lists matches.
+  function find(q: string) {
     const mine = session.current;
+    const turn = ++latest.current;
     setBusy(true);
     setRefusal(null);
     setDone(null);
+    setFound(null);
     queue.current = queue.current.then(async () => {
       try {
-        const p = await resolvePatron(code);
+        const got = await deskFind(q);
         if (mine !== session.current) return;
-        // The first card read wins: a second one still waiting belongs to no session now.
-        session.current++;
-        setLoans([]);
-        setBefore(null);
-        setRefusal(null);
+        if (got.kind === "patron") return select(got.patron);
+        if (turn !== latest.current) return;
         setBusy(false);
-        setPatron(p);
+        setFound({ q, patrons: got.patrons, more: got.more });
       } catch (err) {
-        if (mine !== session.current) return;
+        if (mine !== session.current || turn !== latest.current) return;
+        setBusy(false);
+        const message =
+          err instanceof NetworkError ? "The search couldn't be done: can't reach the library. Try again." : errorMessage(err);
+        setRefusal({ message, checkIn: false, title: "Couldn't search" });
+      }
+    });
+  }
+
+  // A match is chosen through its card, exactly as a scan would read it; the list stays for another try.
+  function choose(card: string) {
+    const mine = session.current;
+    const turn = ++latest.current;
+    setBusy(true);
+    setRefusal(null);
+    queue.current = queue.current.then(async () => {
+      try {
+        const p = await resolvePatron(card);
+        if (mine !== session.current || turn !== latest.current) return;
+        select(p);
+      } catch (err) {
+        if (mine !== session.current || turn !== latest.current) return;
         setBusy(false);
         refuse(err);
       }
     });
+  }
+
+  // The first patron selected wins: a later answer still waiting belongs to no session now.
+  function select(p: DeskPatron) {
+    session.current++;
+    setLoans([]);
+    setBefore(null);
+    setRefusal(null);
+    setFound(null);
+    setBusy(false);
+    setPatron(p);
   }
 
   function scanCopy(code: string) {
@@ -160,15 +257,17 @@ export function Checkout() {
           </div>
         )}
         <ScanField
-          label="Library card"
-          placeholder="Scan the card, or type its number and press Enter"
-          help="Scan or type the patron's card to begin."
+          label="Patron"
+          placeholder="Scan, or type a card or name"
+          help="Scan a card, or type a card number or name and press Enter."
+          submitLabel="Find"
           hint="Point at the library card"
           autoFocus
-          onScan={scanCard}
+          onScan={find}
         />
-        {refusal && <Problem refusal={refusal} title="Card not read" />}
-        {busy && <p className="muted small">Looking up the card…</p>}
+        {refusal && <Problem refusal={refusal} title={refusal.title ?? "Card not read"} />}
+        {busy && <p className="muted small">Searching…</p>}
+        {found && <MatchList found={found} onChoose={choose} />}
       </div>
     );
   }

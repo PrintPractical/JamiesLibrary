@@ -171,6 +171,8 @@ func (w *world) target(t *testing.T, rt route, holder *member) call {
 		c.changes = true
 	case "POST /api/desk/resolve":
 		c.body = jsonBody(map[string]string{"code": w.pa.Card, "step": "patron"})
+	case "POST /api/desk/find":
+		c.body = jsonBody(map[string]string{"q": w.pa.Card})
 	case "POST /api/locations":
 		c.body = jsonBody(map[string]string{"name": fmt.Sprintf("Planted shelf %d", n)})
 		c.changes = true
@@ -472,6 +474,7 @@ var expectedAccess = map[string]string{
 	"GET /api/patrons/by-card/{code}":   "patrons.lookup",
 	"GET /api/patron-loans/{id}":        "patrons.lookup",
 	"POST /api/desk/resolve":            "circ.desk",
+	"POST /api/desk/find":               "circ.desk",
 	"POST /api/desk/checkout":           "circ.desk",
 	"POST /api/desk/checkin":            "circ.desk",
 	"POST /api/desk/loans/{id}/renew":   "circ.desk",

@@ -51,6 +51,7 @@ type scanVisit struct {
 
 type scanReport struct {
 	Requests []string
+	Calls    []string // each request to the installation: "METHOD path body"
 	Blocked  []string
 	Console  []string
 	Dialogs  []string
@@ -102,6 +103,12 @@ const scanInput = "input.input"
 
 func scanBrowse(t *testing.T, base, user string, cam camera, steps ...step) scanReport {
 	t.Helper()
+	return scanBrowseWith(t, base, user, cam, nil, steps...)
+}
+
+// scanBrowseWith adds to the scenario what the driver also understands: width, height and rules (see scan.mjs).
+func scanBrowseWith(t *testing.T, base, user string, cam camera, extra map[string]any, steps ...step) scanReport {
+	t.Helper()
 	if testing.Short() {
 		t.Skip("browser tests are skipped with -short")
 	}
@@ -126,6 +133,9 @@ func scanBrowse(t *testing.T, base, user string, cam camera, steps ...step) scan
 		}
 	}
 	sc := map[string]any{"chrome": chrome, "base": base, "steps": steps, "args": args, "noNativeDetector": true, "timeoutSeconds": 150}
+	for k, v := range extra {
+		sc[k] = v
+	}
 	if user != "" {
 		sc["signIn"] = map[string]string{"username": user, "password": adminPassword}
 	}
@@ -530,7 +540,7 @@ func TestTheCardOnThePatronsScreenCanBeReadBack(t *testing.T) {
 	}
 }
 
-func TestAReissuedCardsOldCodeIsToldNoSuchPatron(t *testing.T) {
+func TestAReissuedCardsOldCodeIsToldNoPatronMatches(t *testing.T) {
 	w := newWorld(t)
 	m := w.patron("card-dev")
 	old := string(m.W.want(200, "GET", "/api/me/card/qr.svg", nil).Raw)
@@ -540,9 +550,9 @@ func TestAReissuedCardsOldCodeIsToldNoSuchPatron(t *testing.T) {
 		t.Fatal("the new card has the old picture")
 	}
 	rep := scanBrowse(t, w.s.URL, "root", camera{File: frames(t, old)},
-		at("/desk/checkout", click(".scan-cam"), waitText("No such patron"), sleepMs(500)))
+		at("/desk/checkout", click(".scan-cam"), waitText("No patron matches"), sleepMs(500)))
 	v := rep.Visits[0]
-	v.must(t, "No such patron")
+	v.must(t, "No patron matches")
 	if strings.Contains(v.Text, "Scan a copy to begin") || strings.Contains(v.Text, "card-dev") {
 		t.Errorf("the old card selected the patron:\n%s", v.Text)
 	}
@@ -672,16 +682,16 @@ func TestACodeNothingHasIsSaidSoHoweverItArrives(t *testing.T) {
 
 	t.Run("check out: card", func(t *testing.T) {
 		for name, a := range map[string]map[string]any{"scanner": wedge(scanInput, "000000000000"), "typed": typed(scanInput, "000000000000")} {
-			rep := scanBrowse(t, w.s.URL, "root", camera{}, at("/desk/checkout", a, waitText("No such patron")))
+			rep := scanBrowse(t, w.s.URL, "root", camera{}, at("/desk/checkout", a, waitText("No patron matches")))
 			v := rep.Visits[0]
-			v.must(t, "No such patron")
+			v.must(t, "No patron matches")
 			if strings.Contains(v.Text, "Scan a copy to begin") {
 				t.Errorf("%s: an unknown card began a checkout", name)
 			}
 		}
 		rep := scanBrowse(t, w.s.URL, "root", camera{File: frames(t, svgOf(t, barcode.QR, "000000000000"))},
-			at("/desk/checkout", click(".scan-cam"), waitText("No such patron")))
-		rep.Visits[0].must(t, "No such patron")
+			at("/desk/checkout", click(".scan-cam"), waitText("No patron matches")))
+		rep.Visits[0].must(t, "No patron matches")
 	})
 
 	t.Run("check out: copy", func(t *testing.T) {

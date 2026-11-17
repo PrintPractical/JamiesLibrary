@@ -22,7 +22,7 @@ export type ShellProps = {
   adminItems?: NavItem[];
   /** Items pinned to the foot of the side bar. */
   footerItems?: NavItem[];
-  /** How many of `items` the phone tab bar shows before "More". Defaults to all of them. */
+  /** How many of `items` then `adminItems` the phone tab bar shows before "More". Defaults to all of `items`. */
   tabCount?: number;
   /** A link shown in the phone's top bar (the staff layout's way back to the patron side). */
   mode?: NavItem;
@@ -67,9 +67,10 @@ export function Shell({
   crossLink,
   user,
 }: ShellProps) {
-  const tabs = items.slice(0, tabCount);
+  const tabbable = [...items, ...adminItems];
+  const tabs = tabbable.slice(0, tabCount);
   const { pathname } = useLocation();
-  const hidden = [...items.slice(tabCount), ...adminItems, ...footerItems];
+  const hidden = [...tabbable.slice(tabCount), ...footerItems];
   // The More tab is current on /more and on every page reached through it.
   const moreCurrent =
     pathname === "/more" || hidden.some((i) => i.to !== "/" && (pathname === i.to || pathname.startsWith(i.to + "/")));
@@ -117,7 +118,7 @@ export function Shell({
           {tabs.map((item) => (
             <Tab key={item.to} item={item} />
           ))}
-          {tabs.length < items.length + adminItems.length + footerItems.length && (
+          {hidden.length > 0 && (
             <Link className="tab" to="/more" aria-current={moreCurrent ? "page" : undefined}>
               <span className="pill">
                 <Icon name="more" />

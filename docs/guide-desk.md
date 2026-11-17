@@ -6,7 +6,6 @@ The desk screens are in the staff menu:
 
 | Screen | Address | You need |
 |---|---|---|
-| **Desk** (the staff home) | `/desk` | Any staff permission; each card needs its own, see [The Desk](#the-desk) |
 | **Check out** | `/desk/checkout` | Use the circulation desk (`circ.desk`) |
 | **Check in** | `/desk/checkin` | `circ.desk` |
 | **Overdue** | `/desk/overdue` | `circ.desk` |
@@ -15,10 +14,11 @@ The desk screens are in the staff menu:
 
 Librarians and administrators have all of these by default; patrons have none. See [Accounts, permissions, invitations and recovery](accounts.md#permissions-and-roles).
 
-- [The Desk](#the-desk)
+- [Getting around](#getting-around)
 - [Scanning, typing and the camera](#scanning-typing-and-the-camera)
 - [The borrowing rules](#the-borrowing-rules)
 - [Checking out](#checking-out)
+- [Finding a patron by name](#finding-a-patron-by-name)
 - [When a checkout is refused](#when-a-checkout-is-refused)
 - [Checking in](#checking-in)
 - [When several copies of a book are out](#when-several-copies-of-a-book-are-out)
@@ -27,27 +27,30 @@ Librarians and administrators have all of these by default; patrons have none. S
 - [Looking up a patron](#looking-up-a-patron)
 - [Re-issuing a lost card](#re-issuing-a-lost-card)
 
-## The Desk
+## Getting around
 
-When staff sign in they land on the **Desk** (`/desk`), also the first item in the staff menu. It shows today's date and a card for each everyday job. A card appears only if you may do what it does; one you may not use is left out, not greyed.
+There is no Desk page. Staff go straight to the screen they work on.
 
-| Card | What it does | You need |
-|---|---|---|
-| **Check out** (large) | Opens [Check out](#checking-out). | `circ.desk` |
-| **Check in** (large, outlined) | Opens [Check in](#checking-in). | `circ.desk` |
-| **Overdue count** | Shows how many loans are overdue and opens the [Overdue](#overdue-loans) list. | `circ.desk` |
-| **Find a patron** | Searches for a patron. | `patrons.lookup` |
-| **Add a book** | Opens the catalog's [Add a book](guide-catalog.md#add-a-book) screen. | `catalog.manage` |
+**Where you land.** After you sign in, you open the first screen in the staff menu that you may use. For a librarian that is **Check out**. Someone without the circulation desk permission starts at the next screen they may use, and an administrator who may only manage settings starts at **Settings**.
 
-Someone with only some of these permissions sees only those cards, and the others move up to fill the space.
+**The menu.** Screens appear in this order, and one you may not use is left out, not greyed:
 
-**The overdue count.** It is the number of loans that are overdue today, in the library's time zone. With none it reads `0 Nothing overdue` and still opens the list. With some it reads `3 loans overdue` (`1 loan overdue` for one). While it is counting the card is empty, and after a moment says `Loading…`. If the count can't be fetched the card says `Couldn't count overdue loans.` with a **Retry** button; the rest of the Desk keeps working.
+1. **Check out**
+2. **Check in**
+3. **Catalog**
+4. **Patrons**
+5. **Overdue**
+6. then the admin screens you may use: **Settings**, **People & invites**, **Statistics** and **Activity log**.
 
-**Find a patron.** Type part of a name or username, or a card number (typed, or scanned with a hand scanner), and press Enter or the search button. You go to [Patrons](#looking-up-a-patron) with the search already done. Pressing Enter on an empty box does nothing except keep the cursor in the box.
+On a desktop the side bar lists the staff screens, then an Admin group, with **My library** at the foot.
 
-**If no card applies to you.** A person who has staff permissions but none of `circ.desk`, `patrons.lookup` or `catalog.manage` (for example, an administrator who may only manage settings) sees `There's nothing for you at the desk. Your administrator decides what you can do here.` with links to whichever Admin pages they may use (Settings, People & invites, Statistics, Activity log).
+**On a phone** the tab bar at the bottom shows the first four screens you may use, counting in menu order, so a user with only Settings gets a Settings tab. Everything else is under **More**, with **My library**. A librarian's tabs are Check out, Check in, Catalog and Patrons, and More holds Overdue and My library; an administrator's More also holds the admin screens.
 
-**Getting back to the Desk.** When you are on the patron side (your own Home, Browse, My card, My books or Account), staff see one **Desk** link: in the pill at the right of the top bar on a phone, and at the foot of the side bar on a desktop. It opens `/desk`. Patrons and visitors never see it, and it adds no tab to the phone's bottom bar. From the Desk, **My library** in the staff menu takes you back to the patron side.
+**Overdue.** The number of overdue loans is no longer shown on a home page. Open **Overdue** in the menu: it lists every overdue loan (see [Overdue loans](#overdue-loans)).
+
+**The old address.** `/desk` opens your first staff screen, so old bookmarks still work. The screens keep their addresses (`/desk/checkout`, `/desk/checkin`, `/desk/patrons` and `/desk/overdue`). Someone with no staff screen is sent to the patron Home.
+
+**Getting back to staff screens.** When you are on the patron side (your own Home, Browse, My card, My books or Account), staff see one **Staff** link: in the pill at the right of the top bar on a phone, and at the foot of the side bar on a desktop. It opens your first staff screen. Patrons and visitors never see it, and it adds no tab to the phone's bottom bar. From the staff screens, **My library** takes you back to the patron side.
 
 ## Scanning, typing and the camera
 
@@ -68,13 +71,32 @@ An administrator sets these in **Settings** (see [Administrator's guide](guide-a
 
 Open **Check out**.
 
-1. **Scan or type the patron's library card** (12 digits, on their phone or on paper) and press Enter. The patron's name, card number and "*2 of 5 books out*" appear. A red **N overdue** badge shows if they have overdue loans, and an **Already borrowed** list beside the form (for people who may look up patrons) shows what they have out and when it is due.
+1. **Find the patron** in the one **Patron** field. Scan their library card (12 digits, on their phone or on paper), or type its number, and press Enter: the patron is chosen at once. Their name, card number and "*2 of 5 books out*" appear. A red **N overdue** badge shows if they have overdue loans, and an **Already borrowed** list beside the form (for people who may look up patrons) shows what they have out and when it is due. If the patron has no card to hand, see [Finding a patron by name](#finding-a-patron-by-name).
 2. **Scan each book's code.** Each scan is lent straight away and added to **This checkout**, with the copy number and the due date, for example `Copy 2 · Due 30 Nov`. There is no confirm button for each book.
    - **By ISBN** libraries: scan the book's ISBN barcode (the one printed on the book). The lowest-numbered copy that is in is lent, and its number is shown, so you can tell which copy to hand over. A copy's own code, if it has one, also works.
    - **By own barcode** libraries: scan the sticker on the copy. Scanning a book's ISBN here is refused (see below).
 3. When you are done, press **Finish**. The screen says `Checked out 3 books to Ann Reader.` and waits for the next card. **Next patron** (top right) starts over without finishing; nothing already lent is undone.
 
 A scan is lent or refused on its own: one refusal never undoes the books lent before it.
+
+### Finding a patron by name
+
+Type part of the patron's name or username in the **Patron** field and press Enter, or press **Find**. The list doesn't change while you type; only Enter or **Find** searches. Capital letters don't matter, and the text can be anywhere in the name or username: `ann` finds Ann Reader, Joanna Hill and `hannah`.
+
+The screen shows **Matches for ‘ann’**, in name order. Each row has the patron's name, username, card number and how many books they have out.
+
+- **Choose a row** to select that patron. The screen then shows them exactly as if you had scanned their card.
+- **A row you can't choose** is shown without a button and says why: **Deactivated** (an administrator must reactivate the account, and nothing can be checked out to it), or **No library card** (the patron has no card yet, so there is nothing to lend on).
+- **One match is still only listed.** Choose it yourself, so you see who you are lending to.
+- **More than 50 match:** the list shows the first 50 and says `More than 50 patrons match. Type more of the name.` Type more and search again.
+- **No match:** `No patron matches ‘zzz’.`
+- Typing a card number never lists: it selects its holder at once. A card number is not searched for inside names, and part of a card number finds nothing.
+
+If the search can't be done you see **Couldn't search** with the reason, for example `The search couldn't be done: can't reach the library. Try again.`; no patron is chosen. If a chosen patron's card was re-issued a moment ago, you get **Card not read** and the list stays, so choose again or search again.
+
+Anyone who may check out (`circ.desk`) can search this way, whether or not they may look patrons up on the Patrons screen. The list shows every person with an account, staff included.
+
+**Check who you are serving.** Whoever is at the counter can borrow on any active patron's account just by naming them: no card, password or other proof is asked for. Before you lend, make sure the person in front of you is the patron you chose, as you would with a card.
 
 ## When a checkout is refused
 
