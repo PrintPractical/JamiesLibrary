@@ -83,7 +83,20 @@ type shop struct {
 // newShop: Ann Lee (one book out) and Anna Ko; two Sam Readers; a librarian, Marla Staff;
 // a deactivated Dee Gone; Nora Nocard, who has no card; the searchers: "deskonly" (circ.desk
 // and nothing else), "lib" (a librarian) and the administrator "root".
+//
+// These tests share the package's ten minutes with everything else, so they run side by side
+// (a few at a time: each is a server and a browser). The test that depends on timing does not.
 func newShop(t *testing.T) *shop {
+	t.Helper()
+	t.Parallel()
+	shopSlots <- struct{}{}
+	t.Cleanup(func() { <-shopSlots })
+	return newShopNow(t)
+}
+
+var shopSlots = make(chan struct{}, 4)
+
+func newShopNow(t *testing.T) *shop {
 	t.Helper()
 	s, root := install(t, nil)
 	d := &deskFindWorld{t: t, s: s, root: root, ids: map[string]int64{}, web: map[string]*who{}, card: map[string]string{}}
@@ -453,7 +466,7 @@ func TestBrowserSearchWithTheServerGoneSaysSoAndSelectsNobody(t *testing.T) {
 // The first answer is held 1.5 s and the second 3 s, so for a while only the first has been
 // answered: that is when a broken screen would show its list.
 func TestBrowserALateAnswerNeverReplacesALaterSearch(t *testing.T) {
-	sh := newShop(t)
+	sh := newShopNow(t)
 	slow := []map[string]any{
 		{"url": "/api/desk/find", "body": `"q":"ann"`, "delayMs": 1500},
 		{"url": "/api/desk/find", "body": `"q":"lee"`, "delayMs": 3000},
