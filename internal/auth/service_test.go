@@ -296,3 +296,84 @@ func TestChangePassword(t *testing.T) {
 		t.Fatal("another session survived the change")
 	}
 }
+
+// reset does what an administrator's reset writes: a new hash that must be
+// changed, and no sessions left.
+func (e *env) reset(t *testing.T, userID int64, temp string) {
+	t.Helper()
+	hash, err := e.svc.Passwords.Hash(ctx, "password", temp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = e.st.WithTx(ctx, func(tx store.Tx) error {
+		if err := e.users.SetPasswordHashTx(ctx, tx, userID, hash, true); err != nil {
+			return err
+		}
+		return e.svc.EndAllTx(ctx, tx, userID)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestChangePasswordOverlappingAResetIsRefusedAndKeepsTheReset(t *testing.T) {
+	e := newEnv(t)
+	u := e.addUser(t, "ann", "correct horse battery", perm.Patron)
+	tok, _, _ := e.svc.SignIn(ctx, "ann", "correct horse battery")
+	e.svc.afterCredentialCheck = func() { e.reset(t, u.ID, "temporary-password") }
+
+	err := e.svc.ChangePassword(ctx, u.ID, hashToken(tok), "correct horse battery", "brand new password")
+	wantCode(t, err, apperr.Conflict)
+	e.svc.afterCredentialCheck = nil
+
+	cred, _, _ := e.users.CredentialsByID(ctx, u.ID)
+	if !cred.MustChangePassword {
+		t.Fatal("the stale change cleared the forced password change")
+	}
+	if _, _, err := e.svc.SignIn(ctx, "ann", "brand new password"); err == nil {
+		t.Fatal("the stale change's password was stored over the reset")
+	}
+	if _, _, err := e.svc.SignIn(ctx, "ann", "temporary-password"); err != nil {
+		t.Fatalf("the temporary password no longer works: %v", err)
+	}
+}
+
+func TestSignInOverlappingAResetStartsNoSession(t *testing.T) {
+	e := newEnv(t)
+	u := e.addUser(t, "ann", "correct horse battery", perm.Patron)
+	e.svc.afterCredentialCheck = func() { e.reset(t, u.ID, "temporary-password") }
+
+	token, _, err := e.svc.SignIn(ctx, "ann", "correct horse battery")
+	wantCode(t, err, apperr.Unauthorized)
+	e.svc.afterCredentialCheck = nil
+	if token != "" {
+		t.Fatal("a token was returned")
+	}
+	var n int
+	e.st.DB().QueryRow(`SELECT COUNT(*) FROM sessions WHERE user_id = ?`, u.ID).Scan(&n)
+	if n != 0 {
+		t.Fatalf("%d session(s) survive the reset", n)
+	}
+}
+
+func TestSignInOverlappingADeactivationStartsNoSession(t *testing.T) {
+	e := newEnv(t)
+	u := e.addUser(t, "ann", "correct horse battery", perm.Patron)
+	e.svc.afterCredentialCheck = func() { e.st.DB().Exec(`UPDATE users SET active = 0 WHERE id = ?`, u.ID) }
+	_, _, err := e.svc.SignIn(ctx, "ann", "correct horse battery")
+	wantCode(t, err, apperr.Forbidden)
+}
+
+func TestRehashOverlappingAResetKeepsTheReset(t *testing.T) {
+	e := newEnv(t)
+	u := e.addUser(t, "ann", "", perm.Patron)
+	e.st.DB().Exec(`UPDATE users SET password_hash = ? WHERE id = ?`, hashWith("correct horse battery", 8192, 1, 1), u.ID)
+	e.svc.afterCredentialCheck = func() { e.reset(t, u.ID, "temporary-password") }
+	if _, _, err := e.svc.SignIn(ctx, "ann", "correct horse battery"); err == nil {
+		t.Fatal("signed in over a reset")
+	}
+	e.svc.afterCredentialCheck = nil
+	if _, _, err := e.svc.SignIn(ctx, "ann", "temporary-password"); err != nil {
+		t.Fatalf("the rehash overwrote the reset: %v", err)
+	}
+}
