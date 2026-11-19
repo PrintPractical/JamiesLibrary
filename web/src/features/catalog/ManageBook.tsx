@@ -111,9 +111,10 @@ function Manage({ book, locations, ownBarcodes, onChanged }: Props) {
 }
 
 function EditDetails({ book, onSaved }: { book: MemberBook; onSaved: () => void }) {
+  const joinedAuthors = book.authors.join(", ");
   const [details, setDetails] = useState<DetailsState>({
     title: book.title,
-    authors: book.authors.join(", "),
+    authors: joinedAuthors,
     description: book.description,
     coverToken: "",
     coverUrl: book.coverUrl,
@@ -145,7 +146,8 @@ function EditDetails({ book, onSaved }: { book: MemberBook; onSaved: () => void 
     try {
       await updateBook(book.id, {
         title: details.title.trim(),
-        authors: authorList(details.authors),
+        // An untouched field keeps the stored list, so a name like "Smith, Jane" stays one author.
+        authors: details.authors === joinedAuthors ? book.authors : authorList(details.authors),
         isbn: isbn.trim(),
         description: details.description,
         cover: details.coverFile ?? undefined,
