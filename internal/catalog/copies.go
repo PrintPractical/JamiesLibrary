@@ -448,20 +448,67 @@ func countByLocation(ctx context.Context, q DB) (map[int64]int, error) {
 // copy in the location bound to its one "?".
 const hasCopyAtSQL = `EXISTS (SELECT 1 FROM copies c WHERE c.book_id = books.id AND c.location_id = ? AND c.removed_at IS NULL)`
 
+// CopyCount is how many live copies a book has and how many are on loan.
+type CopyCount struct {
+	Copies int
+	Loaned int
+}
+
+// Available is how many of the copies can be borrowed now.
+func (c CopyCount) Available() int { return c.Copies - c.Loaned }
+
+// InList is the placeholders and arguments for an IN condition over ids.
+func InList(ids []int64) (string, []any) {
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+	return "(" + strings.TrimSuffix(strings.Repeat("?,", len(ids)), ",") + ")", args
+}
+
+// liveCopyCounts counts live copies per book in one statement, with none on
+// loan; it is the answer when there are no loans.
+func liveCopyCounts(ctx context.Context, q DB, ids []int64) (map[int64]CopyCount, error) {
+	out := map[int64]CopyCount{}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	in, args := InList(ids)
+	rows, err := q.QueryContext(ctx, `SELECT book_id, count(*) FROM copies WHERE removed_at IS NULL AND book_id IN `+in+` GROUP BY book_id`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int64
+		var c CopyCount
+		if err := rows.Scan(&id, &c.Copies); err != nil {
+			return nil, err
+		}
+		out[id] = c
+	}
+	return out, rows.Err()
+}
+
+// CountsFor is the copy and loan counts of each of the books, read in one
+// statement and so from one snapshot: a check-out or check-in made while it
+// runs is in all of the counts or in none. A book with no copies has a zero
+// CopyCount.
+func (s *Service) CountsFor(ctx context.Context, bookIDs []int64) (map[int64]CopyCount, error) {
+	return s.loans.CopyCounts(ctx, s.st.DB(), bookIDs)
+}
+
 // Counts is how many copies of the book are in the catalog and how many of
 // them can be borrowed now. A book that isn't in the catalog is not found.
 func (s *Service) Counts(ctx context.Context, bookID int64) (copies, available int, err error) {
 	if err = mustExist(ctx, s.st.DB(), bookID); err != nil {
 		return 0, 0, err
 	}
-	if err = s.st.DB().QueryRowContext(ctx, `SELECT count(*) FROM copies WHERE book_id = ? AND removed_at IS NULL`, bookID).Scan(&copies); err != nil {
-		return 0, 0, err
-	}
-	out, err := s.loans.LoanedCopies(ctx, s.st.DB(), bookID)
+	m, err := s.CountsFor(ctx, []int64{bookID})
 	if err != nil {
 		return 0, 0, err
 	}
-	return copies, copies - out, nil
+	return m[bookID].Copies, m[bookID].Available(), nil
 }
 
 // DueDates maps each of the book's copies on loan now to its due date.

@@ -183,3 +183,39 @@ func checkFields(t *testing.T, where string, v any, top bool) {
 		}
 	}
 }
+
+// A page of several books shows each book's own counts and rating: the batched
+// reads must not mix one book's numbers into another's.
+func TestPublicSearchShowsEachBooksOwnCountsAndRatings(t *testing.T) {
+	c := newCatSite(t)
+	a := addBook(t, c.cat, "Alpha", "9780306406157", 2)
+	b := addBook(t, c.cat, "Beta", "", 1)
+	addBook(t, c.cat, "Gamma", "", 0)
+	c.publicOn(true)
+	c.checkout("9780306406157")
+	put := func(id int64, rating any) {
+		t.Helper()
+		rec := c.req("PUT", fmt.Sprintf("/api/books/%d/review", id), c.pat, body(map[string]any{"rating": rating, "text": "ok"}))
+		if rec.Code != 200 {
+			t.Fatalf("review: %d %s", rec.Code, rec.Body)
+		}
+	}
+	put(a.ID, 4)
+	put(b.ID, nil) // a review without a rating is not counted
+
+	res := decodeAs[publicSearchBody](t, c.req("GET", "/api/public/books", "", ""), 200)
+	if len(res.Books) != 3 {
+		t.Fatalf("books: %+v", res.Books)
+	}
+	want := []struct {
+		title           string
+		avail, total, n int
+		average         float64
+	}{{"Alpha", 1, 2, 1, 4}, {"Beta", 1, 1, 0, 0}, {"Gamma", 0, 0, 0, 0}}
+	for i, w := range want {
+		g := res.Books[i]
+		if g.Title != w.title || g.Available != w.avail || g.Total != w.total || g.RatingCount != w.n || g.RatingAverage != w.average {
+			t.Errorf("book %d = %+v, want %+v", i, g, w)
+		}
+	}
+}

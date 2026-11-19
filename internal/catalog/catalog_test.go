@@ -25,6 +25,14 @@ type fakeLoans struct {
 func (f fakeLoans) LoanedCopies(_ context.Context, _ DB, id int64) (int, error) {
 	return f.loaned[id], nil
 }
+func (f fakeLoans) CopyCounts(ctx context.Context, q DB, ids []int64) (map[int64]CopyCount, error) {
+	m, err := liveCopyCounts(ctx, q, ids)
+	for id, c := range m {
+		c.Loaned = f.loaned[id]
+		m[id] = c
+	}
+	return m, err
+}
 func (f fakeLoans) OnLoan(_ context.Context, _ DB, id int64) (bool, error) {
 	return f.onLoan[id], nil
 }
