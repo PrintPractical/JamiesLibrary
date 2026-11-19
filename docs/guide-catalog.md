@@ -92,7 +92,7 @@ Browsing can be limited to a location, once the library has more than one.
 
 Find the book on **Catalog** and select it (`/catalog/books/ID`).
 
-- **Book details**, including the ISBN (leave it empty for a book with none) and the cover, are changed in the form; press **Save changes**. Changing the ISBN to one that another book has is refused, with a link to that book.
+- **Book details**, including the ISBN (leave it empty for a book with none) and the cover, are changed in the form; press **Save changes**. The **Authors** field is split at commas only if you change it, so an author whose name has a comma (`Smith, Jane`) stays one author when you edit something else; if you do edit the field, put each author after a comma, and a name with a comma in it can't be kept whole. Changing the ISBN to one that another book has is refused, with a link to that book.
 - **Copies** are listed with their location, condition and whether they are in. **Edit** changes a copy's location and condition. **Add a copy** adds one more. A copy's barcode isn't changed from here.
 - **Remove** on a copy asks first: `Remove copy 2? It leaves the catalog and its label stops working.` Its past loans stay in patrons' histories and in reports. Its barcode can be used again.
 - **Remove book…** at the foot of the page removes the book and all its copies after a question. They can't be scanned or found again, and past loans stay in histories and reports.
