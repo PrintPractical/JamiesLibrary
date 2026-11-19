@@ -8,6 +8,11 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Changing a book no longer splits an author's name that has a comma in it. Editing only the title, say, leaves an author such as `Smith, Jane` as one author; the Authors field is split at commas only when you change it. See [Change or remove a book or copy](docs/guide-catalog.md#change-or-remove-a-book-or-copy).
+- A cover or logo whose upload was saved but whose follow-up step failed (reading the book back, or refreshing the settings) is no longer deleted. The file is removed only when the change was not saved.
+- A password change, or a sign-in, that overlaps an administrator's reset of the same account can no longer undo the reset. Changing your password then answers `Your password was changed while you were doing this. Sign in again with the new one.` (the reset's temporary password still works), and a sign-in that overlaps a reset or a deactivation is refused like a wrong password. See [Changing your password](docs/accounts.md#changing-your-password).
+- Browse, search and public catalog pages read each book's copies on the shelf and its ratings in a few queries for the whole page, instead of several per book, and from one snapshot, so a count can no longer mix in a check-out or return made while the page was being built.
+
 - A new library now leads you to its setup page. While no administrator exists, the sign-in page and `/register` send you to `/setup`, where the console's setup code is asked for, instead of asking for an invitation code. Once an administrator exists nothing changes. The console's "No administrator exists yet" message now names the page, for example `Setup page: https://192.168.1.20:8443/setup`. See [First-run setup](docs/guide-admin.md#first-run-setup).
 - The trust guide's Mac step no longer says to double-click the certificate, which on some Macs fails with "Error: -25294" (Keychain Access found no keychain to put it in). It now has you use Keychain Access › File › Import Items…, choose the keychain yourself (login, or System), compare the SHA-256 fingerprint, and only then set Always Trust. The certificate is unchanged, so devices that already trust the library need do nothing. See [the trust step](docs/install-lan.md#the-trust-step-once-per-phone-or-computer).
 

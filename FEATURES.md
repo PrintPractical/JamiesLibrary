@@ -31,7 +31,7 @@ What Jamie's Library does today, by area. Each entry names the requirements it c
 
 ## Accounts and permissions
 
-- Sign in at `/signin`, register at `/register` with an invitation code, change one's own password and sign out at `/account`; a password reset by an administrator forces a new password at the next sign-in. Signing out clears the app's cached data (ACCESS-2, ACCESS-5, ACCESS-6, ACCESS-7).
+- Sign in at `/signin`, register at `/register` with an invitation code, change one's own password and sign out at `/account`; a password reset by an administrator forces a new password at the next sign-in, and a password change or sign-in that overlaps a reset can't undo it. Signing out clears the app's cached data (ACCESS-2, ACCESS-5, ACCESS-6, ACCESS-7).
 - Sessions end after a time unused that an administrator sets, 8 hours to begin with (SEC-T1, ADMIN-1). Repeated wrong sign-ins block an address for 15 minutes without locking any account.
 - Nothing is shown to signed-out visitors unless an administrator turns the public catalog on (ACCESS-1).
 - 16 separate permissions, grouped into the roles patron, librarian and administrator, which are starting sets: an administrator can switch single permissions for a person, and the user list marks anyone who differs from their role (ROLE-1, ROLE-2, ROLE-3, ADMIN-2). A person is never given more than the administrator granting it holds.
@@ -47,7 +47,8 @@ What Jamie's Library does today, by area. Each entry names the requirements it c
 ## Catalog
 
 - Books with title, authors, description, ISBN (10 or 13, checked and stored as 13) and cover; several numbered copies of each, each with a condition and a named location; search by title, author or ISBN with a location filter; removing a book or copy keeps its history (CAT-1, CAT-2, CAT-3, CAT-5, CAT-8). Browsing and search have a screen (`/browse`). Librarians add a book, or more copies of one already in the catalog, on the Add a book screen (`/catalog/new`), and change or remove books and copies on the Catalog screens (`/catalog`). See [Looking after the catalog](docs/guide-catalog.md).
-- Browse, search and book pages: the Browse screen lists books with their availability, searches by title, author or whole ISBN and filters by location; a book's page shows the cover, average rating, each copy's location and due date, and the description (CAT-2, CAT-4, CAT-8). See [Finding books](docs/guide-browsing.md).
+- Changing a book keeps an author whose name has a comma as one author unless the Authors field itself is edited (CAT-1). A cover or logo whose upload was saved is kept even if a later step fails.
+- Browse, search and book pages: the Browse screen lists books with their availability, searches by title, author or whole ISBN and filters by location; a book's page shows the cover, average rating, each copy's location and due date, and the description (CAT-2, CAT-4, CAT-8). Availability and ratings for a page of books are read in batch from one snapshot. See [Finding books](docs/guide-browsing.md).
 - Look up a book's details and cover by ISBN from Open Library, with a clear message when it can't be reached; covers are kept on the installation (SCAN-2, CAT-T1). Used by the Add a book screen: scan or type an ISBN, check the details found, and add the book.
 - Ratings of 1 to 5 and reviews of up to 2,000 characters, one per person per book; librarians can remove a review, and its author can't repost it (CAT-6). Written and removed on the book's page.
 - Optional public catalog: with the setting on, anyone can search and see availability and the average rating, never who has a book or where each copy is, on the same Browse and book screens, and a visitor is asked to sign in to read reviews (ACCESS-4).

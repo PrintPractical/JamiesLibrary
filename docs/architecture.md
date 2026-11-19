@@ -104,6 +104,8 @@ None of the catalog, the settings or the barcode package is wired to an API rout
 - a location filter keeps books with a copy there;
 - the query is at most 200 characters and 10 words; results are in title order, 50 to a page, and carry the total count.
 
+**Counts for lists.** A list of books (Browse, search, the public catalog) gets each book's copies and copies on loan from `Service.CountsFor(ids)`, one `GROUP BY` statement over `copies` left-joined to open loans, and the ratings from `reviews.Summaries(ids)`, one more statement: two reads for a page, however many books it has, and one statement for the counts so they come from a single snapshot. Uploaded covers and the logo: the file is deleted only when the database write did not commit; once it has, a failing read-back or settings refresh keeps the file.
+
 **Locations.** A new library has one, "Main shelf". Names are unique ignoring case; renaming changes it for every copy there. A location that holds copies cannot be deleted: the error says how many, and `MoveCopies` moves them all to another location. A copy's location is checked by the service rather than by a foreign key, so a removed copy never blocks deleting a location.
 
 **Copy conditions** are `new`, `good` (the default), `fair`, `worn`, `poor` and `damaged`.
@@ -253,6 +255,8 @@ How people are told apart and kept to what they may do. The user-facing descript
 | `internal/activity` | the administrative activity log |
 
 **Permissions are data per user.** `user_permissions` holds one row per permission a person has; `users.role` records only the preset last applied, so "differs from the preset" can be shown. Setting a role replaces the person's rows with the preset.
+
+**Credential writes are conditional.** A sign-in or own password change checks the password first and writes afterwards, so an administrator's reset or a deactivation can complete in between. Each write therefore names the hash it checked: a new session is made only if, in the same transaction, the user still has that hash and is active (otherwise the sign-in is refused like a wrong password, or as deactivated); the new hash of a password change or of a rehash is stored only while the stored hash is still the one checked (`SetPasswordHashIfTx`). A change that finds the hash replaced answers `409` "Your password was changed while you were doing this. Sign in again with the new one." and leaves the reset, with its forced change, intact.
 
 **Passwords** are hashed with argon2id (19456 KiB, 2 passes, 1 lane, 16-byte salt) and stored as a PHC string, so the parameters can be raised later and a hash rehashed at the next sign-in. At most two hashes run at once; a request that waits more than 10 seconds for its turn gets `unavailable`. An unknown username is checked against a fixed dummy hash so timing doesn't show which usernames exist. A password is 10 to 256 Unicode code points with no other rule; the same check runs at registration, own change, administrator reset and recovery.
 
