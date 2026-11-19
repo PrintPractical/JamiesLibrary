@@ -44,6 +44,10 @@ type Loans interface {
 	LoanedCopies(ctx context.Context, q DB, bookID int64) (int, error)
 	// OnLoan reports whether the copy is on loan now.
 	OnLoan(ctx context.Context, q DB, copyID int64) (bool, error)
+	// CopyCounts is, for each of the books, how many live copies it has and how
+	// many of them are on loan now, read in one statement so the two agree. A
+	// book with no live copies is missing.
+	CopyCounts(ctx context.Context, q DB, bookIDs []int64) (map[int64]CopyCount, error)
 	// DueDates maps the ID of each of the book's copies that is on loan now to
 	// its due date (YYYY-MM-DD). It says nothing about who has the copy.
 	DueDates(ctx context.Context, q DB, bookID int64) (map[int64]string, error)
@@ -53,7 +57,10 @@ type Loans interface {
 type NoLoans struct{}
 
 func (NoLoans) LoanedCopies(context.Context, DB, int64) (int, error) { return 0, nil }
-func (NoLoans) OnLoan(context.Context, DB, int64) (bool, error)      { return false, nil }
+func (NoLoans) CopyCounts(ctx context.Context, q DB, ids []int64) (map[int64]CopyCount, error) {
+	return liveCopyCounts(ctx, q, ids)
+}
+func (NoLoans) OnLoan(context.Context, DB, int64) (bool, error) { return false, nil }
 func (NoLoans) DueDates(context.Context, DB, int64) (map[int64]string, error) {
 	return map[int64]string{}, nil
 }

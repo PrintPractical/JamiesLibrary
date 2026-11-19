@@ -192,6 +192,34 @@ func (s *Service) Summary(ctx context.Context, bookID int64) (Summary, error) {
 	return out, nil
 }
 
+// Summaries is Summary for each of the books, read in one statement. A book
+// nobody rated has a zero Summary.
+func (s *Service) Summaries(ctx context.Context, bookIDs []int64) (map[int64]Summary, error) {
+	out := map[int64]Summary{}
+	if len(bookIDs) == 0 {
+		return out, nil
+	}
+	in, args := catalog.InList(bookIDs)
+	rows, err := s.st.DB().QueryContext(ctx, `SELECT book_id, avg(rating), count(rating) FROM reviews
+		WHERE removed_at IS NULL AND rating IS NOT NULL AND book_id IN `+in+`
+		GROUP BY book_id`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("averaging ratings: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int64
+		var avg float64
+		var sum Summary
+		if err := rows.Scan(&id, &avg, &sum.Count); err != nil {
+			return nil, fmt.Errorf("averaging ratings: %w", err)
+		}
+		sum.Average = math.Round(avg*10) / 10
+		out[id] = sum
+	}
+	return out, rows.Err()
+}
+
 // List is page number page (from 1) of the book's reviews that have text, with
 // their authors' display names, newest first. A size of 0 means DefaultPageSize.
 func (s *Service) List(ctx context.Context, bookID int64, page, size int) (Page, error) {
