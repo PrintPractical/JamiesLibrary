@@ -556,12 +556,23 @@ func TestCoverFollowsTheCommit(t *testing.T) {
 	t.Run("update rolled back", func(t *testing.T) {
 		c := newCatSite(t)
 		made := decodeAs[bookDetail](t, c.form("POST", "/api/books", c.lib, fields, smallJPEG(t)), 201)
+		var old string
+		if err := c.st.DB().QueryRow(`SELECT cover FROM books`).Scan(&old); err != nil {
+			t.Fatal(err)
+		}
 		c.exec(`CREATE TRIGGER refuse BEFORE UPDATE ON books BEGIN SELECT RAISE(ABORT, 'no'); END`)
 		if rec := c.form("PUT", fmt.Sprintf("/api/books/%d", made.ID), c.lib, fields, smallJPEG(t)); rec.Code < 400 {
 			t.Fatalf("%d %s", rec.Code, rec.Body)
 		}
-		if c.images() != 1 {
-			t.Errorf("%d images, want only the old cover", c.images())
+		var cover string
+		if err := c.st.DB().QueryRow(`SELECT cover FROM books`).Scan(&cover); err != nil {
+			t.Fatal(err)
+		}
+		if cover != old {
+			t.Errorf("cover %q, was %q", cover, old)
+		}
+		if _, err := os.Stat(filepath.Join(c.dir, "images", cover)); err != nil || c.images() != 1 {
+			t.Errorf("the old cover %q is not the one file left (%d images): %v", cover, c.images(), err)
 		}
 	})
 	t.Run("update committed", func(t *testing.T) {
