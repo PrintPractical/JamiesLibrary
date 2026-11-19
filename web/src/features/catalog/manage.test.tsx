@@ -57,6 +57,30 @@ describe("CAT-5 Manage inventory: a book", () => {
     expect(sent(calls, "PUT", "/api/books/5")[0]?.body).toMatchObject({ title: "Piranesi (2020)", authors: ["Susanna Clarke"], isbn: "9781635575637" });
   });
 
+  test("editing only the title keeps an author name with a comma as one author", async () => {
+    const calls = server({
+      "GET /api/books/5": { body: book({ authors: ["Smith, Jane", "Susanna Clarke"] }) },
+      "PUT /api/books/5": { body: book() },
+    });
+    await renderApp("/catalog/books/5");
+    const title = await screen.findByLabelText("Title (required)");
+    await userEvent.type(title, " II");
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await screen.findByText("Saved.");
+    expect(sent(calls, "PUT", "/api/books/5")[0]?.body).toMatchObject({ title: "Piranesi II", authors: ["Smith, Jane", "Susanna Clarke"] });
+  });
+
+  test("an author field the librarian changes is split at commas", async () => {
+    const calls = server({ "PUT /api/books/5": { body: book() } });
+    await renderApp("/catalog/books/5");
+    const authors = await screen.findByLabelText("Authors (required)");
+    await userEvent.clear(authors);
+    await userEvent.type(authors, "Ann Lee, Bo Chan");
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await screen.findByText("Saved.");
+    expect(sent(calls, "PUT", "/api/books/5")[0]?.body).toMatchObject({ authors: ["Ann Lee", "Bo Chan"] });
+  });
+
   test("an empty title is refused before anything is sent", async () => {
     const calls = server();
     await renderApp("/catalog/books/5");

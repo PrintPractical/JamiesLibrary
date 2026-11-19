@@ -208,18 +208,20 @@ func (a *settingsRoutes) deleteLogo(w http.ResponseWriter, r *http.Request) {
 }
 
 // replaceLogo records the new logo, then deletes the old file. When recording
-// fails the new file is deleted and the old logo stays.
+// fails the new file is deleted and the old logo stays; when it fails after
+// the commit the new logo is in use, so the old file goes and the new stays.
 func (a *settingsRoutes) replaceLogo(w http.ResponseWriter, r *http.Request, name string) {
 	old, err := a.set.ReplaceLogo(r.Context(), auditOf(r), name)
+	committed := store.IsCommitted(err)
+	if err != nil && !committed && name != "" {
+		_ = a.img.Delete(name)
+	}
+	if (err == nil || committed) && old != "" && old != name {
+		_ = a.img.Delete(old) // a file left behind is harmless: nothing refers to it
+	}
 	if err != nil {
-		if name != "" {
-			_ = a.img.Delete(name)
-		}
 		WriteError(w, r, err)
 		return
-	}
-	if old != "" && old != name {
-		_ = a.img.Delete(old) // a file left behind is harmless: nothing refers to it
 	}
 	WriteJSON(w, http.StatusOK, a.adminOf(a.set.Get()))
 }

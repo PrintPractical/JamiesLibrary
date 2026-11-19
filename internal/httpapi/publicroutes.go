@@ -47,25 +47,36 @@ type publicSearchBody struct {
 	PageSize int          `json:"page_size"`
 }
 
-func (p *publicRoutes) book(r *http.Request, b catalog.Book) (publicBook, error) {
-	total, avail, err := p.cat.Counts(r.Context(), b.ID)
+// books builds the visitor's view of each of the books with one read of the
+// counts and one of the ratings, whatever the number of books.
+func (p *publicRoutes) books(r *http.Request, bs []catalog.Book) ([]publicBook, error) {
+	ids := make([]int64, len(bs))
+	for i, b := range bs {
+		ids[i] = b.ID
+	}
+	counts, err := p.cat.CountsFor(r.Context(), ids)
 	if err != nil {
-		return publicBook{}, err
+		return nil, err
 	}
-	authors := b.Authors
-	if authors == nil {
-		authors = []string{}
-	}
-	pb := publicBook{ID: b.ID, Title: b.Title, Authors: authors, ISBN: b.ISBN13, Description: b.Description,
-		CoverURL: coverURL(b.Cover), Available: avail, Total: total}
+	var sums map[int64]reviews.Summary
 	if p.reviews != nil {
-		sum, err := p.reviews.Summary(r.Context(), b.ID)
-		if err != nil {
-			return publicBook{}, err
+		if sums, err = p.reviews.Summaries(r.Context(), ids); err != nil {
+			return nil, err
 		}
-		pb.RatingAverage, pb.RatingCount = sum.Average, sum.Count
 	}
-	return pb, nil
+	out := make([]publicBook, 0, len(bs))
+	for _, b := range bs {
+		authors := b.Authors
+		if authors == nil {
+			authors = []string{}
+		}
+		n := counts[b.ID]
+		pb := publicBook{ID: b.ID, Title: b.Title, Authors: authors, ISBN: b.ISBN13, Description: b.Description,
+			CoverURL: coverURL(b.Cover), Available: n.Available(), Total: n.Copies}
+		pb.RatingAverage, pb.RatingCount = sums[b.ID].Average, sums[b.ID].Count
+		out = append(out, pb)
+	}
+	return out, nil
 }
 
 // search takes only q and page: the location filter would let a visitor probe
@@ -81,16 +92,12 @@ func (p *publicRoutes) search(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, r, err)
 		return
 	}
-	out := publicSearchBody{Books: make([]publicBook, 0, len(res.Books)), Total: res.Total, Page: res.Page, PageSize: res.PageSize}
-	for _, b := range res.Books {
-		pb, err := p.book(r, b)
-		if err != nil {
-			WriteError(w, r, err)
-			return
-		}
-		out.Books = append(out.Books, pb)
+	books, err := p.books(r, res.Books)
+	if err != nil {
+		WriteError(w, r, err)
+		return
 	}
-	WriteJSON(w, http.StatusOK, out)
+	WriteJSON(w, http.StatusOK, publicSearchBody{Books: books, Total: res.Total, Page: res.Page, PageSize: res.PageSize})
 }
 
 func (p *publicRoutes) detail(w http.ResponseWriter, r *http.Request) {
@@ -104,10 +111,10 @@ func (p *publicRoutes) detail(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, r, err)
 		return
 	}
-	pb, err := p.book(r, b)
+	pbs, err := p.books(r, []catalog.Book{b})
 	if err != nil {
 		WriteError(w, r, err)
 		return
 	}
-	WriteJSON(w, http.StatusOK, pb)
+	WriteJSON(w, http.StatusOK, pbs[0])
 }

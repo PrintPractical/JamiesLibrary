@@ -127,7 +127,9 @@ func (s *Service) ApplyBranding(ctx context.Context, audit Audit, name, schemeID
 }
 
 // ReplaceLogo records file as the logo ("" removes it) and returns the file it
-// replaced, "" if there was none, for the caller to delete.
+// replaced, "" if there was none, for the caller to delete. An error that
+// store.IsCommitted says came after the commit leaves the logo recorded: the
+// new file is in use and the old one is returned all the same.
 func (s *Service) ReplaceLogo(ctx context.Context, audit Audit, file string) (string, error) {
 	if audit == nil {
 		return "", errNoAudit
@@ -178,7 +180,8 @@ func (s *Service) commit(ctx context.Context, audit Audit, plan func(cur Setting
 	if err != nil {
 		return err
 	}
-	return s.Reload(ctx)
+	// The change is stored: a failure to refresh the cache comes after it.
+	return store.AfterCommit(s.Reload(ctx))
 }
 
 // PreviewBranding is the verdict for the live preview: the checks of

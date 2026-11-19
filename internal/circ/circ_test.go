@@ -676,3 +676,64 @@ func TestHistoryKeepsAuthorsOfRemovedBook(t *testing.T) {
 		t.Errorf("loan = %q %v", l.Title, l.Authors)
 	}
 }
+
+// A page's counts come from one snapshot: while a loan keeps moving between
+// two books inside one transaction, the two books together always show exactly
+// one copy on loan, never none or two, and each shows its own copies.
+func TestCountsForAreOneSnapshotDuringCirculation(t *testing.T) {
+	r := newRig(t)
+	a, as := r.book("The Hobbit", isbnA, 2)
+	b, bs := r.book("Emma", isbnB, 3)
+	lib, _ := r.user("lib", perm.Librarian)
+	empty, _ := r.book("Nothing yet", "", 0)
+	if _, err := r.st.DB().Exec(`INSERT INTO loans (copy_id, patron_id, checked_out_at, checked_out_by, due_date)
+		VALUES (?, ?, 'x', ?, '2026-02-01')`, as[0].ID, lib.ID, lib.ID); err != nil {
+		t.Fatal(err)
+	}
+	from, to := as[0].ID, bs[0].ID
+	stop := make(chan struct{})
+	done := make(chan error, 1)
+	go func() {
+		defer close(done)
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			err := r.st.WithTx(ctx, func(tx store.Tx) error {
+				if _, err := tx.ExecContext(ctx, `UPDATE loans SET returned_at = 'y' WHERE copy_id = ? AND returned_at IS NULL`, from); err != nil {
+					return err
+				}
+				_, err := tx.ExecContext(ctx, `INSERT INTO loans (copy_id, patron_id, checked_out_at, checked_out_by, due_date)
+					VALUES (?, ?, 'x', ?, '2026-02-01')`, to, lib.ID, lib.ID)
+				return err
+			})
+			if err != nil {
+				done <- err
+				return
+			}
+			from, to = to, from
+		}
+	}()
+	ids := []int64{a.ID, b.ID, empty.ID}
+	for i := 0; i < 500; i++ {
+		m, err := r.cat.CountsFor(ctx, ids)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if m[a.ID].Loaned+m[b.ID].Loaned != 1 || m[a.ID].Copies != 2 || m[b.ID].Copies != 3 {
+			t.Fatalf("mixed snapshot: %+v", m)
+		}
+		if m[empty.ID] != (catalog.CopyCount{}) {
+			t.Fatalf("a book with no copies: %+v", m[empty.ID])
+		}
+	}
+	close(stop)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if m, err := r.cat.CountsFor(ctx, nil); err != nil || len(m) != 0 {
+		t.Errorf("no books: %v %v", m, err)
+	}
+}

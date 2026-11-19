@@ -15,6 +15,7 @@ import (
 	"jamieslibrary/internal/media"
 	"jamieslibrary/internal/perm"
 	"jamieslibrary/internal/reviews"
+	"jamieslibrary/internal/store"
 )
 
 // registerCatalogRoutes registers search, book pages, books and locations
@@ -102,21 +103,32 @@ func pathID(r *http.Request) (int64, bool) {
 	return id, err == nil && id > 0
 }
 
-func (c *catalogRoutes) summary(r *http.Request, b catalog.Book) (bookSummary, error) {
-	copies, avail, err := c.cat.Counts(r.Context(), b.ID)
-	if err != nil {
-		return bookSummary{}, err
+// summaries builds each book's summary with one read of the counts.
+func (c *catalogRoutes) summaries(r *http.Request, bs []catalog.Book) ([]bookSummary, error) {
+	ids := make([]int64, len(bs))
+	for i, b := range bs {
+		ids[i] = b.ID
 	}
-	return bookSummary{ID: b.ID, Title: b.Title, Authors: b.Authors, ISBN: b.ISBN13, CoverURL: coverURL(b.Cover),
-		CopyCount: copies, Available: avail}, nil
+	counts, err := c.cat.CountsFor(r.Context(), ids)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]bookSummary, 0, len(bs))
+	for _, b := range bs {
+		n := counts[b.ID]
+		out = append(out, bookSummary{ID: b.ID, Title: b.Title, Authors: b.Authors, ISBN: b.ISBN13, CoverURL: coverURL(b.Cover),
+			CopyCount: n.Copies, Available: n.Available()})
+	}
+	return out, nil
 }
 
 func (c *catalogRoutes) detail(r *http.Request, b catalog.Book) (bookDetail, error) {
 	ctx := r.Context()
-	sum, err := c.summary(r, b)
+	sums, err := c.summaries(r, []catalog.Book{b})
 	if err != nil {
 		return bookDetail{}, err
 	}
+	sum := sums[0]
 	copies, err := c.cat.CopiesOf(ctx, b.ID)
 	if err != nil {
 		return bookDetail{}, err
@@ -167,16 +179,12 @@ func (c *catalogRoutes) search(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, r, err)
 		return
 	}
-	out := searchBody{Books: make([]bookSummary, 0, len(res.Books)), Total: res.Total, Page: res.Page, PageSize: res.PageSize}
-	for _, b := range res.Books {
-		s, err := c.summary(r, b)
-		if err != nil {
-			WriteError(w, r, err)
-			return
-		}
-		out.Books = append(out.Books, s)
+	books, err := c.summaries(r, res.Books)
+	if err != nil {
+		WriteError(w, r, err)
+		return
 	}
-	WriteJSON(w, http.StatusOK, out)
+	WriteJSON(w, http.StatusOK, searchBody{Books: books, Total: res.Total, Page: res.Page, PageSize: res.PageSize})
 }
 
 func (c *catalogRoutes) book(w http.ResponseWriter, r *http.Request) {
@@ -336,8 +344,8 @@ func (c *catalogRoutes) saveBook(w http.ResponseWriter, r *http.Request, save fu
 	}
 	b, err := save(in)
 	if err != nil {
-		if in.Cover != "" {
-			_ = c.images.Delete(in.Cover)
+		if in.Cover != "" && !store.IsCommitted(err) {
+			_ = c.images.Delete(in.Cover) // a committed book refers to it
 		}
 		var dup *catalog.DuplicateISBN
 		if errors.As(err, &dup) {
@@ -384,7 +392,7 @@ func (c *catalogRoutes) updateBook(w http.ResponseWriter, r *http.Request) {
 	}
 	c.saveBook(w, r, func(in catalog.BookInput) (catalog.Book, error) {
 		b, err := c.cat.UpdateBook(r.Context(), actor, id, in)
-		if err == nil && in.Cover != "" && old.Cover != "" {
+		if (err == nil || store.IsCommitted(err)) && in.Cover != "" && old.Cover != "" {
 			_ = c.images.Delete(old.Cover) // the replaced image is no longer used
 		}
 		return b, err

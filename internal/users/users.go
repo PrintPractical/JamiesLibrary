@@ -338,10 +338,44 @@ func (s *Service) SetPasswordHashTx(ctx context.Context, tx store.Tx, userID int
 	return nil
 }
 
+// ErrCredentialsChanged means the account's password was replaced after the
+// caller read it, such as by an administrator's reset, so what the caller
+// checked is no longer true and nothing was written.
+var ErrCredentialsChanged = apperr.New(apperr.Conflict, "Your password was changed while you were doing this. Sign in again with the new one.")
+
+// SetPasswordHashIfTx is SetPasswordHashTx, but only while the stored hash is
+// still oldHash, the credential version the caller checked a password against.
+// The stored hash is replaced by every change of password, so a reset that
+// completed in between makes this write nothing and return ErrCredentialsChanged.
+func (s *Service) SetPasswordHashIfTx(ctx context.Context, tx store.Tx, userID int64, oldHash, hash string, mustChange bool) error {
+	res, err := tx.ExecContext(ctx, `UPDATE users SET password_hash = ?, must_change_password = ? WHERE id = ? AND password_hash = ?`,
+		hash, mustChange, userID, oldHash)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrCredentialsChanged
+	}
+	return nil
+}
+
+// CredentialsCurrentTx reports whether the user is still active and still has
+// the password hash the caller checked, inside the caller's transaction.
+func (s *Service) CredentialsCurrentTx(ctx context.Context, tx store.Tx, userID int64, hash string) (bool, error) {
+	var n int
+	err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE id = ? AND password_hash = ? AND active = 1`, userID, hash).Scan(&n)
+	return n == 1, err
+}
+
 // Rehash replaces a stored hash by an equivalent one with newer parameters,
-// only if the stored hash is still old. It reports nothing when it lost a race.
-func (s *Service) Rehash(ctx context.Context, userID int64, oldHash, newHash string) error {
-	_, err := s.st.ExecContext(ctx, `UPDATE users SET password_hash = ? WHERE id = ? AND password_hash = ?`,
+// only if the stored hash is still old. It reports whether it replaced it;
+// losing a race is not an error.
+func (s *Service) Rehash(ctx context.Context, userID int64, oldHash, newHash string) (bool, error) {
+	res, err := s.st.ExecContext(ctx, `UPDATE users SET password_hash = ? WHERE id = ? AND password_hash = ?`,
 		newHash, userID, oldHash)
-	return err
+	if err != nil {
+		return false, err
+	}
+	n, _ := res.RowsAffected()
+	return n == 1, nil
 }

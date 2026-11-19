@@ -29,6 +29,33 @@ func (Loans) LoanedCopies(ctx context.Context, q catalog.DB, bookID int64) (int,
 	return n, err
 }
 
+// CopyCounts counts each book's live copies and those on loan in one
+// statement, so the two come from the same snapshot.
+func (Loans) CopyCounts(ctx context.Context, q catalog.DB, bookIDs []int64) (map[int64]catalog.CopyCount, error) {
+	out := map[int64]catalog.CopyCount{}
+	if len(bookIDs) == 0 {
+		return out, nil
+	}
+	in, args := catalog.InList(bookIDs)
+	rows, err := q.QueryContext(ctx, `SELECT c.book_id, count(*), count(l.id) FROM copies c
+		LEFT JOIN loans l ON l.copy_id = c.id AND l.returned_at IS NULL
+		WHERE c.removed_at IS NULL AND c.book_id IN `+in+`
+		GROUP BY c.book_id`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int64
+		var c catalog.CopyCount
+		if err := rows.Scan(&id, &c.Copies, &c.Loaned); err != nil {
+			return nil, err
+		}
+		out[id] = c
+	}
+	return out, rows.Err()
+}
+
 // OnLoan reports whether the copy is on loan now.
 func (Loans) OnLoan(ctx context.Context, q catalog.DB, copyID int64) (bool, error) {
 	var one int

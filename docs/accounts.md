@@ -49,7 +49,7 @@ Details:
 
 ## Changing your password
 
-Open **Account**, enter your current password and a new one (at least 10 characters, different from the current one) and choose **Change password**. Your other sessions end; the one you are using carries on. A wrong current password counts like a wrong sign-in towards the address limit above.
+Open **Account**, enter your current password and a new one (at least 10 characters, different from the current one) and choose **Change password**. Your other sessions end; the one you are using carries on. A wrong current password counts like a wrong sign-in towards the address limit above. If an administrator resets your password while you are changing it, the change is refused with `Your password was changed while you were doing this. Sign in again with the new one.` and nothing you typed is stored: sign in with the temporary password you were given.
 
 When an administrator has reset your password, the library shows only **Choose a new password** until you have done this (see [Resetting someone's password](#resetting-someones-password)). You can also sign out from that page.
 

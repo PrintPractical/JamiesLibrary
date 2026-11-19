@@ -133,7 +133,14 @@ func (s *Service) CreateBook(ctx context.Context, actor int64, in BookInput) (Bo
 	if err != nil {
 		return Book{}, err
 	}
-	return s.GetBook(ctx, id)
+	return s.readBack(ctx, id)
+}
+
+// readBack returns the book just written. The write has committed, so a
+// failure here is marked as coming after it.
+func (s *Service) readBack(ctx context.Context, id int64) (Book, error) {
+	b, err := s.GetBook(ctx, id)
+	return b, store.AfterCommit(err)
 }
 
 // UpdateBook replaces a book's title, authors, ISBN and description, and its
@@ -162,7 +169,7 @@ func (s *Service) UpdateBook(ctx context.Context, actor, id int64, in BookInput)
 	if err != nil {
 		return Book{}, err
 	}
-	return s.GetBook(ctx, id)
+	return s.readBack(ctx, id)
 }
 
 // SetCover sets the book's cover to a file the media store already holds, or
