@@ -513,3 +513,70 @@ func TestCAT5_HistorySurvivesRemoval(t *testing.T) {
 		t.Errorf("again: %d", rec.Code)
 	}
 }
+
+func (c *catSite) exec(q string) {
+	c.t.Helper()
+	if _, err := c.st.DB().Exec(q); err != nil {
+		c.t.Fatal(err)
+	}
+}
+
+// A cover is deleted when the write is rolled back, and kept when the write
+// committed and only the read-back after it failed.
+func TestCoverFollowsTheCommit(t *testing.T) {
+	fields := [][2]string{{"title", "Mine"}, {"authors", "A"}}
+	// A trigger that hides the book as soon as its authors are written makes
+	// the read-back fail after the commit.
+	hide := `CREATE TRIGGER hide AFTER INSERT ON book_authors BEGIN UPDATE books SET removed_at = 'x' WHERE id = NEW.book_id; END`
+
+	t.Run("create rolled back", func(t *testing.T) {
+		c := newCatSite(t)
+		c.exec(`CREATE TRIGGER refuse BEFORE INSERT ON books BEGIN SELECT RAISE(ABORT, 'no'); END`)
+		if rec := c.form("POST", "/api/books", c.lib, fields, smallJPEG(t)); rec.Code < 400 {
+			t.Fatalf("%d %s", rec.Code, rec.Body)
+		}
+		if c.count("books") != 0 || c.images() != 0 {
+			t.Errorf("%d books, %d images", c.count("books"), c.images())
+		}
+	})
+	t.Run("create committed", func(t *testing.T) {
+		c := newCatSite(t)
+		c.exec(hide)
+		if rec := c.form("POST", "/api/books", c.lib, fields, smallJPEG(t)); rec.Code < 400 {
+			t.Fatalf("%d %s", rec.Code, rec.Body)
+		}
+		var cover string
+		if err := c.st.DB().QueryRow(`SELECT cover FROM books`).Scan(&cover); err != nil || cover == "" {
+			t.Fatalf("cover %q: %v", cover, err)
+		}
+		if c.images() != 1 {
+			t.Errorf("the committed book's cover was deleted: %d images", c.images())
+		}
+	})
+	t.Run("update rolled back", func(t *testing.T) {
+		c := newCatSite(t)
+		made := decodeAs[bookDetail](t, c.form("POST", "/api/books", c.lib, fields, smallJPEG(t)), 201)
+		c.exec(`CREATE TRIGGER refuse BEFORE UPDATE ON books BEGIN SELECT RAISE(ABORT, 'no'); END`)
+		if rec := c.form("PUT", fmt.Sprintf("/api/books/%d", made.ID), c.lib, fields, smallJPEG(t)); rec.Code < 400 {
+			t.Fatalf("%d %s", rec.Code, rec.Body)
+		}
+		if c.images() != 1 {
+			t.Errorf("%d images, want only the old cover", c.images())
+		}
+	})
+	t.Run("update committed", func(t *testing.T) {
+		c := newCatSite(t)
+		made := decodeAs[bookDetail](t, c.form("POST", "/api/books", c.lib, fields, smallJPEG(t)), 201)
+		c.exec(hide)
+		if rec := c.form("PUT", fmt.Sprintf("/api/books/%d", made.ID), c.lib, fields, smallJPEG(t)); rec.Code < 400 {
+			t.Fatalf("%d %s", rec.Code, rec.Body)
+		}
+		var cover string
+		if err := c.st.DB().QueryRow(`SELECT cover FROM books`).Scan(&cover); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := os.Stat(filepath.Join(c.dir, "images", cover)); err != nil || c.images() != 1 {
+			t.Errorf("the new cover %q is not the one file left (%d images): %v", cover, c.images(), err)
+		}
+	})
+}

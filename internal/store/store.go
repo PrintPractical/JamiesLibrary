@@ -87,6 +87,28 @@ func IsDiskFull(err error) bool {
 	return strings.Contains(m, "SQLITE_FULL") || strings.Contains(m, "database or disk is full") || strings.Contains(m, "no space left on device")
 }
 
+// CommittedError marks an error that came after the write it follows was
+// committed: the change stands, so what it refers to must be kept.
+type CommittedError struct{ Err error }
+
+func (e *CommittedError) Error() string { return e.Err.Error() }
+func (e *CommittedError) Unwrap() error { return e.Err }
+
+// AfterCommit marks err as having come after a commit. nil stays nil.
+func AfterCommit(err error) error {
+	if err == nil {
+		return nil
+	}
+	return &CommittedError{Err: err}
+}
+
+// IsCommitted reports whether err came after the write it belongs to was
+// committed.
+func IsCommitted(err error) bool {
+	var ce *CommittedError
+	return errors.As(err, &ce)
+}
+
 // Tx is the transaction a WithTx function works in.
 type Tx = *sql.Tx
 

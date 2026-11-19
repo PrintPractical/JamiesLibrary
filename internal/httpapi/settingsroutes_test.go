@@ -492,3 +492,47 @@ func TestAdminSettingsOmitTheFingerprintWithoutTheCA(t *testing.T) {
 		t.Errorf("body: %s", rec.Body)
 	}
 }
+
+// A logo is deleted when its write is rolled back, and kept when the write
+// committed and only the cache refresh after it failed.
+func TestLogoFollowsTheCommit(t *testing.T) {
+	exec := func(s settingsSite, q string) {
+		t.Helper()
+		if _, err := s.st.DB().Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	logo := func(s settingsSite) string {
+		var f string
+		if err := s.st.DB().QueryRow(`SELECT logo_file FROM settings`).Scan(&f); err != nil {
+			t.Fatal(err)
+		}
+		return f
+	}
+	t.Run("rolled back", func(t *testing.T) {
+		s := newSettingsSite(t)
+		s.upload(s.admin, pngBytes(t))
+		old := logo(s)
+		exec(s, `CREATE TRIGGER refuse BEFORE UPDATE OF logo_file ON settings BEGIN SELECT RAISE(ABORT, 'no'); END`)
+		if rec := s.upload(s.admin, pngBytes(t)); rec.Code < 400 {
+			t.Fatalf("%d %s", rec.Code, rec.Body)
+		}
+		if logo(s) != old || s.images() != 1 {
+			t.Errorf("logo %q (was %q), %d files", logo(s), old, s.images())
+		}
+	})
+	t.Run("committed", func(t *testing.T) {
+		s := newSettingsSite(t)
+		s.upload(s.admin, pngBytes(t))
+		old := logo(s)
+		// An unloadable time zone makes the cache refresh fail after the commit.
+		exec(s, `CREATE TRIGGER spoil AFTER UPDATE OF logo_file ON settings BEGIN UPDATE settings SET time_zone = 'No/Such_Zone'; END`)
+		if rec := s.upload(s.admin, pngBytes(t)); rec.Code < 400 {
+			t.Fatalf("%d %s", rec.Code, rec.Body)
+		}
+		now := logo(s)
+		if _, err := os.Stat(filepath.Join(s.dir, "images", now)); now == old || err != nil || s.images() != 1 {
+			t.Errorf("logo %q (was %q), %d files: %v", now, old, s.images(), err)
+		}
+	})
+}
