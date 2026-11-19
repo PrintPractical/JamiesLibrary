@@ -517,8 +517,9 @@ func TestLogoFollowsTheCommit(t *testing.T) {
 		if rec := s.upload(s.admin, pngBytes(t)); rec.Code < 400 {
 			t.Fatalf("%d %s", rec.Code, rec.Body)
 		}
-		if logo(s) != old || s.images() != 1 {
-			t.Errorf("logo %q (was %q), %d files", logo(s), old, s.images())
+		now := logo(s)
+		if _, err := os.Stat(filepath.Join(s.dir, "images", now)); now != old || err != nil || s.images() != 1 {
+			t.Errorf("logo %q (was %q), %d files: %v", now, old, s.images(), err)
 		}
 	})
 	t.Run("committed", func(t *testing.T) {
