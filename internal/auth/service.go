@@ -40,6 +40,11 @@ type Service struct {
 	idle  func() time.Duration
 	now   func() time.Time
 	log   *slog.Logger
+
+	// afterCredentialCheck, when set by a test, runs after a password has been
+	// checked and before anything that depends on it is written: the window an
+	// administrator's reset can fall into.
+	afterCredentialCheck func()
 }
 
 // NewService makes a Service. idle says how long a session may sit unused (the
@@ -87,36 +92,57 @@ func (s *Service) SignIn(ctx context.Context, username, password string) (token 
 	if !match {
 		return "", 0, errWrongCredentials
 	}
+	if s.afterCredentialCheck != nil {
+		s.afterCredentialCheck()
+	}
 	if !cred.Active {
 		return "", 0, errDeactivated
 	}
 	if rehash {
-		s.rehash(ctx, cred, password)
+		cred.PasswordHash = s.rehash(ctx, cred, password)
 	}
-	token, err = s.create(ctx, cred.ID)
+	token, err = s.create(ctx, cred.ID, &cred.PasswordHash)
+	if errors.Is(err, errCredentialsStale) {
+		if now, found, cerr := s.users.CredentialsByID(ctx, cred.ID); cerr == nil && found && !now.Active {
+			return "", 0, errDeactivated
+		}
+		return "", 0, errWrongCredentials
+	}
 	return token, cred.ID, err
 }
 
 // rehash replaces a hash made with older parameters. A failure is logged and
-// the sign-in goes on: the old hash still works.
-func (s *Service) rehash(ctx context.Context, cred users.Credentials, password string) {
+// the sign-in goes on: the old hash still works. It returns the hash the
+// account should now have, which is the old one when nothing was replaced.
+func (s *Service) rehash(ctx context.Context, cred users.Credentials, password string) string {
 	newHash, err := s.Passwords.hash(ctx, password)
 	if err == nil {
-		err = s.users.Rehash(ctx, cred.ID, cred.PasswordHash, newHash)
+		var replaced bool
+		if replaced, err = s.users.Rehash(ctx, cred.ID, cred.PasswordHash, newHash); replaced {
+			return newHash
+		}
 	}
 	if err != nil {
 		s.log.Warn("could not update a password hash to the current parameters", "user_id", cred.ID, "err", err)
 	}
+	return cred.PasswordHash
 }
 
 // StartSession starts a session for a user who has just been let in by other
 // means than a password check, such as the first administrator's setup, and
 // returns its token.
 func (s *Service) StartSession(ctx context.Context, userID int64) (string, error) {
-	return s.create(ctx, userID)
+	return s.create(ctx, userID, nil)
 }
 
-func (s *Service) create(ctx context.Context, userID int64) (string, error) {
+// errCredentialsStale is a sign-in whose password was checked against a hash
+// that has since been replaced or whose account has been deactivated.
+var errCredentialsStale = errors.New("the credentials changed during sign-in")
+
+// create starts a session. With checkedHash it does so only if, in the same
+// transaction, the user still has that hash and is active: a reset or a
+// deactivation that completed after the password was checked leaves no session.
+func (s *Service) create(ctx context.Context, userID int64, checkedHash *string) (string, error) {
 	b := make([]byte, tokenBytes)
 	if _, err := rand.Read(b); err != nil {
 		return "", err
@@ -124,6 +150,15 @@ func (s *Service) create(ctx context.Context, userID int64) (string, error) {
 	token := base64.RawURLEncoding.EncodeToString(b)
 	now := s.stamp()
 	err := s.st.WithTx(ctx, func(tx store.Tx) error {
+		if checkedHash != nil {
+			ok, err := s.users.CredentialsCurrentTx(ctx, tx, userID, *checkedHash)
+			if err != nil {
+				return err
+			}
+			if !ok {
+				return errCredentialsStale
+			}
+		}
 		// Sessions nobody has used for the idle time are dead anyway: drop them here so the table stays small.
 		if _, err := tx.ExecContext(ctx, `DELETE FROM sessions WHERE last_seen_at < ?`,
 			s.now().Add(-s.idle()).UTC().Format(time.RFC3339)); err != nil {
@@ -257,8 +292,14 @@ func (s *Service) ChangePassword(ctx context.Context, userID int64, keepSession,
 	if err != nil {
 		return err
 	}
+	if s.afterCredentialCheck != nil {
+		s.afterCredentialCheck()
+	}
 	return s.st.WithTx(ctx, func(tx store.Tx) error {
-		if err := s.users.SetPasswordHashTx(ctx, tx, userID, hash, false); err != nil {
+		// Only while the password just checked is still the stored one: a
+		// reset that completed meanwhile must not be overwritten, nor lose its
+		// forced change.
+		if err := s.users.SetPasswordHashIfTx(ctx, tx, userID, cred.PasswordHash, hash, false); err != nil {
 			return err
 		}
 		return s.EndOthersTx(ctx, tx, userID, keepSession)
