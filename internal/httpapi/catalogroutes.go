@@ -15,6 +15,7 @@ import (
 	"jamieslibrary/internal/media"
 	"jamieslibrary/internal/perm"
 	"jamieslibrary/internal/reviews"
+	"jamieslibrary/internal/store"
 )
 
 // registerCatalogRoutes registers search, book pages, books and locations
@@ -336,8 +337,8 @@ func (c *catalogRoutes) saveBook(w http.ResponseWriter, r *http.Request, save fu
 	}
 	b, err := save(in)
 	if err != nil {
-		if in.Cover != "" {
-			_ = c.images.Delete(in.Cover)
+		if in.Cover != "" && !store.IsCommitted(err) {
+			_ = c.images.Delete(in.Cover) // a committed book refers to it
 		}
 		var dup *catalog.DuplicateISBN
 		if errors.As(err, &dup) {
@@ -384,7 +385,7 @@ func (c *catalogRoutes) updateBook(w http.ResponseWriter, r *http.Request) {
 	}
 	c.saveBook(w, r, func(in catalog.BookInput) (catalog.Book, error) {
 		b, err := c.cat.UpdateBook(r.Context(), actor, id, in)
-		if err == nil && in.Cover != "" && old.Cover != "" {
+		if (err == nil || store.IsCommitted(err)) && in.Cover != "" && old.Cover != "" {
 			_ = c.images.Delete(old.Cover) // the replaced image is no longer used
 		}
 		return b, err
